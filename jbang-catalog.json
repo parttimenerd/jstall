@@ -1,0 +1,9 @@
+{
+  "catalogs": {},
+  "aliases": {
+    "jstall": {
+      "script-ref": "https://github.com/parttimenerd/jstall/releases/download/snapshot/jstall.jar"
+    }
+  },
+  "templates": {}
+}
