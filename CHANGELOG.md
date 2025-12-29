@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.2.0] - 2025-12-29
+
 ### Changed
 - use jstack for thread dump capture instead of jcmd
 - remove `--json` option, as this lead to a lot of duplicated code
