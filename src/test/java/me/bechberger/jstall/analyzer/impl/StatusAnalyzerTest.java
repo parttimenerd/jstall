@@ -46,7 +46,6 @@ class StatusAnalyzerTest {
 
         // Should include options from DeadLockAnalyzer
         assertTrue(supported.contains("keep"));
-        assertTrue(supported.contains("json"));
 
         // Should include options from MostWorkAnalyzer
         assertTrue(supported.contains("top"));
@@ -54,7 +53,7 @@ class StatusAnalyzerTest {
         assertTrue(supported.contains("interval"));
 
         // Verify it's the union of both analyzers' options
-        assertTrue(supported.size() >= 5);
+        assertTrue(supported.size() >= 4);
     }
 
     @Test
@@ -68,7 +67,6 @@ class StatusAnalyzerTest {
     void testAnalyzeWithMinimalDumps() throws IOException {
         StatusAnalyzer analyzer = new StatusAnalyzer();
         Map<String, Object> options = Map.of(
-            "json", false,
             "keep", false,
             "top", 3,
             "dumps", 3,
@@ -88,7 +86,6 @@ class StatusAnalyzerTest {
     void testAnalyzeCombinesResults() throws IOException {
         StatusAnalyzer analyzer = new StatusAnalyzer();
         Map<String, Object> options = Map.of(
-            "json", false,
             "keep", false,
             "top", 3
         );
@@ -110,7 +107,6 @@ class StatusAnalyzerTest {
 
         // Pass options that only some analyzers support
         Map<String, Object> options = Map.of(
-            "json", true,
             "top", 5,  // Only for MostWorkAnalyzer
             "keep", false
         );
@@ -124,22 +120,6 @@ class StatusAnalyzerTest {
         });
     }
 
-    @Test
-    void testJsonOutput() throws IOException {
-        StatusAnalyzer analyzer = new StatusAnalyzer();
-        Map<String, Object> options = Map.of(
-            "json", true,
-            "keep", false,
-            "top", 3
-        );
-
-        List<ThreadDump> dumps = createTestDumps(2);
-        AnalyzerResult result = analyzer.analyze(dumps, options);
-
-        // Should return valid result
-        assertEquals(0, result.exitCode());
-        assertNotNull(result.output());
-    }
 
     @Test
     void testExitCodePropagation() throws IOException {
@@ -147,7 +127,7 @@ class StatusAnalyzerTest {
         // to verify that a non-zero exit code from DeadLockAnalyzer is propagated
         // For now, we test the basic structure
         StatusAnalyzer analyzer = new StatusAnalyzer();
-        Map<String, Object> options = Map.of("json", false);
+        Map<String, Object> options = Map.of("keep", false);
 
         List<ThreadDump> dumps = createTestDumps(2);
         AnalyzerResult result = analyzer.analyze(dumps, options);

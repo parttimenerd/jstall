@@ -72,28 +72,4 @@ public class DeadLockAnalyzerIntegrationTest {
             launcher.stop();
         }
     }
-
-    @Test
-    public void testJsonOutput() throws Exception {
-        TestAppLauncher launcher = new TestAppLauncher();
-
-        try {
-            launcher.launch("me.bechberger.jstall.testapp.DeadlockTestApp", "normal");
-            launcher.waitUntilReady(5000);
-            Thread.sleep(500);
-
-            String dumpContent = launcher.captureThreadDump();
-            ThreadDump dump = ThreadDumpParser.parse(dumpContent);
-            AnalyzerResult result = new DeadLockAnalyzer().analyze(List.of(dump), Map.of("json", true));
-
-            // Verify JSON format
-            assertTrue(result.output().contains("{"), "Output should be JSON");
-            assertTrue(result.output().contains("\"deadlock\""), "JSON should have deadlock field");
-
-            System.out.println("JSON output:");
-            System.out.println(result.output());
-        } finally {
-            launcher.stop();
-        }
-    }
 }

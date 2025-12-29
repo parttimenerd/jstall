@@ -24,7 +24,7 @@ public class DeadLockAnalyzer extends BaseAnalyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of("keep", "json");
+        return Set.of("keep");
     }
 
     @Override
@@ -39,30 +39,15 @@ public class DeadLockAnalyzer extends BaseAnalyzer {
         }
 
         ThreadDump dump = dumps.get(0);
-        boolean isJson = isJsonOutput(options);
 
         // Check if there's a deadlock section in the dump
         String deadlockInfo = extractDeadlockInfo(dump);
 
         if (deadlockInfo == null || deadlockInfo.isBlank()) {
-            if (isJson) {
-                return AnalyzerResult.ok("{\"deadlock\": false}");
-            } else {
-                // No deadlock - nothing to report in text mode
-                return AnalyzerResult.nothing();
-            }
+            // No deadlock - nothing to report in text mode
+            return AnalyzerResult.nothing();
         }
-
-        // Deadlock found
-        if (isJson) {
-            String jsonOutput = String.format(
-                "{\"deadlock\": true, \"details\": %s}",
-                escapeJson(deadlockInfo)
-            );
-            return AnalyzerResult.deadlock(jsonOutput);
-        } else {
-            return AnalyzerResult.deadlock("Deadlock detected:\n\n" + deadlockInfo);
-        }
+        return AnalyzerResult.deadlock("Deadlock detected:\n\n" + deadlockInfo);
     }
 
     /**
@@ -90,18 +75,5 @@ public class DeadLockAnalyzer extends BaseAnalyzer {
         }
 
         return null;
-    }
-
-    /**
-     * Escapes a string for JSON.
-     */
-    private String escapeJson(String text) {
-        return "\"" + text
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t")
-            + "\"";
     }
 }

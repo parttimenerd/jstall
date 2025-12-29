@@ -80,32 +80,4 @@ public class MostWorkAnalyzerIntegrationTest {
             launcher.stop();
         }
     }
-
-    @Test
-    public void testJsonOutput() throws Exception {
-        TestAppLauncher launcher = new TestAppLauncher();
-
-        try {
-            launcher.launch("me.bechberger.jstall.testapp.DeadlockTestApp", "busy-work");
-            launcher.waitUntilReady(5000);
-            Thread.sleep(1000);
-
-            List<String> dumpContents = launcher.captureMultipleThreadDumps(2, 500);
-            List<ThreadDump> dumps = new ArrayList<>();
-            for (String content : dumpContents) {
-                dumps.add(ThreadDumpParser.parse(content));
-            }
-            MostWorkAnalyzer analyzer = new MostWorkAnalyzer();
-            AnalyzerResult result = analyzer.analyze(dumps, Map.of("json", true, "top", 3));
-
-            // Verify JSON format
-            assertTrue(result.output().contains("{"), "Output should be JSON");
-            assertTrue(result.output().contains("\"threads\""), "JSON should have threads field");
-
-            System.out.println("JSON output:");
-            System.out.println(result.output());
-        } finally {
-            launcher.stop();
-        }
-    }
 }

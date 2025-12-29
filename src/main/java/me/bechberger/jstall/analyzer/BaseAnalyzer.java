@@ -1,6 +1,10 @@
 package me.bechberger.jstall.analyzer;
 
-import java.util.Map;
+import me.bechberger.jthreaddump.model.ThreadDump;
+import me.bechberger.jthreaddump.model.ThreadInfo;
+
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Base class for analyzers providing common option handling utilities.
@@ -50,12 +54,152 @@ public abstract class BaseAnalyzer implements Analyzer {
     }
 
     /**
-     * Checks if JSON output is requested.
+     * Tracks thread activity across multiple dumps.
      *
-     * @param options The options map
-     * @return true if JSON output is requested, false otherwise
+     * @param dumps The thread dumps to analyze
+     * @param noNative If true, skip threads without stack traces
+     * @param activityFactory Factory function to create ThreadActivity instances
+     * @param <T> The type of ThreadActivity
+     * @return Map of thread ID to activity
      */
-    protected boolean isJsonOutput(Map<String, Object> options) {
-        return getBooleanOption(options, "json", false);
+    protected <T extends ThreadActivityBase> Map<Long, T> trackThreadActivity(
+            List<ThreadDump> dumps,
+            boolean noNative,
+            java.util.function.Function<ThreadInfo, T> activityFactory) {
+
+        Map<Long, T> threadActivities = new HashMap<>();
+
+        for (ThreadDump dump : dumps) {
+            for (ThreadInfo thread : dump.threads()) {
+                // Skip threads without stack traces if no-native is enabled
+                if (noNative && (thread.stackTrace() == null || thread.stackTrace().isEmpty())) {
+                    continue;
+                }
+
+                Long threadId = thread.threadId();
+                if (threadId == null) {
+                    // Skip threads without IDs
+                    continue;
+                }
+
+                T activity = threadActivities.computeIfAbsent(threadId, id -> activityFactory.apply(thread));
+                activity.addOccurrence(thread);
+            }
+        }
+
+        return threadActivities;
+    }
+
+    /**
+     * Sorts thread activities by CPU time (descending), with fallback to other criteria.
+     *
+     * @param activities Collection of thread activities
+     * @param topN Maximum number of threads to return (null for all)
+     * @param <T> The type of ThreadActivity
+     * @return Sorted list of thread activities
+     */
+    protected <T extends ThreadActivityBase> List<T> sortThreadsByCpuTime(
+            Collection<T> activities,
+            Integer topN) {
+
+        return activities.stream()
+            .sorted((a, b) -> {
+                // Primary: Sort by CPU time if both have it
+                if (a.hasCpuTime() && b.hasCpuTime()) {
+                    int cpuCompare = Double.compare(b.getTotalCpuTimeSec(), a.getTotalCpuTimeSec());
+                    if (cpuCompare != 0) return cpuCompare;
+                }
+
+                // Secondary: Threads with CPU time come first
+                if (a.hasCpuTime() != b.hasCpuTime()) {
+                    return a.hasCpuTime() ? -1 : 1;
+                }
+
+                // Tertiary: Sort by thread name for stability
+                return a.getThreadName().compareTo(b.getThreadName());
+            })
+            .limit(topN != null ? topN : Integer.MAX_VALUE)
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Calculates the elapsed time between first and last thread dump.
+     *
+     * @param dumps The list of thread dumps
+     * @return Elapsed time in seconds, or 0.0 if less than 2 dumps
+     */
+    protected double calculateElapsedTime(List<ThreadDump> dumps) {
+        if (dumps.size() < 2) {
+            return 0.0;
+        }
+        long firstTimestamp = dumps.get(0).timestamp().toEpochMilli();
+        long lastTimestamp = dumps.get(dumps.size() - 1).timestamp().toEpochMilli();
+        return (lastTimestamp - firstTimestamp) / 1000.0;
+    }
+
+    /**
+     * Base class for tracking thread activity across dumps.
+     */
+    protected abstract static class ThreadActivityBase {
+        public final String threadName;
+        public final Long threadId;
+        protected int occurrenceCount = 0;
+        protected Double firstCpuTimeSec = null;
+        protected Double lastCpuTimeSec = null;
+        protected boolean hasCpuTimeData = false;
+
+        protected ThreadActivityBase(ThreadInfo thread) {
+            this.threadName = thread.name();
+            this.threadId = thread.threadId();
+        }
+
+        /**
+         * Records an occurrence of this thread in a dump.
+         */
+        public abstract void addOccurrence(ThreadInfo thread);
+
+        /**
+         * Returns the total CPU time consumed during the observation period.
+         */
+        public double getTotalCpuTimeSec() {
+            if (firstCpuTimeSec != null && lastCpuTimeSec != null) {
+                return lastCpuTimeSec - firstCpuTimeSec;
+            }
+            return 0.0;
+        }
+
+        /**
+         * Returns true if this thread has CPU time data.
+         */
+        public boolean hasCpuTime() {
+            return hasCpuTimeData;
+        }
+
+        /**
+         * Returns the thread name.
+         */
+        public String getThreadName() {
+            return threadName;
+        }
+
+        /**
+         * Returns the number of times this thread appeared in dumps.
+         */
+        public int getOccurrenceCount() {
+            return occurrenceCount;
+        }
+
+        /**
+         * Updates CPU time tracking with a new thread info.
+         */
+        protected void trackCpuTime(ThreadInfo thread) {
+            if (thread.cpuTimeSec() != null) {
+                if (firstCpuTimeSec == null) {
+                    firstCpuTimeSec = thread.cpuTimeSec();
+                }
+                lastCpuTimeSec = thread.cpuTimeSec();
+                hasCpuTimeData = true;
+            }
+        }
     }
 }

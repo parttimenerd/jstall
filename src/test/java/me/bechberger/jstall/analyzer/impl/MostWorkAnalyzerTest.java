@@ -26,10 +26,9 @@ class MostWorkAnalyzerTest {
         assertTrue(supported.contains("dumps"));
         assertTrue(supported.contains("interval"));
         assertTrue(supported.contains("keep"));
-        assertTrue(supported.contains("json"));
         assertTrue(supported.contains("top"));
         assertTrue(supported.contains("no-native"));
-        assertEquals(6, supported.size());
+        assertEquals(5, supported.size());
     }
 
     @Test
@@ -58,15 +57,5 @@ class MostWorkAnalyzerTest {
 
         assertEquals(0, result.exitCode());
         assertNotNull(result.output());
-    }
-
-    @Test
-    void testJsonOutput() {
-        MostWorkAnalyzer analyzer = new MostWorkAnalyzer();
-
-        AnalyzerResult result = analyzer.analyze(List.of(), Map.of("json", true));
-
-        assertEquals(0, result.exitCode());
-        assertTrue(result.output().contains("{"));
     }
 }

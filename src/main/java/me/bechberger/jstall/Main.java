@@ -16,7 +16,8 @@ import picocli.CommandLine.Command;
         StatusCommand.class,
         DeadLockCommand.class,
         MostWorkCommand.class,
-        FlameCommand.class
+        FlameCommand.class,
+        ThreadsCommand.class
     }
 )
 public class Main implements Runnable {

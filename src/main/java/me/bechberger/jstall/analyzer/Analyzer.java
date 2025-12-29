@@ -22,7 +22,7 @@ public interface Analyzer {
     /**
      * Returns the set of options this analyzer supports.
      *
-     * Common options: "dumps", "interval", "keep", "json", "top"
+     * Common options: "dumps", "interval", "keep", "top"
      */
     Set<String> supportedOptions();
 

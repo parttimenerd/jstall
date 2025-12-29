@@ -46,6 +46,12 @@ jstall dead-lock 12345
 # Find hot threads
 jstall most-work 12345 --top 5
 
+# List all threads sorted by CPU time
+jstall threads 12345
+
+# List top 10 threads
+jstall threads 12345 --top 10
+
 # Analyze offline dumps
 jstall status dump1.txt dump2.txt dump3.txt
 
@@ -90,22 +96,24 @@ jstall most-work <pid | dumps...> [options]
 * `--interval <duration>` — Time between dumps (default: 5s)
 * `--top <n>` — Number of top threads to show (default: 3)
 * `--keep` — Persist collected dumps to disk
-* `--json` — Output as JSON
 * `--no-native` — Ignore threads without stack traces (typically native/system threads)
 
 **Metrics (when available in thread dumps):**
-* **CPU time** — Total CPU time consumed by the thread (in seconds)
+* **CPU time** — CPU time consumed during the observation period (difference between first and last dump)
 * **CPU percentage** — Percentage of total CPU time across all threads
 * **Core utilization** — CPU time / elapsed time ratio (shows if thread uses multiple cores)
 * **States** — Distribution of thread states across dumps with percentages
 
+**Note:** Threads are grouped by thread ID, so threads with the same name but different IDs are tracked separately.
+
 **Example output:**
 ```
 Top threads by activity (3 dumps):
+Combined CPU time: 4.57s, Elapsed time: 10.00s (45.7% overall utilization)
 
 1. Worker-1
-   CPU time: 2.45s (45.2% of total)
-   Core utilization: 122.5% (~2 cores)
+   CPU time: 2.45s (53.6% of total)
+   Core utilization: 24.5% (~1 core)
    States: RUNNABLE: 100.0%
    Common stack prefix:
      at com.example.heavy.Computation.calculate(Computation.java:42)
@@ -122,13 +130,52 @@ jstall dead-lock <pid | dumps...> [options]
 
 **Options:**
 * `--keep` — Persist collected dumps to disk
-* `--json` — Output as JSON
 
 **Note:** Uses only the first thread dump. Errors if `--dumps`, `--interval`, or `--top` are passed.
 
 **Exit codes:**
 * `0` — no deadlock
 * `2` — deadlock detected
+
+---
+
+### `threads`
+
+Lists all threads sorted by CPU time in a table format.
+
+```bash
+jstall threads <pid | dumps...> [options]
+```
+
+**Options:**
+* `--dumps <n>` — Number of dumps to collect (default: 2, must be ≥ 2)
+* `--interval <duration>` — Time between dumps (default: 5s)
+* `--top <n>` — Maximum number of threads to show (default: all)
+* `--keep` — Persist collected dumps to disk
+* `--no-native` — Ignore threads without stack traces (typically native/system threads)
+
+**Note:** Threads are grouped by thread ID, so threads with the same name but different IDs are tracked separately.
+
+**Output columns:**
+* **THREAD** — Thread name (grouped by thread ID)
+* **CPU TIME** — CPU time consumed during the observation period (in seconds)
+* **CPU %** — Percentage of total CPU time across all threads
+* **STATES** — Distribution of thread states across dumps with percentages
+* **TOP STACK FRAME** — Most common top stack frame across all dumps
+
+**Example output:**
+```
+Threads (3 dumps):
+Combined CPU time: 4.57s, Elapsed time: 10.00s (45.7% overall utilization)
+
+THREAD                CPU TIME    CPU %      STATES                          TOP STACK FRAME
+------------------------------------------------------------------------------------------------
+Worker-1              2.45s       53.6%      RUNNABLE: 100%                  com.example.Worker.processTask
+Worker-2              1.23s       26.9%      RUNNABLE: 67%, WAITING: 33%     java.lang.Thread.sleep
+GC Thread             0.89s       19.5%      RUNNABLE: 100%                  sun.gc.G1YoungGC.collect
+```
+
+---
 
 ### `flame`
 

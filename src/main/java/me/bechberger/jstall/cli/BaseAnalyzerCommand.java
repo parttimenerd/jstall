@@ -40,9 +40,6 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
     @Option(names = "--keep", description = "Persist dumps to disk")
     protected boolean keep = false;
 
-    @Option(names = "--json", description = "Output as JSON")
-    protected boolean json = false;
-
     /**
      * Returns the analyzer to use for this command.
      */
@@ -100,7 +97,6 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
         options.put("dumps", dumpCount);
         options.put("interval", interval != null ? interval : (intervalMs + "ms"));
         options.put("keep", keep);
-        options.put("json", json);
 
         // Add additional options
         options.putAll(getAdditionalOptions());

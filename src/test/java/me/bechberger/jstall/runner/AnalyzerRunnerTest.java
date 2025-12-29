@@ -71,7 +71,6 @@ class AnalyzerRunnerTest {
 
         // Options that are mix of both analyzers' supported options
         Map<String, Object> options = Map.of(
-            "json", true,
             "top", 5,
             "extra", "ignored"
         );

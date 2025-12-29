@@ -13,6 +13,9 @@ import java.util.List;
 
 /**
  * Implementation of ThreadDumpProvider using jthreaddump library.
+ *
+ * <p>Thread dumps are collected using jstack (preferred) or jcmd (fallback).
+ * jstack is preferred as it provides better output quality and more detailed information.
  */
 public class JThreadDumpProvider implements ThreadDumpProvider {
 
@@ -64,24 +67,74 @@ public class JThreadDumpProvider implements ThreadDumpProvider {
 
     /**
      * Obtains a thread dump from a JVM process.
-     * Uses jcmd or jstack internally via jthreaddump library.
+     * Tries jstack first (if available), then falls back to jcmd.
      */
     private String obtainDumpFromJVM(long pid) throws IOException {
+        // Try jstack first (preferred for better output quality)
         try {
-            // Use jcmd Thread.print (preferred)
-            ProcessBuilder pb = new ProcessBuilder("jcmd", String.valueOf(pid), "Thread.print");
+            return obtainDumpWithJstack(pid);
+        } catch (IOException e) {
+            // jstack not available or failed, try jcmd
+            try {
+                return obtainDumpWithJcmd(pid);
+            } catch (IOException jcmdException) {
+                // Both failed, throw combined error
+                throw new IOException(
+                    "Failed to obtain thread dump with both jstack and jcmd. " +
+                    "jstack error: " + e.getMessage() + ", " +
+                    "jcmd error: " + jcmdException.getMessage(),
+                    jcmdException
+                );
+            }
+        }
+    }
+
+    /**
+     * Obtains a thread dump using jstack.
+     */
+    private String obtainDumpWithJstack(long pid) throws IOException {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("jstack", String.valueOf(pid));
             Process process = pb.start();
             String output = new String(process.getInputStream().readAllBytes());
+            String error = new String(process.getErrorStream().readAllBytes());
             int exitCode = process.waitFor();
 
             if (exitCode != 0) {
-                throw new IOException("jcmd failed with exit code " + exitCode);
+                throw new IOException("jstack failed with exit code " + exitCode +
+                    (error.isEmpty() ? "" : ": " + error));
             }
 
             return output;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IOException("Interrupted while collecting dump", e);
+            throw new IOException("Interrupted while collecting dump with jstack", e);
+        } catch (IOException e) {
+            // jstack not found or failed
+            throw new IOException("jstack not available or failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Obtains a thread dump using jcmd.
+     */
+    private String obtainDumpWithJcmd(long pid) throws IOException {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("jcmd", String.valueOf(pid), "Thread.print");
+            Process process = pb.start();
+            String output = new String(process.getInputStream().readAllBytes());
+            String error = new String(process.getErrorStream().readAllBytes());
+            int exitCode = process.waitFor();
+
+            if (exitCode != 0) {
+                throw new IOException("jcmd failed with exit code " + exitCode +
+                    (error.isEmpty() ? "" : ": " + error));
+            }
+
+            return output;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while collecting dump with jcmd", e);
         }
     }
 

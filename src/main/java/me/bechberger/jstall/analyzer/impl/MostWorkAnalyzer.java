@@ -7,7 +7,6 @@ import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.model.ThreadInfo;
 
 import java.util.*;
-import java.util.stream.Collectors;
 import java.util.Locale;
 
 /**
@@ -24,7 +23,7 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of("dumps", "interval", "keep", "json", "top", "no-native");
+        return Set.of("dumps", "interval", "keep", "top", "no-native");
     }
 
     @Override
@@ -35,72 +34,30 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
     @Override
     public AnalyzerResult analyze(List<ThreadDump> dumps, Map<String, Object> options) {
         int topN = getIntOption(options, "top", 3);
-        boolean isJson = isJsonOutput(options);
         boolean ignoreEmptyStacks = getBooleanOption(options, "no-native", false);
 
-        // Track thread activity across dumps
-        Map<String, ThreadActivity> threadActivities = new HashMap<>();
-
-        for (ThreadDump dump : dumps) {
-            for (ThreadInfo thread : dump.threads()) {
-                // Skip threads without stack traces if option is enabled
-                if (ignoreEmptyStacks && (thread.stackTrace() == null || thread.stackTrace().isEmpty())) {
-                    continue;
-                }
-
-                String threadName = thread.name();
-                ThreadActivity activity = threadActivities.computeIfAbsent(
-                    threadName,
-                    k -> new ThreadActivity(threadName)
-                );
-
-                activity.addOccurrence(thread);
-            }
-        }
+        // Track thread activity across dumps using base class
+        Map<Long, ThreadActivity> threadActivities = trackThreadActivity(
+            dumps,
+            ignoreEmptyStacks,
+            ThreadActivity::new
+        );
 
         // Calculate total CPU time for percentage calculations
         double totalCpuTimeSec = threadActivities.values().stream()
             .mapToDouble(ThreadActivity::getTotalCpuTimeSec)
             .sum();
 
-        // Calculate max elapsed time across all threads
-        double maxElapsedTimeSec = threadActivities.values().stream()
-            .mapToDouble(ThreadActivity::getMaxElapsedTimeSec)
-            .max()
-            .orElse(0.0);
+        // Calculate elapsed time from first vs last dump using base class method
+        double elapsedTimeSec = calculateElapsedTime(dumps);
 
-        // Find top N threads by CPU time (if available), otherwise by occurrence count
-        List<ThreadActivity> topThreads = threadActivities.values().stream()
-            .sorted((a, b) -> {
-                // Primary: Sort by CPU time if both have it
-                if (a.hasCpuTime() && b.hasCpuTime()) {
-                    int cpuCompare = Double.compare(b.getTotalCpuTimeSec(), a.getTotalCpuTimeSec());
-                    if (cpuCompare != 0) return cpuCompare;
-                }
+        // Sort threads using base class method
+        List<ThreadActivity> topThreads = sortThreadsByCpuTime(threadActivities.values(), topN);
 
-                // Secondary: Threads with CPU time come first
-                if (a.hasCpuTime() != b.hasCpuTime()) {
-                    return a.hasCpuTime() ? -1 : 1;
-                }
-
-                // Tertiary: Sort by occurrence count
-                int occurrenceCompare = Integer.compare(b.getOccurrenceCount(), a.getOccurrenceCount());
-                if (occurrenceCompare != 0) return occurrenceCompare;
-
-                // Final tie-breaker: Sort by thread name for stability
-                return a.threadName.compareTo(b.threadName);
-            })
-            .limit(topN)
-            .collect(Collectors.toList());
-
-        if (isJson) {
-            return AnalyzerResult.ok(formatAsJson(topThreads, dumps.size(), totalCpuTimeSec, maxElapsedTimeSec));
-        } else {
-            return AnalyzerResult.ok(formatAsText(topThreads, dumps.size(), totalCpuTimeSec, maxElapsedTimeSec));
-        }
+        return AnalyzerResult.ok(formatAsText(topThreads, dumps.size(), totalCpuTimeSec, elapsedTimeSec));
     }
 
-    private String formatAsText(List<ThreadActivity> topThreads, int totalDumps, double totalCpuTimeSec, double maxElapsedTimeSec) {
+    private String formatAsText(List<ThreadActivity> topThreads, int totalDumps, double totalCpuTimeSec, double elapsedTimeSec) {
         if (topThreads.isEmpty()) {
             return "No threads found";
         }
@@ -111,9 +68,9 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
         // Display combined metrics at the top
         if (totalCpuTimeSec > 0) {
             sb.append("Combined CPU time: ").append(String.format(Locale.US, "%.2fs", totalCpuTimeSec));
-            if (maxElapsedTimeSec > 0) {
-                sb.append(", Elapsed time: ").append(String.format(Locale.US, "%.2fs", maxElapsedTimeSec));
-                double overallUtilization = (totalCpuTimeSec * 100.0) / maxElapsedTimeSec;
+            if (elapsedTimeSec > 0) {
+                sb.append(", Elapsed time: ").append(String.format(Locale.US, "%.2fs", elapsedTimeSec));
+                double overallUtilization = (totalCpuTimeSec * 100.0) / elapsedTimeSec;
                 sb.append(String.format(Locale.US, " (%.1f%% overall utilization)", overallUtilization));
             }
             sb.append("\n");
@@ -137,8 +94,8 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
                 sb.append("\n");
 
                 // Display core utilization if elapsed time is available
-                if (activity.hasElapsedTime() && activity.getMaxElapsedTimeSec() > 0) {
-                    double coreUtilization = (activity.getTotalCpuTimeSec() * 100.0) / activity.getMaxElapsedTimeSec();
+                if (elapsedTimeSec > 0) {
+                    double coreUtilization = (activity.getTotalCpuTimeSec() * 100.0) / elapsedTimeSec;
                     sb.append("   Core utilization: ").append(String.format(Locale.US, "%.1f%%", coreUtilization));
 
                     // Add approximate core count
@@ -174,93 +131,28 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
         return sb.toString().trim();
     }
 
-    private String formatAsJson(List<ThreadActivity> topThreads, int totalDumps, double totalCpuTimeSec, double maxElapsedTimeSec) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("{\"total_dumps\": ").append(totalDumps);
-
-        // Include total CPU time if available
-        if (totalCpuTimeSec > 0) {
-            sb.append(", \"total_cpu_time_sec\": ").append(String.format(Locale.US, "%.2f", totalCpuTimeSec));
-        }
-
-        // Include max elapsed time if available
-        if (maxElapsedTimeSec > 0) {
-            sb.append(", \"max_elapsed_time_sec\": ").append(String.format(Locale.US, "%.2f", maxElapsedTimeSec));
-            if (totalCpuTimeSec > 0) {
-                double overallUtilization = (totalCpuTimeSec * 100.0) / maxElapsedTimeSec;
-                sb.append(", \"overall_utilization_percent\": ").append(String.format(Locale.US, "%.2f", overallUtilization));
-            }
-        }
-
-        sb.append(", \"threads\": [");
-
-        for (int i = 0; i < topThreads.size(); i++) {
-            ThreadActivity activity = topThreads.get(i);
-            if (i > 0) sb.append(", ");
-
-            sb.append("{\"name\": \"").append(escapeJson(activity.threadName)).append("\", ");
-            sb.append("\"occurrences\": ").append(activity.occurrenceCount);
-
-            // Include CPU metrics if available
-            if (activity.hasCpuTime()) {
-                sb.append(", \"cpu_time_sec\": ").append(String.format(Locale.US, "%.2f", activity.getTotalCpuTimeSec()));
-
-                if (totalCpuTimeSec > 0) {
-                    double cpuPercentage = (activity.getTotalCpuTimeSec() * 100.0) / totalCpuTimeSec;
-                    sb.append(", \"cpu_percentage\": ").append(String.format(Locale.US, "%.2f", cpuPercentage));
-                }
-
-                if (activity.hasElapsedTime() && activity.getMaxElapsedTimeSec() > 0) {
-                    double coreUtilization = (activity.getTotalCpuTimeSec() * 100.0) / activity.getMaxElapsedTimeSec();
-                    sb.append(", \"core_utilization_percent\": ").append(String.format(Locale.US, "%.2f", coreUtilization));
-                }
-            }
-
-            sb.append(", \"stack_trace\": \"").append(escapeJson(activity.getCommonStackPrefix())).append("\"}");
-        }
-
-        sb.append("]}");
-        return sb.toString();
-    }
-
-    private String escapeJson(String text) {
-        if (text == null) return "";
-        return text
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t");
-    }
-
     /**
      * Tracks activity of a single thread across multiple dumps.
      */
-    private static class ThreadActivity {
-        final String threadName;
-        int occurrenceCount = 0;
+    private static class ThreadActivity extends ThreadActivityBase {
         final List<String> stackTraces = new ArrayList<>();
         final Map<Thread.State, Integer> stateCounts = new HashMap<>();
-        double totalCpuTimeSec = 0.0;
         double maxElapsedTimeSec = 0.0;
-        boolean hasCpuTimeData = false;
         boolean hasElapsedTimeData = false;
 
-        ThreadActivity(String threadName) {
-            this.threadName = threadName;
+        ThreadActivity(ThreadInfo thread) {
+            super(thread);
         }
 
-        void addOccurrence(ThreadInfo thread) {
+        @Override
+        public void addOccurrence(ThreadInfo thread) {
             occurrenceCount++;
 
             // Track thread state
             stateCounts.put(thread.state(), stateCounts.getOrDefault(thread.state(), 0) + 1);
 
-            // Track CPU time if available
-            if (thread.cpuTimeSec() != null) {
-                totalCpuTimeSec += thread.cpuTimeSec();
-                hasCpuTimeData = true;
-            }
+            // Track CPU time using base class method
+            trackCpuTime(thread);
 
             // Track elapsed time if available
             if (thread.elapsedTimeSec() != null) {
@@ -278,21 +170,10 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
             stackTraces.add(stack.toString());
         }
 
-        int getOccurrenceCount() {
-            return occurrenceCount;
-        }
-
-        double getTotalCpuTimeSec() {
-            return totalCpuTimeSec;
-        }
-
         double getMaxElapsedTimeSec() {
             return maxElapsedTimeSec;
         }
 
-        boolean hasCpuTime() {
-            return hasCpuTimeData;
-        }
 
         boolean hasElapsedTime() {
             return hasElapsedTimeData;

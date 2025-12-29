@@ -3,7 +3,7 @@ package me.bechberger.jstall.analyzer;
 /**
  * Result of running an analyzer.
  *
- * @param output The output to display (text or JSON)
+ * @param output The output to display
  * @param exitCode The exit code (0 = OK, 2 = deadlock, etc.)
  * @param shouldDisplay Whether this result should be displayed (false means analyzer has nothing to report)
  */
