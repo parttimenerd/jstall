@@ -1,5 +1,7 @@
 # JStall
 
+[![CI](https://github.com/parttimenerd/jstall/actions/workflows/ci.yml/badge.svg)](https://github.com/parttimenerd/jstall/actions/workflows/ci.yml)
+
 **JStall answers the age-old question: "What is my Java application doing right now?"**
 
 JStall is a small command-line tool for **one-shot inspection** of running JVMs using thread dumps and short, on-demand profiling.
@@ -127,9 +129,6 @@ jstall dead-lock <pid | dumps...> [options]
 **Exit codes:**
 * `0` — no deadlock
 * `2` — deadlock detected
-
-
-### `flame`
 
 ### `flame`
 
