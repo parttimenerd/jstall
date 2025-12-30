@@ -167,7 +167,7 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
             StringBuilder stack = new StringBuilder();
 
             for (var frame : thread.stackTrace()) {
-                stack.append("  at ").append(frame.toString()).append("\n");
+                stack.append(frame.toString().substring(3)).append("\n");
             }
 
             stackTraces.add(stack.toString());

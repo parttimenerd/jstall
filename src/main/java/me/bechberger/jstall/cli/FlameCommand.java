@@ -84,8 +84,6 @@ public class FlameCommand implements Callable<Integer> {
             args.add(event);
             args.add("-i");
             args.add(String.valueOf(intervalNanos));
-            args.add("-o");
-            args.add(format);
             args.add("-f");
             args.add(outputFile);
             args.add(String.valueOf(pid));

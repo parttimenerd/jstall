@@ -7,12 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-### Changed
-### Deprecated
-### Removed
 ### Fixed
-### Security
+- Fixed `flame` command
+- Removed `at at` from stack traces, making them easier to read
 
 ## [0.3.2] - 2025-12-30
 

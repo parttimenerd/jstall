@@ -116,8 +116,8 @@ Combined CPU time: 4.57s, Elapsed time: 10.00s (45.7% overall utilization)
    Core utilization: 24.5% (~1 core)
    States: RUNNABLE: 100.0%
    Common stack prefix:
-     at com.example.heavy.Computation.calculate(Computation.java:42)
-     at com.example.Worker.processTask(Worker.java:78)
+     com.example.heavy.Computation.calculate(Computation.java:42)
+     com.example.Worker.processTask(Worker.java:78)
 ```
 
 ### `deadlock`
