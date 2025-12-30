@@ -3,10 +3,10 @@ package me.bechberger.jstall.cli;
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
+import me.bechberger.jstall.model.ThreadDumpWithRaw;
 import me.bechberger.jstall.provider.JThreadDumpProvider;
 import me.bechberger.jstall.provider.ThreadDumpProvider;
 import me.bechberger.jstall.util.JVMDiscovery;
-import me.bechberger.jthreaddump.model.ThreadDump;
 import picocli.CommandLine;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -66,7 +66,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
         }
 
         ThreadDumpProvider provider = new JThreadDumpProvider();
-        List<ThreadDump> threadDumps;
+        List<ThreadDumpWithRaw> threadDumps;
 
         // Determine dump count and interval from analyzer config
         int dumpCount = dumps != null ? dumps : analyzer.defaultDumpCount();

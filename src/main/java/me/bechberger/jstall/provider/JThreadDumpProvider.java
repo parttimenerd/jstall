@@ -1,5 +1,6 @@
 package me.bechberger.jstall.provider;
 
+import me.bechberger.jstall.model.ThreadDumpWithRaw;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.parser.ThreadDumpParser;
 
@@ -23,12 +24,12 @@ public class JThreadDumpProvider implements ThreadDumpProvider {
         DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS");
 
     @Override
-    public List<ThreadDump> collectFromJVM(long pid, int count, long intervalMs, Path persistTo) throws IOException {
+    public List<ThreadDumpWithRaw> collectFromJVM(long pid, int count, long intervalMs, Path persistTo) throws IOException {
         if (count < 1) {
             throw new IllegalArgumentException("Count must be at least 1, got: " + count);
         }
 
-        List<ThreadDump> dumps = new ArrayList<>();
+        List<ThreadDumpWithRaw> dumps = new ArrayList<>();
 
         for (int i = 0; i < count; i++) {
             if (i > 0) {
@@ -42,7 +43,7 @@ public class JThreadDumpProvider implements ThreadDumpProvider {
 
             String dumpContent = obtainDumpFromJVM(pid);
             ThreadDump dump = ThreadDumpParser.parse(dumpContent);
-            dumps.add(dump);
+            dumps.add(new ThreadDumpWithRaw(dump, dumpContent));
 
             if (persistTo != null) {
                 persistDump(dumpContent, persistTo, i);
@@ -53,13 +54,13 @@ public class JThreadDumpProvider implements ThreadDumpProvider {
     }
 
     @Override
-    public List<ThreadDump> loadFromFiles(List<Path> dumpFiles) throws IOException {
-        List<ThreadDump> dumps = new ArrayList<>();
+    public List<ThreadDumpWithRaw> loadFromFiles(List<Path> dumpFiles) throws IOException {
+        List<ThreadDumpWithRaw> dumps = new ArrayList<>();
 
         for (Path file : dumpFiles) {
             String content = Files.readString(file);
             ThreadDump dump = ThreadDumpParser.parse(content);
-            dumps.add(dump);
+            dumps.add(new ThreadDumpWithRaw(dump, content));
         }
 
         return dumps;

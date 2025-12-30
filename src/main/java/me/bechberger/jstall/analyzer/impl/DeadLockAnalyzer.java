@@ -3,6 +3,7 @@ package me.bechberger.jstall.analyzer.impl;
 import me.bechberger.jstall.analyzer.BaseAnalyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
+import me.bechberger.jstall.model.ThreadDumpWithRaw;
 import me.bechberger.jthreaddump.model.ThreadDump;
 
 import java.util.List;
@@ -19,7 +20,7 @@ public class DeadLockAnalyzer extends BaseAnalyzer {
 
     @Override
     public String name() {
-        return "dead-lock";
+        return "deadlock";
     }
 
     @Override
@@ -33,15 +34,15 @@ public class DeadLockAnalyzer extends BaseAnalyzer {
     }
 
     @Override
-    public AnalyzerResult analyze(List<ThreadDump> dumps, Map<String, Object> options) {
-        if (dumps.isEmpty()) {
+    public AnalyzerResult analyze(List<ThreadDumpWithRaw> dumpsWithRaw, Map<String, Object> options) {
+        if (dumpsWithRaw.isEmpty()) {
             return AnalyzerResult.ok("No thread dump available");
         }
 
-        ThreadDump dump = dumps.get(0);
+        ThreadDumpWithRaw dumpWithRaw = dumpsWithRaw.getFirst();
 
-        // Check if there's a deadlock section in the dump
-        String deadlockInfo = extractDeadlockInfo(dump);
+        // Check if there's a deadlock section in the raw dump
+        String deadlockInfo = extractDeadlockInfo(dumpWithRaw.raw());
 
         if (deadlockInfo == null || deadlockInfo.isBlank()) {
             // No deadlock - nothing to report in text mode
@@ -51,14 +52,10 @@ public class DeadLockAnalyzer extends BaseAnalyzer {
     }
 
     /**
-     * Extracts deadlock information from the thread dump.
+     * Extracts deadlock information from the raw thread dump string.
      * Returns null if no deadlock is present.
      */
-    private String extractDeadlockInfo(ThreadDump dump) {
-        // The jthreaddump library may have deadlock info in the raw output
-        // For now, we'll check if any thread has deadlock-related text
-        String rawDump = dump.toString();
-
+    private String extractDeadlockInfo(String rawDump) {
         // Look for standard JVM deadlock reporting
         int deadlockIndex = rawDump.indexOf("Found one Java-level deadlock:");
         if (deadlockIndex == -1) {

@@ -32,7 +32,7 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
     }
 
     @Override
-    public AnalyzerResult analyze(List<ThreadDump> dumps, Map<String, Object> options) {
+    public AnalyzerResult analyzeThreadDumps(List<ThreadDump> dumps, Map<String, Object> options) {
         int topN = getIntOption(options, "top", 3);
         boolean ignoreEmptyStacks = getBooleanOption(options, "no-native", false);
 
@@ -116,6 +116,9 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
             // Show common stack prefix
             if (!activity.stackTraces.isEmpty()) {
                 String commonStack = activity.getCommonStackPrefix();
+                if (commonStack.isEmpty()) {
+                    continue;
+                }
                 sb.append("   Common stack prefix:\n");
                 String[] lines = commonStack.split("\n");
                 for (int i = 0; i < Math.min(lines.length, 10); i++) {

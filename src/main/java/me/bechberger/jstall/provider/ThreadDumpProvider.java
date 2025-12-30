@@ -1,5 +1,6 @@
 package me.bechberger.jstall.provider;
 
+import me.bechberger.jstall.model.ThreadDumpWithRaw;
 import me.bechberger.jthreaddump.model.ThreadDump;
 
 import java.io.IOException;
@@ -18,17 +19,17 @@ public interface ThreadDumpProvider {
      * @param count Number of dumps to collect (must be ≥ 1)
      * @param intervalMs Interval between dumps in milliseconds
      * @param persistTo Optional path to persist dumps (null = don't persist)
-     * @return List of collected thread dumps
+     * @return List of collected thread dumps with raw strings
      * @throws IOException If dump collection fails
      */
-    List<ThreadDump> collectFromJVM(long pid, int count, long intervalMs, Path persistTo) throws IOException;
+    List<ThreadDumpWithRaw> collectFromJVM(long pid, int count, long intervalMs, Path persistTo) throws IOException;
 
     /**
      * Loads thread dumps from files.
      *
      * @param dumpFiles Paths to dump files
-     * @return List of loaded thread dumps
+     * @return List of loaded thread dumps with raw strings
      * @throws IOException If loading fails
      */
-    List<ThreadDump> loadFromFiles(List<Path> dumpFiles) throws IOException;
+    List<ThreadDumpWithRaw> loadFromFiles(List<Path> dumpFiles) throws IOException;
 }

@@ -31,7 +31,7 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
     }
 
     @Override
-    public AnalyzerResult analyze(List<ThreadDump> dumps, Map<String, Object> options) {
+    public AnalyzerResult analyzeThreadDumps(List<ThreadDump> dumps, Map<String, Object> options) {
         boolean noNative = getBooleanOption(options, "no-native", false);
         Integer topN = (Integer) options.get("top");
 

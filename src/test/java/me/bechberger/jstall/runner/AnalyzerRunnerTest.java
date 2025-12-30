@@ -3,6 +3,7 @@ package me.bechberger.jstall.runner;
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
+import me.bechberger.jstall.model.ThreadDumpWithRaw;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import org.junit.jupiter.api.Test;
 
@@ -19,7 +20,7 @@ class AnalyzerRunnerTest {
         AnalyzerRunner runner = new AnalyzerRunner();
 
         Analyzer testAnalyzer = new TestAnalyzer("test", Set.of("json"), DumpRequirement.ANY);
-        List<ThreadDump> dumps = List.of();
+        List<ThreadDumpWithRaw> dumps = List.of();
         Map<String, Object> options = Map.of("json", true);
 
         var result = runner.runAnalyzers(List.of(testAnalyzer), dumps, options);
@@ -131,7 +132,7 @@ class AnalyzerRunnerTest {
         }
 
         @Override
-        public AnalyzerResult analyze(List<ThreadDump> dumps, Map<String, Object> options) {
+        public AnalyzerResult analyzeThreadDumps(List<ThreadDump> dumps, Map<String, Object> options) {
             return AnalyzerResult.withExitCode("Output from " + name, exitCode);
         }
     }

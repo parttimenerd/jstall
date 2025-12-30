@@ -1,8 +1,8 @@
 package me.bechberger.jstall.cli;
 
+import me.bechberger.jstall.model.ThreadDumpWithRaw;
 import me.bechberger.jstall.provider.JThreadDumpProvider;
 import me.bechberger.jstall.provider.ThreadDumpProvider;
-import me.bechberger.jthreaddump.model.ThreadDump;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -20,10 +20,10 @@ public class CommandHelper {
      * @param dumpCount Number of dumps to collect (for PIDs)
      * @param intervalMs Interval between dumps in milliseconds (for PIDs)
      * @param keep Whether to persist dumps to disk
-     * @return List of thread dumps
+     * @return List of thread dumps with raw strings
      * @throws IOException if dump collection/loading fails
      */
-    public static List<ThreadDump> collectDumps(
+    public static List<ThreadDumpWithRaw> collectDumps(
             List<String> targets,
             int dumpCount,
             long intervalMs,

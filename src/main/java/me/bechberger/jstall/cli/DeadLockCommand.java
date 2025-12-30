@@ -8,7 +8,7 @@ import picocli.CommandLine.Command;
  * Detects deadlocks in thread dumps.
  */
 @Command(
-    name = "dead-lock",
+    name = "deadlock",
     description = "Detect JVM-reported thread deadlocks"
 )
 public class DeadLockCommand extends BaseAnalyzerCommand {

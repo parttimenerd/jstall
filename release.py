@@ -27,6 +27,7 @@ class VersionBumper:
         self.main_java = project_root / "src/main/java/me/bechberger/jstall/Main.java"
         self.readme = project_root / "README.md"
         self.changelog = project_root / "CHANGELOG.md"
+        self.jbang_catalog = project_root / "jbang-catalog.json"
         self.backup_dir = project_root / ".release-backup"
         self.backups_created = False
 
@@ -92,6 +93,29 @@ class VersionBumper:
         self.readme.write_text(content)
         print(f"✓ Updated README.md: {old_version} -> {new_version}")
 
+    def update_jbang_catalog(self, new_version: str):
+        """Update version in jbang-catalog.json"""
+        import json
+
+        if not self.jbang_catalog.exists():
+            print("⚠ No jbang-catalog.json found, skipping")
+            return
+
+        content = self.jbang_catalog.read_text()
+        data = json.loads(content)
+
+        # Update the script-ref URL to point to the new version
+        if 'aliases' in data and 'jstall' in data['aliases']:
+            old_url = data['aliases']['jstall']['script-ref']
+            new_url = f'https://github.com/parttimenerd/jstall/releases/download/v{new_version}/jstall.jar'
+            data['aliases']['jstall']['script-ref'] = new_url
+
+            # Write back with proper formatting
+            self.jbang_catalog.write_text(json.dumps(data, indent=2) + '\n')
+            print(f"✓ Updated jbang-catalog.json: v{new_version}")
+        else:
+            print("⚠ jbang-catalog.json has unexpected structure, skipping update")
+
     def show_version_diff(self, old_version: str, new_version: str):
         """Show what would change in version files"""
         print("\n📝 File changes preview:")
@@ -106,6 +130,10 @@ class VersionBumper:
         print(f"\n  README.md:")
         print(f"    - <version>{old_version}</version>")
         print(f"    + <version>{new_version}</version>")
+
+        print(f"\n  jbang-catalog.json:")
+        print(f"    - releases/download/v{old_version}/jstall.jar")
+        print(f"    + releases/download/v{new_version}/jstall.jar")
 
     def show_changelog_diff(self, version: str):
         """Show what would change in CHANGELOG.md"""
@@ -345,7 +373,8 @@ java -jar jstall.jar <pid>
             self.pom_xml,
             self.main_java,
             self.readme,
-            self.changelog
+            self.changelog,
+            self.jbang_catalog
         ]
 
         for file in files_to_backup:
@@ -369,7 +398,8 @@ java -jar jstall.jar <pid>
             (self.backup_dir / "pom.xml", self.pom_xml),
             (self.backup_dir / "Main.java", self.main_java),
             (self.backup_dir / "README.md", self.readme),
-            (self.backup_dir / "CHANGELOG.md", self.changelog)
+            (self.backup_dir / "CHANGELOG.md", self.changelog),
+            (self.backup_dir / "jbang-catalog.json", self.jbang_catalog)
         ]
 
         for backup_file, original_file in files_to_restore:
@@ -431,7 +461,7 @@ java -jar jstall.jar <pid>
     def git_commit(self, version: str):
         """Commit version changes"""
         self.run_command(
-            ['git', 'add', 'pom.xml', 'src/main/java/me/bechberger/jstall/Main.java', 'README.md', 'CHANGELOG.md'],
+            ['git', 'add', 'pom.xml', 'src/main/java/me/bechberger/jstall/Main.java', 'README.md', 'CHANGELOG.md', 'jbang-catalog.json'],
             "Staging files"
         )
         self.run_command(
@@ -635,6 +665,7 @@ Note: CHANGELOG.md must have content under [Unreleased] section before releasing
         bumper.update_pom_xml(current_version, new_version)
         bumper.update_main_java(current_version, new_version)
         bumper.update_readme(current_version, new_version)
+        bumper.update_jbang_catalog(new_version)
         bumper.update_changelog(new_version)
 
         # Run tests

@@ -3,6 +3,7 @@ package me.bechberger.jstall.runner;
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
+import me.bechberger.jstall.model.ThreadDumpWithRaw;
 import me.bechberger.jthreaddump.model.ThreadDump;
 
 import java.util.*;
@@ -26,7 +27,7 @@ public class AnalyzerRunner {
      * @param options All options provided by user
      * @return Aggregated result
      */
-    public RunResult runAnalyzers(List<Analyzer> analyzers, List<ThreadDump> dumps, Map<String, Object> options) {
+    public RunResult runAnalyzers(List<Analyzer> analyzers, List<ThreadDumpWithRaw> dumps, Map<String, Object> options) {
         StringBuilder output = new StringBuilder();
         int maxExitCode = 0;
 
@@ -36,7 +37,7 @@ public class AnalyzerRunner {
             Map<String, Object> analyzerOptions = filterOptions(analyzer, options);
 
             // Filter dumps based on requirement
-            List<ThreadDump> analyzerDumps = filterDumps(analyzer, dumps);
+            List<ThreadDumpWithRaw> analyzerDumps = filterDumps(analyzer, dumps);
 
             // Run analyzer
             AnalyzerResult result = analyzer.analyze(analyzerDumps, analyzerOptions);
@@ -73,7 +74,7 @@ public class AnalyzerRunner {
     /**
      * Filters dumps based on analyzer requirement.
      */
-    private List<ThreadDump> filterDumps(Analyzer analyzer, List<ThreadDump> dumps) {
+    private List<ThreadDumpWithRaw> filterDumps(Analyzer analyzer, List<ThreadDumpWithRaw> dumps) {
         return switch (analyzer.dumpRequirement()) {
             case ONE -> dumps.isEmpty() ? List.of() : List.of(dumps.get(0));
             case MANY -> {

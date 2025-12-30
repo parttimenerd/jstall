@@ -15,7 +15,7 @@ class DeadLockAnalyzerTest {
     @Test
     void testName() {
         DeadLockAnalyzer analyzer = new DeadLockAnalyzer();
-        assertEquals("dead-lock", analyzer.name());
+        assertEquals("deadlock", analyzer.name());
     }
 
     @Test

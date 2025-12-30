@@ -41,7 +41,7 @@ jstall 12345
 # or: java -jar target/jstall.jar 12345
 
 # Check for deadlocks
-jstall dead-lock 12345
+jstall deadlock 12345
 
 # Find hot threads
 jstall most-work 12345 --top 5
@@ -74,7 +74,7 @@ jstall [status] <pid | dumps...> [options]
 ```
 
 **Analyzers (in order):**
-1. `dead-lock`
+1. `deadlock`
 2. `most-work`
 
 **Exit codes:**
@@ -120,12 +120,12 @@ Combined CPU time: 4.57s, Elapsed time: 10.00s (45.7% overall utilization)
      at com.example.Worker.processTask(Worker.java:78)
 ```
 
-### `dead-lock`
+### `deadlock`
 
 Detects JVM-reported thread deadlocks.
 
 ```bash
-jstall dead-lock <pid | dumps...> [options]
+jstall deadlock <pid | dumps...> [options]
 ```
 
 **Options:**

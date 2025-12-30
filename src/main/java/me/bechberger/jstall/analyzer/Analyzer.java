@@ -1,5 +1,6 @@
 package me.bechberger.jstall.analyzer;
 
+import me.bechberger.jstall.model.ThreadDumpWithRaw;
 import me.bechberger.jthreaddump.model.ThreadDump;
 
 import java.util.List;
@@ -52,11 +53,28 @@ public interface Analyzer {
     }
 
     /**
-     * Analyzes the provided thread dumps.
+     * Analyzes the provided thread dumps with access to raw dump strings.
+     *
+     * @param dumpsWithRaw The thread dumps with raw strings to analyze
+     * @param options The options to use (only contains supported options)
+     * @return The result of the analysis
+     */
+    default AnalyzerResult analyze(List<ThreadDumpWithRaw> dumpsWithRaw, Map<String, Object> options) {
+        // Default implementation for backward compatibility - delegates to parsed ThreadDump only
+        List<ThreadDump> dumps = dumpsWithRaw.stream().map(ThreadDumpWithRaw::parsed).toList();
+        return analyzeThreadDumps(dumps, options);
+    }
+
+    /**
+     * Legacy method for analyzers that don't need raw dump access.
+     * Override analyze(List<ThreadDumpWithRaw>, Map) instead for full functionality.
      *
      * @param dumps The thread dumps to analyze (filtered by runner based on dumpRequirement)
      * @param options The options to use (only contains supported options)
      * @return The result of the analysis
      */
-    AnalyzerResult analyze(List<ThreadDump> dumps, Map<String, Object> options);
+    default AnalyzerResult analyzeThreadDumps(List<ThreadDump> dumps, Map<String, Object> options) {
+        throw new UnsupportedOperationException(
+            "Analyzer must implement either analyze(List<ThreadDumpWithRaw>, Map) or analyzeThreadDumps(List<ThreadDump>, Map)");
+    }
 }
