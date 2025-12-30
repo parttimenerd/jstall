@@ -40,11 +40,11 @@ public class Main implements Runnable {
     @Override
     public void run() {
         // Show available JVMs when no arguments provided
-        System.out.println("Usage: jstall <command> <pid|file> [options]");
+        System.out.println("Usage: jstall <command> <pid|files> [options]");
         System.out.println();
         System.out.println("Available commands:");
         System.out.println("  status     - Show overall status (deadlocks + most active threads)");
-        System.out.println("  dead-lock  - Check for deadlocks");
+        System.out.println("  deadlock   - Check for deadlocks");
         System.out.println("  most-work  - Show threads doing the most work");
         System.out.println("  flame      - Generate flame graph");
         System.out.println("  threads    - List all threads");
