@@ -1,6 +1,7 @@
 package me.bechberger.jstall;
 
 import me.bechberger.jstall.cli.*;
+import me.bechberger.jstall.util.JVMDiscovery;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
@@ -38,8 +39,17 @@ public class Main implements Runnable {
 
     @Override
     public void run() {
-        // Default to status if no subcommand
-        new CommandLine(new StatusCommand()).execute();
+        // Show available JVMs when no arguments provided
+        System.out.println("Usage: jstall <command> <pid|file> [options]");
+        System.out.println();
+        System.out.println("Available commands:");
+        System.out.println("  status     - Show overall status (deadlocks + most active threads)");
+        System.out.println("  dead-lock  - Check for deadlocks");
+        System.out.println("  most-work  - Show threads doing the most work");
+        System.out.println("  flame      - Generate flame graph");
+        System.out.println("  threads    - List all threads");
+        System.out.println();
+        JVMDiscovery.printAvailableJVMs(System.out);
     }
 
     private static boolean isNumericOrFile(String arg) {
