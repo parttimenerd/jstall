@@ -12,7 +12,7 @@ import picocli.CommandLine.Command;
     name = "jstall",
     description = "One-shot JVM inspection tool",
     mixinStandardHelpOptions = true,
-    version = "0.3.1",
+    version = "0.3.2",
     subcommands = {
         StatusCommand.class,
         DeadLockCommand.class,
