@@ -34,8 +34,8 @@ jobs:
         if: matrix.java-version == 21
         uses: actions/upload-artifact@v4
         with:
-          name: jthreaddump-jar
-          path: target/jthreaddump.jar
+          name: jstall-jar
+          path: target/jstall.jar
           retention-days: 30
 
       - name: Run tests
