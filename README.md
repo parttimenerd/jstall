@@ -16,6 +16,9 @@ Features:
 
 ### Installation
 
+Download the latest JAR or executable from the [releases page](https://github.com/parttimenerd/jstall/releases) or
+build it from source:
+
 ```bash
 # Build from source
 mvn clean package
