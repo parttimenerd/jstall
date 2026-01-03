@@ -1,6 +1,7 @@
 package me.bechberger.jstall.cli;
 
 import me.bechberger.jstall.util.JVMDiscovery;
+import me.bechberger.jstall.util.TargetResolver;
 import one.profiler.AsyncProfilerLoader;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -24,14 +25,14 @@ import java.util.concurrent.Callable;
 )
 public class FlameCommand implements Callable<Integer> {
 
-    @Parameters(index = "0", arity = "0..1", description = "PID of the Java process to profile")
-    private Integer pid;
+    @Parameters(index = "0", arity = "0..1", description = "PID or filter (filters JVMs by main class name)")
+    String target;
 
     @Option(names = {"-o", "--output"}, description = "Output HTML file (default: flame.html)")
     private String outputFile = "flame.html";
 
     @Option(names = {"-d", "--duration"}, description = "Profiling duration (default: 10s)")
-    private String duration = "10s";
+    String duration = "10s";
 
     @Option(names = {"-e", "--event"}, description = "Profiling event (default: cpu). Options: cpu, alloc, lock, wall, itimer")
     private String event = "cpu";
@@ -44,15 +45,48 @@ public class FlameCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        // Show help and list JVMs if no PID specified
-        if (pid == null) {
+        // Show help and list JVMs if no target specified
+        if (target == null) {
             new CommandLine(this).usage(System.out);
             System.out.println();
             JVMDiscovery.printAvailableJVMs(System.out);
             return 1;
         }
 
-        System.out.println("Starting flamegraph generation for PID " + pid + "...");
+        // Resolve target to PID
+        TargetResolver.ResolutionResult resolution = TargetResolver.resolve(target);
+
+        if (!resolution.isSuccess()) {
+            System.err.println("Error: " + resolution.errorMessage());
+            if (resolution.shouldListJVMs()) {
+                System.err.println();
+                JVMDiscovery.printAvailableJVMs(System.err);
+            }
+            return 1;
+        }
+
+        // Flame command only supports single target
+        if (resolution.targets().size() > 1) {
+            System.err.println("Error: flame command does not support multiple targets");
+            System.err.println("Filter matched " + resolution.targets().size() + " JVMs:");
+            for (TargetResolver.ResolvedTarget resolvedTarget : resolution.targets()) {
+                if (resolvedTarget instanceof TargetResolver.ResolvedTarget.Pid(long pid, String mainClass)) {
+                    System.err.println("  PID " + pid + ": " + mainClass);
+                }
+            }
+            System.err.println("\nPlease specify a more specific filter or use an exact PID.");
+            return 1;
+        }
+
+        TargetResolver.ResolvedTarget resolvedTarget = resolution.targets().getFirst();
+
+        // Flame command only works with PIDs, not files
+        if (!(resolvedTarget instanceof TargetResolver.ResolvedTarget.Pid(long pid, String mainClass))) {
+            System.err.println("Error: flame command only works with running JVMs, not thread dump files");
+            return 1;
+        }
+
+        System.out.println("Starting flamegraph generation for PID " + pid + " (" + mainClass + ")...");
         System.out.println("Event: " + event);
         System.out.println("Duration: " + duration);
         System.out.println("Interval: " + interval);

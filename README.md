@@ -11,6 +11,8 @@ Features:
 * **Hot thread identification** — See which threads are doing the most work
 * **Offline analysis** — Analyze existing thread dumps
 * **Flamegraph generation** — Short profiling runs with [async-profiler](https://github.com/async-profiler/async-profiler)
+* **Smart filtering** — Target JVMs by name/class instead of PID
+* **Multi-execution** — Analyze multiple JVMs in parallel for faster results
 
 ## Quick Start
 
@@ -39,9 +41,22 @@ jbang jstall@parttimenerd/jstall
 ### Basic Usage
 
 ```bash
+# List all running JVMs
+jstall list
+
+# List JVMs with filter
+jstall list MyApp
+
 # Inspect a running JVM (default: status command)
 jstall 12345
 # or: java -jar target/jstall.jar 12345
+
+# Use filter to match JVM by class name (case-insensitive)
+jstall status MyApplication
+jstall deadlock MyApp
+
+# Analyze multiple JVMs matching a filter in parallel
+jstall status DeadlockTestApp
 
 # Check for deadlocks
 jstall deadlock 12345
@@ -61,10 +76,109 @@ jstall status dump1.txt dump2.txt dump3.txt
 # Generate flamegraph (quick 10s profile)
 jstall flame 12345
 
+# Generate flamegraph with filter (must match exactly one JVM)
+jstall flame MyApp
+
 # Generate flamegraph with custom duration and event
 jstall flame 12345 -d 30s -e wall
 ```
 
+
+## Filtering and Multi-Execution
+
+### Filtering by JVM Name
+
+Instead of specifying a PID, you can use a **filter string** to match JVMs by their main class name (case-insensitive):
+
+```bash
+# List matching JVMs
+jstall list MyApp
+
+# Analyze JVMs matching the filter
+jstall status MyApplication
+jstall deadlock kafka
+jstall most-work TestApp --top 5
+```
+
+**How filtering works:**
+1. Checks if target is an existing file → loads as thread dump
+2. Checks if target is a numeric PID → uses that JVM
+3. Otherwise treats as filter → searches for JVMs with matching main class names
+
+### Multi-Execution
+
+When a filter matches **multiple JVMs** (or you specify multiple targets), analyzer commands will:
+
+* **Analyze all targets in parallel** — Much faster than sequential execution
+* **Sort results by PID** — Predictable output order (ascending)
+* **Separate results** — Each target's output is clearly separated with dividers
+
+**Example:**
+```bash
+# If "TestApp" matches PIDs 12345 and 67890
+jstall status TestApp
+
+# Output:
+# Analysis for PID 12345 (com.example.TestApp):
+#
+# ... analysis results ...
+#
+# ================================================================================
+#
+# Analysis for PID 67890 (com.example.TestApp):
+#
+# ... analysis results ...
+```
+
+**Commands supporting multi-execution:**
+* ✅ `status` — Analyzes multiple JVMs in parallel
+* ✅ `deadlock` — Checks all matching JVMs for deadlocks
+* ✅ `most-work` — Shows hot threads for each JVM
+* ✅ `threads` — Lists threads for each JVM
+* ❌ `flame` — **Single JVM only** (fails if filter matches multiple)
+
+**Error handling:**
+* If a filter matches **no JVMs** → Error with suggestion to run `jstall list`
+* If `flame` filter matches **multiple JVMs** → Error listing all matches
+
+## Commands
+
+### `list`
+
+Lists all running JVM processes with optional filtering.
+
+```bash
+jstall list [filter]
+```
+
+**Arguments:**
+* `filter` — Optional filter string to match JVM main class names (case-insensitive)
+
+**Example output:**
+```
+Available JVM processes:
+
+  12345    com.example.MyApplication
+  67890    org.apache.kafka.Kafka
+  24680    me.bechberger.jstall.testapp.DeadlockTestApp
+
+Total: 3 JVM(s)
+```
+
+**With filter:**
+```bash
+jstall list kafka
+
+Available JVM processes:
+
+  67890    org.apache.kafka.Kafka
+
+Total: 1 JVM(s) (filtered)
+```
+
+**Note:** The list excludes `jps` and the currently running `jstall` process.
+
+---
 
 ## Commands
 
@@ -73,8 +187,21 @@ jstall flame 12345 -d 30s -e wall
 Runs multiple analyzers over a shared set of thread dumps.
 
 ```bash
-jstall [status] <pid | dumps...> [options]
+jstall [status] <pid | filter | dumps...> [options]
 ```
+
+**Targets:**
+* **PID** — Process ID of a running JVM (e.g., `12345`)
+* **Filter** — String to match JVM main class names (case-insensitive, e.g., `MyApp`)
+  * If filter matches multiple JVMs, all are analyzed in parallel
+  * Results are sorted by PID and separated with dividers
+* **Files** — Path to existing thread dump files for offline analysis
+
+**Multi-Execution:**
+When a filter matches multiple JVMs, or multiple PIDs/files are provided:
+* All targets are analyzed **in parallel** for faster execution
+* Results are displayed sorted by PID (ascending order)
+* Each result is separated with a divider line (`=` repeated 80 times)
 
 **Analyzers (in order):**
 1. `deadlock`
@@ -82,7 +209,16 @@ jstall [status] <pid | dumps...> [options]
 
 **Exit codes:**
 * `0` — no deadlock
-* `2` — deadlock detected
+* `2` — deadlock detected (returns highest exit code from all targets)
+
+**Example:**
+```bash
+# Analyze all JVMs matching "MyApp"
+jstall status MyApp
+
+# Analyze specific PIDs
+jstall status 12345 67890
+```
 
 ---
 
@@ -91,8 +227,13 @@ jstall [status] <pid | dumps...> [options]
 Identifies threads doing the most work across multiple dumps.
 
 ```bash
-jstall most-work <pid | dumps...> [options]
+jstall most-work <pid | filter | dumps...> [options]
 ```
+
+**Targets:**
+* **PID** — Process ID of a running JVM
+* **Filter** — String to match JVM main class names (analyzes all matches in parallel)
+* **Files** — Path to existing thread dump files
 
 **Options:**
 * `--dumps <n>` — Number of dumps to collect (default: 2, must be ≥ 2)
@@ -128,8 +269,13 @@ Combined CPU time: 4.57s, Elapsed time: 10.00s (45.7% overall utilization)
 Detects JVM-reported thread deadlocks.
 
 ```bash
-jstall deadlock <pid | dumps...> [options]
+jstall deadlock <pid | filter | dumps...> [options]
 ```
+
+**Targets:**
+* **PID** — Process ID of a running JVM
+* **Filter** — String to match JVM main class names (analyzes all matches in parallel)
+* **Files** — Path to existing thread dump files
 
 **Options:**
 * `--keep` — Persist collected dumps to disk
@@ -138,7 +284,7 @@ jstall deadlock <pid | dumps...> [options]
 
 **Exit codes:**
 * `0` — no deadlock
-* `2` — deadlock detected
+* `2` — deadlock detected (returns highest exit code from all targets)
 
 ---
 
@@ -147,8 +293,13 @@ jstall deadlock <pid | dumps...> [options]
 Lists all threads sorted by CPU time in a table format.
 
 ```bash
-jstall threads <pid | dumps...> [options]
+jstall threads <pid | filter | dumps...> [options]
 ```
+
+**Targets:**
+* **PID** — Process ID of a running JVM
+* **Filter** — String to match JVM main class names (analyzes all matches in parallel)
+* **Files** — Path to existing thread dump files
 
 **Options:**
 * `--dumps <n>` — Number of dumps to collect (default: 2, must be ≥ 2)
@@ -180,13 +331,20 @@ GC Thread             0.89s       19.5%      RUNNABLE: 100%                  sun
 
 ---
 
+
 ### `flame`
 
 Generates a flamegraph using async-profiler for CPU, allocation, or lock profiling.
 
 ```bash
-jstall flame <pid> [options]
+jstall flame <pid | filter> [options]
 ```
+
+**Targets:**
+* **PID** — Process ID of a running JVM
+* **Filter** — String to match JVM main class names
+  * **Must match exactly one JVM** — if filter matches multiple JVMs, command fails with error listing all matches
+  * Use `jstall list <filter>` to preview which JVMs match
 
 **Options:**
 * `-d`, `--duration <duration>` — Profiling duration (default: 10s)

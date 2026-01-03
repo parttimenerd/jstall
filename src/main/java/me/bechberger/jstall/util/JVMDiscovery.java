@@ -29,7 +29,20 @@ public class JVMDiscovery {
      * @throws IOException if jps fails
      */
     public static List<JVMProcess> listJVMs() throws IOException {
+        return listJVMs(null);
+    }
+
+    /**
+     * Lists running JVM processes using jps, optionally filtered by main class name.
+     *
+     * @param filter Optional filter string - only JVMs whose main class contains this text (case-insensitive) will be included
+     * @return List of JVM processes matching the filter
+     * @throws IOException if jps fails
+     */
+    public static List<JVMProcess> listJVMs(String filter) throws IOException {
         List<JVMProcess> jvms = new ArrayList<>();
+        boolean hasFilter = filter != null && !filter.isBlank();
+        long currentPid = ProcessHandle.current().pid();
 
         try {
             ProcessBuilder pb = new ProcessBuilder("jps", "-l");
@@ -52,10 +65,17 @@ public class JVMDiscovery {
                             long pid = Long.parseLong(parts[0]);
                             String mainClass = parts.length > 1 ? parts[1] : "<unknown>";
 
-                            // Skip jps itself
-                            if (!mainClass.contains("jps")) {
-                                jvms.add(new JVMProcess(pid, mainClass));
+                            // Skip jps itself and the current JVM (jstall)
+                            if (mainClass.contains("jps") || pid == currentPid) {
+                                continue;
                             }
+
+                            // Apply filter if provided
+                            if (hasFilter && !mainClass.toLowerCase().contains(filter.toLowerCase())) {
+                                continue;
+                            }
+
+                            jvms.add(new JVMProcess(pid, mainClass));
                         } catch (NumberFormatException e) {
                             // Skip invalid lines
                         }
