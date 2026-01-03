@@ -168,30 +168,21 @@
 
             <!-- Create standalone executable by combining launcher script with JAR -->
             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <version>3.1.0</version>
+                <groupId>me.bechberger</groupId>
+                <artifactId>execjar</artifactId>
+                <version>0.1.0</version>
                 <executions>
                     <execution>
                         <id>create-executable</id>
                         <phase>package</phase>
                         <goals>
-                            <goal>run</goal>
+                            <goal>execjar</goal>
                         </goals>
-                        <configuration>
-                            <target>
-                                <!-- Create the combined executable -->
-                                <concat destfile="${project.build.directory}/jstall" binary="true">
-                                    <filelist dir="${project.basedir}/src/launcher" files="launcher.sh"/>
-                                    <filelist dir="${project.build.directory}" files="jstall.jar"/>
-                                </concat>
-                                <!-- Make it executable (Unix/Linux/macOS only) -->
-                                <chmod file="${project.build.directory}/jstall" perm="755"/>
-                                <echo message="Created executable: ${project.build.directory}/jstall"/>
-                            </target>
-                        </configuration>
                     </execution>
                 </executions>
+                <configuration>
+                    <jarFile>target/jstall.jar</jarFile>
+                </configuration>
             </plugin>
         </plugins>
     </build>

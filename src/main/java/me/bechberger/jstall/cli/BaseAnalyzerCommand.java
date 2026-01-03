@@ -31,7 +31,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
 
     @Parameters(
         index = "0..*",
-        description = "PID or dump files"
+        description = "PID, filter or dump files"
     )
     protected List<String> targets;
 

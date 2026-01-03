@@ -8,11 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-### Changed
-### Deprecated
-### Removed
-### Fixed
-### Security
+- `list` command
+- Allow specifying JVM via a label filter
 
 ## [0.3.4] - 2025-12-30
 
