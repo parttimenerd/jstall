@@ -1,0 +1,12 @@
+{
+  "resources": {
+    "includes": [
+      {
+        "pattern": "\\QMETA-INF/services/\\E.*"
+      },
+      {
+        "pattern": "\\QMETA-INF/native-image/\\E.*"
+      }
+    ]
+  }
+}

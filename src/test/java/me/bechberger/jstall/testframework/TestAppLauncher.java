@@ -100,24 +100,6 @@ public class TestAppLauncher {
     }
 
     /**
-     * Captures a thread dump using jstack (fallback method).
-     */
-    @SuppressWarnings("unused")
-    private String captureThreadDumpWithJstack() throws IOException, InterruptedException {
-        ProcessBuilder pb = new ProcessBuilder("jstack", String.valueOf(pid));
-        Process jstack = pb.start();
-
-        String output = new String(jstack.getInputStream().readAllBytes());
-        int exitCode = jstack.waitFor();
-
-        if (exitCode != 0) {
-            throw new IOException("jstack failed with exit code " + exitCode);
-        }
-
-        return output;
-    }
-
-    /**
      * Captures multiple thread dumps with a delay between them.
      */
     public List<String> captureMultipleThreadDumps(int count, long intervalMs) throws IOException, InterruptedException {

@@ -399,6 +399,24 @@ jstall flame 12345 -e lock -d 15s
 mvn clean package
 ```
 
+### Building a native image with GraalVM
+
+```bash
+# Requirements: Current JVM must be GraalVM with native-image installed
+# Install GraalVM from https://www.graalvm.org/ or use SDKMAN:
+# sdk install java 25.0.1-graalce
+
+# Build native image (produces target/jstall binary)
+mvn package -DskipTests -Pnative
+
+# Run the native executable
+target/jstall <pid>
+```
+
+The native image versions are far larger than the normal executable,
+but have slightly faster startup times.
+Native images are not created by default, as they are platform-specific.
+
 ## Support, Feedback, Contributing
 
 This project is open to feature requests/suggestions, bug reports etc.

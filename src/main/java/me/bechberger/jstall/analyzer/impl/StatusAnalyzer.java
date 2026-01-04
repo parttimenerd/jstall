@@ -19,20 +19,11 @@ import java.util.Set;
  */
 public class StatusAnalyzer extends BaseAnalyzer {
 
-    private static List<Class<? extends Analyzer>> ANALYZER_CLASSES = List.of(
-        DeadLockAnalyzer.class,
-        MostWorkAnalyzer.class
-    );
 
-    private List<? extends Analyzer> ANALYZERS = ANALYZER_CLASSES.stream()
-        .map(cls -> {
-            try {
-                return cls.getDeclaredConstructor().newInstance();
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to instantiate analyzer: " + cls.getName(), e);
-            }
-        })
-        .toList();
+    private final List<? extends Analyzer> ANALYZERS = List.of(
+        new DeadLockAnalyzer(),
+        new MostWorkAnalyzer()
+    );
 
     @Override
     public String name() {

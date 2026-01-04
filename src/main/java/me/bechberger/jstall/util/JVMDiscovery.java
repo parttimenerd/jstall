@@ -1,5 +1,8 @@
 package me.bechberger.jstall.util;
 
+import com.sun.tools.attach.VirtualMachine;
+import com.sun.tools.attach.VirtualMachineDescriptor;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -18,7 +21,7 @@ public class JVMDiscovery {
     public record JVMProcess(long pid, String mainClass) {
         @Override
         public String toString() {
-            return pid + " " + mainClass;
+            return String.format("%5d %s", pid, mainClass);
         }
     }
 
@@ -44,52 +47,30 @@ public class JVMDiscovery {
         boolean hasFilter = filter != null && !filter.isBlank();
         long currentPid = ProcessHandle.current().pid();
 
-        try {
-            ProcessBuilder pb = new ProcessBuilder("jps", "-l");
-            Process process = pb.start();
+        List<VirtualMachineDescriptor> descriptors = VirtualMachine.list();
 
-            try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(process.getInputStream()))) {
+        for (VirtualMachineDescriptor desc : descriptors) {
+            long pid;
+            try {
+                pid = Long.parseLong(desc.id());
+            } catch (NumberFormatException e) {
+                continue; // Skip non-numeric IDs
+            }
 
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    line = line.trim();
-                    if (line.isEmpty()) {
-                        continue;
-                    }
+            // Skip current JVM
+            if (pid == currentPid) {
+                continue;
+            }
 
-                    // Format: "PID MainClass"
-                    String[] parts = line.split("\\s+", 2);
-                    if (parts.length >= 1) {
-                        try {
-                            long pid = Long.parseLong(parts[0]);
-                            String mainClass = parts.length > 1 ? parts[1] : "<unknown>";
+            String mainClass = desc.displayName().isBlank() ? "<unknown>" : desc.displayName();
 
-                            // Skip jps itself and the current JVM (jstall)
-                            if (mainClass.contains("jps") || pid == currentPid) {
-                                continue;
-                            }
-
-                            // Apply filter if provided
-                            if (hasFilter && !mainClass.toLowerCase().contains(filter.toLowerCase())) {
-                                continue;
-                            }
-
-                            jvms.add(new JVMProcess(pid, mainClass));
-                        } catch (NumberFormatException e) {
-                            // Skip invalid lines
-                        }
-                    }
+            if (hasFilter) {
+                if (mainClass.toLowerCase().contains(filter.toLowerCase())) {
+                    jvms.add(new JVMProcess(pid, mainClass));
                 }
+            } else {
+                jvms.add(new JVMProcess(pid, mainClass));
             }
-
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                throw new IOException("jps failed with exit code " + exitCode);
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("Interrupted while listing JVMs", e);
         }
 
         return jvms;

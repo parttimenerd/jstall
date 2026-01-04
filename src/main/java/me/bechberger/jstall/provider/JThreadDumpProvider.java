@@ -1,6 +1,7 @@
 package me.bechberger.jstall.provider;
 
 import me.bechberger.jstall.model.ThreadDumpWithRaw;
+import me.bechberger.jstall.util.JMXDiagnosticHelper;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.parser.ThreadDumpParser;
 
@@ -15,8 +16,8 @@ import java.util.List;
 /**
  * Implementation of ThreadDumpProvider using jthreaddump library.
  *
- * <p>Thread dumps are collected using jstack (preferred) or jcmd (fallback).
- * jstack is preferred as it provides better output quality and more detailed information.
+ * <p>Thread dumps are collected using DiagnosticCommandMBean.threadPrint()
+ * via JMX attachment to the target JVM process.
  */
 public class JThreadDumpProvider implements ThreadDumpProvider {
 
@@ -67,31 +68,21 @@ public class JThreadDumpProvider implements ThreadDumpProvider {
     }
 
     /**
-     * Obtains a thread dump from a JVM process.
-     * Tries jstack first (if available), then falls back to jcmd.
+     * Obtains a thread dump from a JVM process using DiagnosticCommandMBean.
+     * Falls back to jstack if JMX approach fails.
      */
     private String obtainDumpFromJVM(long pid) throws IOException {
-        // Try jstack first (preferred for better output quality)
         try {
+            // Use JMX diagnostic helper to get thread dump
+            return JMXDiagnosticHelper.executeCommand(pid, "Thread.print");
+        } catch (Exception e) {
+            // Fall back to jstack if JMX approach fails
             return obtainDumpWithJstack(pid);
-        } catch (IOException e) {
-            // jstack not available or failed, try jcmd
-            try {
-                return obtainDumpWithJcmd(pid);
-            } catch (IOException jcmdException) {
-                // Both failed, throw combined error
-                throw new IOException(
-                    "Failed to obtain thread dump with both jstack and jcmd. " +
-                    "jstack error: " + e.getMessage() + ", " +
-                    "jcmd error: " + jcmdException.getMessage(),
-                    jcmdException
-                );
-            }
         }
     }
 
     /**
-     * Obtains a thread dump using jstack.
+     * Obtains a thread dump using jstack as fallback.
      */
     private String obtainDumpWithJstack(long pid) throws IOException {
         try {
@@ -116,28 +107,6 @@ public class JThreadDumpProvider implements ThreadDumpProvider {
         }
     }
 
-    /**
-     * Obtains a thread dump using jcmd.
-     */
-    private String obtainDumpWithJcmd(long pid) throws IOException {
-        try {
-            ProcessBuilder pb = new ProcessBuilder("jcmd", String.valueOf(pid), "Thread.print");
-            Process process = pb.start();
-            String output = new String(process.getInputStream().readAllBytes());
-            String error = new String(process.getErrorStream().readAllBytes());
-            int exitCode = process.waitFor();
-
-            if (exitCode != 0) {
-                throw new IOException("jcmd failed with exit code " + exitCode +
-                    (error.isEmpty() ? "" : ": " + error));
-            }
-
-            return output;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("Interrupted while collecting dump with jcmd", e);
-        }
-    }
 
     /**
      * Persists a dump to disk.
