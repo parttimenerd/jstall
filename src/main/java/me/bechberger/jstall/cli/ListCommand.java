@@ -57,7 +57,6 @@ public class ListCommand implements Callable<Integer> {
 
         } catch (IOException e) {
             System.err.println("Error listing JVMs: " + e.getMessage());
-            System.err.println("Make sure 'jps' is available in your PATH.");
             return 1;
         }
     }

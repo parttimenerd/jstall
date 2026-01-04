@@ -176,7 +176,7 @@ Available JVM processes:
 Total: 1 JVM(s) (filtered)
 ```
 
-**Note:** The list excludes `jps` and the currently running `jstall` process.
+**Note:** The list excludes the currently running `jstall` process.
 
 ---
 

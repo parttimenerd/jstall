@@ -17,10 +17,10 @@ class JVMDiscoveryFilterTest {
         List<JVMDiscovery.JVMProcess> jvms = JVMDiscovery.listJVMs();
 
         assertNotNull(jvms);
-        // JVMs list should not include jps or the current JVM
+        // JVMs list should not include jstack
         for (JVMDiscovery.JVMProcess jvm : jvms) {
-            assertFalse(jvm.mainClass().contains("jps"),
-                "JVMs list should not include jps");
+            assertFalse(jvm.mainClass().contains("jstack"),
+                "JVMs list should not include jstack");
         }
     }
 

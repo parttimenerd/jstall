@@ -26,21 +26,19 @@ public class JVMDiscovery {
     }
 
     /**
-     * Lists all running JVM processes using jps.
+     * Lists all running JVM processes
      *
      * @return List of JVM processes
-     * @throws IOException if jps fails
      */
     public static List<JVMProcess> listJVMs() throws IOException {
         return listJVMs(null);
     }
 
     /**
-     * Lists running JVM processes using jps, optionally filtered by main class name.
+     * Lists running JVM processes, optionally filtered by main class name.
      *
      * @param filter Optional filter string - only JVMs whose main class contains this text (case-insensitive) will be included
      * @return List of JVM processes matching the filter
-     * @throws IOException if jps fails
      */
     public static List<JVMProcess> listJVMs(String filter) throws IOException {
         List<JVMProcess> jvms = new ArrayList<>();
