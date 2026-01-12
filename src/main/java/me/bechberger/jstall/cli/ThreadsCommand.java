@@ -13,7 +13,8 @@ import java.util.Map;
  */
 @Command(
     name = "threads",
-    description = "List all threads sorted by CPU time"
+    description = "List all threads sorted by CPU time",
+    mixinStandardHelpOptions = true
 )
 public class ThreadsCommand extends BaseAnalyzerCommand {
 

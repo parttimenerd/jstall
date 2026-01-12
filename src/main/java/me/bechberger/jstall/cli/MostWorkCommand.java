@@ -13,7 +13,8 @@ import java.util.Map;
  */
 @Command(
     name = "most-work",
-    description = "Identify threads doing the most work across dumps"
+    description = "Identify threads doing the most work across dumps",
+    mixinStandardHelpOptions = true
 )
 public class MostWorkCommand extends BaseAnalyzerCommand {
 

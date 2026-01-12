@@ -444,6 +444,18 @@ java -jar jstall.jar <pid>
             "Running tests"
         )
 
+    def sync_documentation(self):
+        """Sync CLI help documentation to README"""
+        sync_script = self.project_root / 'bin' / 'sync-documentation.py'
+        if not sync_script.exists():
+            print("⚠ sync-documentation.py not found, skipping documentation sync")
+            return
+
+        self.run_command(
+            ['python3', str(sync_script)],
+            "Syncing documentation"
+        )
+
     def build_package(self):
         """Build Maven package"""
         self.run_command(
@@ -603,6 +615,7 @@ Note: CHANGELOG.md must have content under [Unreleased] section before releasing
 
         # Show actions that would be taken
         print("\n📋 Actions that would be performed:")
+        print("  • python3 bin/sync-documentation.py")
         if not args.skip_tests:
             print("  • mvn clean test")
         print("  • mvn clean package")
@@ -626,6 +639,8 @@ Note: CHANGELOG.md must have content under [Unreleased] section before releasing
     print(f"  {step}. Update version: {current_version} -> {new_version}")
     step += 1
     print(f"  {step}. Update CHANGELOG.md")
+    step += 1
+    print(f"  {step}. Sync documentation (CLI help)")
     step += 1
 
     if not args.skip_tests:
@@ -667,6 +682,10 @@ Note: CHANGELOG.md must have content under [Unreleased] section before releasing
         bumper.update_readme(current_version, new_version)
         bumper.update_jbang_catalog(new_version)
         bumper.update_changelog(new_version)
+
+        # Sync documentation
+        print("\n=== Syncing documentation ===")
+        bumper.sync_documentation()
 
         # Run tests
         if not args.skip_tests:

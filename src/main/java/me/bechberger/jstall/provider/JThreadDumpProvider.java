@@ -69,7 +69,6 @@ public class JThreadDumpProvider implements ThreadDumpProvider {
 
     /**
      * Obtains a thread dump from a JVM process using DiagnosticCommandMBean.
-     * Falls back to jstack if JMX approach fails.
      */
     private String obtainDumpFromJVM(long pid) throws IOException {
         try {
@@ -77,36 +76,9 @@ public class JThreadDumpProvider implements ThreadDumpProvider {
             return JMXDiagnosticHelper.executeCommand(pid, "Thread.print");
         } catch (Exception e) {
             // Fall back to jstack if JMX approach fails, for GraalVM native-image
-            return obtainDumpWithJstack(pid);
+            throw new RuntimeException("Cannot use JMX Diagnostics, maybe submit a GitHub issue at https://github.com/parttimenerd/jstall/issues if you have a reproducer");
         }
     }
-
-    /**
-     * Obtains a thread dump using jstack as fallback.
-     */
-    private String obtainDumpWithJstack(long pid) throws IOException {
-        try {
-            ProcessBuilder pb = new ProcessBuilder("jstack", String.valueOf(pid));
-            Process process = pb.start();
-            String output = new String(process.getInputStream().readAllBytes());
-            String error = new String(process.getErrorStream().readAllBytes());
-            int exitCode = process.waitFor();
-
-            if (exitCode != 0) {
-                throw new IOException("jstack failed with exit code " + exitCode +
-                    (error.isEmpty() ? "" : ": " + error));
-            }
-
-            return output;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("Interrupted while collecting dump with jstack", e);
-        } catch (IOException e) {
-            // jstack not found or failed
-            throw new IOException("jstack not available or failed: " + e.getMessage(), e);
-        }
-    }
-
 
     /**
      * Persists a dump to disk.

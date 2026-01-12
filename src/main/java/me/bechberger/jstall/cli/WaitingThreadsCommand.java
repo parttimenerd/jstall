@@ -13,7 +13,8 @@ import java.util.Map;
  */
 @Command(
     name = "waiting-threads",
-    description = "Identify threads waiting without progress (potentially starving)"
+    description = "Identify threads waiting without progress (potentially starving)",
+    mixinStandardHelpOptions = true
 )
 public class WaitingThreadsCommand extends BaseAnalyzerCommand {
 

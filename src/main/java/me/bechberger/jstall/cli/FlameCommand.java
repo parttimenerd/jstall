@@ -21,7 +21,8 @@ import java.util.concurrent.Callable;
  */
 @Command(
     name = "flame",
-    description = "Generate a flamegraph of the application using async-profiler"
+    description = "Generate a flamegraph of the application using async-profiler",
+    mixinStandardHelpOptions = true
 )
 public class FlameCommand implements Callable<Integer> {
 

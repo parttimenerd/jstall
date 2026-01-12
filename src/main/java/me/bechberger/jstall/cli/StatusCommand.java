@@ -13,7 +13,8 @@ import java.util.Map;
  */
 @Command(
     name = "status",
-    description = "Run multiple analyzers over thread dumps (default command)"
+    description = "Run multiple analyzers over thread dumps (default command)",
+    mixinStandardHelpOptions = true
 )
 public class StatusCommand extends BaseAnalyzerCommand {
 

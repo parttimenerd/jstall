@@ -18,280 +18,171 @@ Features:
 
 ## Quick Start
 
-### Installation
-
-Download the latest JAR or executable from the [releases page](https://github.com/parttimenerd/jstall/releases) or
-build it from source:
+**Example:** Find out what your application is doing right now
 
 ```bash
-# Build from source
-mvn clean package
-
-# Run (on Linux/Mac)
-target/jstall <pid>
-
-# Or run it directly
-java -jar target/jstall.jar <pid>
-```
-
-### Using JBang
-
-```bash
-jbang jstall@parttimenerd/jstall
-```
-
-### Basic Usage
-
-```bash
-# List all running JVMs
-jstall list
-
-# List JVMs with filter
-jstall list MyApp
-
-# Inspect a running JVM (default: status command)
+# Quick status check (checks for deadlocks and hot threads)
 jstall 12345
-# or: java -jar target/jstall.jar 12345
 
-# Use filter to match JVM by class name (case-insensitive)
+# Or explicitly run the status command, that also supports using JVM name filters
 jstall status MyApplication
-jstall deadlock MyApp
 
-# Analyze multiple JVMs matching a filter in parallel
-jstall status DeadlockTestApp
+# Find threads consuming most CPU
+jstall most-work 12345
 
-# Check for deadlocks
-jstall deadlock 12345
-
-# Find hot threads
-jstall most-work 12345 --top 5
-
-# List all threads sorted by CPU time
-jstall threads 12345
-
-# List top 10 threads
-jstall threads 12345 --top 10
-
-# Find threads waiting on the same lock without progress
+# Detect threads stuck waiting on locks
 jstall waiting-threads 12345
 
-# Analyze offline dumps
-jstall status dump1.txt dump2.txt dump3.txt
-
-# Generate flamegraph (quick 10s profile)
+# Generate a flamegraph
 jstall flame 12345
-
-# Generate flamegraph with filter (must match exactly one JVM)
-jstall flame MyApp
-
-# Generate flamegraph with custom duration and event
-jstall flame 12345 -d 30s -e wall
 ```
 
+### Installation
 
-## Filtering and Multi-Execution
+Download the latest executable from the [releases page](https://github.com/parttimenerd/jstall/releases).
 
-### Filtering by JVM Name
+Or use with [JBang](https://www.jbang.dev/): `jbang jstall@parttimenerd/jstall <pid>`
 
-Instead of specifying a PID, you can use a **filter string** to match JVMs by their main class name (case-insensitive):
+### Usage
 
 ```bash
-# List matching JVMs
-jstall list MyApp
-
-# Analyze JVMs matching the filter
-jstall status MyApplication
-jstall deadlock kafka
-jstall most-work TestApp --top 5
+> jstall --help
+Usage: jstall [-hV] [COMMAND]
+One-shot JVM inspection tool
+  -h, --help      Show this help message and exit.
+  -V, --version   Print version information and exit.
+Commands:
+  status           Run multiple analyzers over thread dumps (default command)
+  deadlock         Detect JVM-reported thread deadlocks
+  most-work        Identify threads doing the most work across dumps
+  flame            Generate a flamegraph of the application using async-profiler
+  threads          List all threads sorted by CPU time
+  waiting-threads  Identify threads waiting without progress (potentially
+                     starving)
+  list             List running JVM processes (excluding this tool)
 ```
 
-**How filtering works:**
-1. Checks if target is an existing file → loads as thread dump
-2. Checks if target is a numeric PID → uses that JVM
-3. Otherwise treats as filter → searches for JVMs with matching main class names
+### Usage as a library
 
-### Multi-Execution
+Add the following dependency to your `pom.xml`:
 
-When a filter matches **multiple JVMs** (or you specify multiple targets), analyzer commands will:
+```xml
+<dependency>
+    <groupId>me.bechberger</groupId>
+    <artifactId>jstall</artifactId>
+    <version>0.4.1</version>
+</dependency>
+```
 
-* **Analyze all targets in parallel** — Much faster than sequential execution
-* **Sort results by PID** — Predictable output order (ascending)
-* **Separate results** — Each target's output is clearly separated with dividers
+### Filtering and Multi-Execution
 
-**Example:**
+Use **filter strings** to match JVMs by main class name instead of PIDs:
+
 ```bash
-# If "TestApp" matches PIDs 12345 and 67890
-jstall status TestApp
-
-# Output:
-# Analysis for PID 12345 (com.example.TestApp):
-#
-# ... analysis results ...
-#
-# ================================================================================
-#
-# Analysis for PID 67890 (com.example.TestApp):
-#
-# ... analysis results ...
+jstall list MyApp              # List matching JVMs
+jstall status MyApplication    # Analyze matching JVMs
+jstall deadlock kafka          # Check deadlocks in matching JVMs
 ```
 
-**Commands supporting multi-execution:**
-* ✅ `status` — Analyzes multiple JVMs in parallel
-* ✅ `deadlock` — Checks all matching JVMs for deadlocks
-* ✅ `most-work` — Shows hot threads for each JVM
-* ✅ `threads` — Lists threads for each JVM
-* ✅ `waiting-threads` — Detects starving threads for each JVM
-* ❌ `flame` — **Single JVM only** (fails if filter matches multiple)
+**How it works:** Filter strings match main class names (case-insensitive). When multiple JVMs match, they're analyzed **in parallel** with results sorted by PID.
 
-**Error handling:**
-* If a filter matches **no JVMs** → Error with suggestion to run `jstall list`
-* If `flame` filter matches **multiple JVMs** → Error listing all matches
+**Note:** `flame` requires exactly one JVM (fails if filter matches multiple).
 
 ## Commands
 
 ### `list`
 
-Lists all running JVM processes with optional filtering.
-
-```bash
-jstall list [filter]
+<!-- BEGIN help_list -->
 ```
-
-**Arguments:**
-* `filter` — Optional filter string to match JVM main class names (case-insensitive)
-
-**Example output:**
+Usage: jstall list [-hV] [<filter>]
+List running JVM processes (excluding this tool)
+      [<filter>]   Optional filter - only show JVMs whose main class contains
+                     this text
+  -h, --help       Show this help message and exit.
+  -V, --version    Print version information and exit.
 ```
-Available JVM processes:
-
-  12345    com.example.MyApplication
-  67890    org.apache.kafka.Kafka
-  24680    me.bechberger.jstall.testapp.DeadlockTestApp
-
-Total: 3 JVM(s)
-```
-
-**With filter:**
-```bash
-jstall list kafka
-
-Available JVM processes:
-
-  67890    org.apache.kafka.Kafka
-
-Total: 1 JVM(s) (filtered)
-```
-
-**Note:** The list excludes the currently running `jstall` process.
-
----
-
-## Commands
-
-### `status` (default)
-
-Runs multiple analyzers over a shared set of thread dumps.
-
-```bash
-jstall [status] <pid | filter | dumps...> [options]
-```
-
-**Targets:**
-* **PID** — Process ID of a running JVM (e.g., `12345`)
-* **Filter** — String to match JVM main class names (case-insensitive, e.g., `MyApp`)
-  * If filter matches multiple JVMs, all are analyzed in parallel
-  * Results are sorted by PID and separated with dividers
-* **Files** — Path to existing thread dump files for offline analysis
-
-**Multi-Execution:**
-When a filter matches multiple JVMs, or multiple PIDs/files are provided:
-* All targets are analyzed **in parallel** for faster execution
-* Results are displayed sorted by PID (ascending order)
-* Each result is separated with a divider line (`=` repeated 80 times)
-
-**Analyzers (in order):**
-1. `deadlock`
-2. `most-work`
-3. `waiting-threads`
-
-**Exit codes:**
-* `0` — no deadlock
-* `2` — deadlock detected (returns highest exit code from all targets)
+<!-- END help_list -->
 
 **Example:**
 ```bash
-# Analyze all JVMs matching "MyApp"
-jstall status MyApp
-
-# Analyze specific PIDs
-jstall status 12345 67890
+> jstall list kafka
+   67890    org.apache.kafka.Kafka
 ```
+
+**Exit codes:** `0` = JVMs found, `1` = no JVMs found
+
+---
+
+### `status` (default)
+
+Runs multiple analyzers (deadlock, most-work, waiting-threads) over shared thread dumps.
+
+<!-- BEGIN help_status -->
+```
+Usage: jstall status [-hV] [--keep] [--no-native] [--dumps=<dumps>]
+                     [--interval=<interval>] [--top=<top>] [<targets>...]
+Run multiple analyzers over thread dumps (default command)
+      [<targets>...]    PID, filter or dump files
+      --dumps=<dumps>   Number of dumps to collect, default is 2
+  -h, --help            Show this help message and exit.
+      --interval=<interval>
+                        Interval between dumps, default is 5s
+      --keep            Persist dumps to disk
+      --no-native       Ignore threads without stack traces (typically
+                          native/system threads)
+      --top=<top>       Number of top threads (default: 3)
+  -V, --version         Print version information and exit.
+```
+<!-- END help_status -->
+
+**Exit codes:** `0` = no issues, `2` = deadlock detected
+
+**Note:** Supports multiple targets analyzed in parallel.
 
 ---
 
 ### `most-work`
 
-Identifies threads doing the most work across multiple dumps.
-
-```bash
-jstall most-work <pid | filter | dumps...> [options]
+<!-- BEGIN help_most_work -->
 ```
-
-**Targets:**
-* **PID** — Process ID of a running JVM
-* **Filter** — String to match JVM main class names (analyzes all matches in parallel)
-* **Files** — Path to existing thread dump files
-
-**Options:**
-* `--dumps <n>` — Number of dumps to collect (default: 2, must be ≥ 2)
-* `--interval <duration>` — Time between dumps (default: 5s)
-* `--top <n>` — Number of top threads to show (default: 3)
-* `--keep` — Persist collected dumps to disk
-* `--no-native` — Ignore threads without stack traces (typically native/system threads)
-
-**Metrics (when available in thread dumps):**
-* **CPU time** — CPU time consumed during the observation period (difference between first and last dump)
-* **CPU percentage** — Percentage of total CPU time across all threads
-* **Core utilization** — CPU time / elapsed time ratio (shows if thread uses multiple cores)
-* **States** — Distribution of thread states across dumps with percentages
-
-**Note:** Threads are grouped by thread ID, so threads with the same name but different IDs are tracked separately.
-
-**Example output:**
+Usage: jstall most-work [-hV] [--keep] [--no-native] [--dumps=<dumps>]
+                        [--interval=<interval>] [--top=<top>] [<targets>...]
+Identify threads doing the most work across dumps
+      [<targets>...]    PID, filter or dump files
+      --dumps=<dumps>   Number of dumps to collect, default is 2
+  -h, --help            Show this help message and exit.
+      --interval=<interval>
+                        Interval between dumps, default is 5s
+      --keep            Persist dumps to disk
+      --no-native       Ignore threads without stack traces (typically
+                          native/system threads)
+      --top=<top>       Number of top threads to show (default: 3)
+  -V, --version         Print version information and exit.
 ```
-Top threads by activity (3 dumps):
-Combined CPU time: 4.57s, Elapsed time: 10.00s (45.7% overall utilization)
+<!-- END help_most_work -->
 
-1. Worker-1
-   CPU time: 2.45s (53.6% of total)
-   Core utilization: 24.5% (~1 core)
-   States: RUNNABLE: 100.0%
-   Common stack prefix:
-     com.example.heavy.Computation.calculate(Computation.java:42)
-     com.example.Worker.processTask(Worker.java:78)
-```
+Shows CPU time, CPU percentage, core utilization, and state distribution for top threads.
+
+---
 
 ### `deadlock`
 
-Detects JVM-reported thread deadlocks.
-
-```bash
-jstall deadlock <pid | filter | dumps...> [options]
+<!-- BEGIN help_deadlock -->
 ```
+Usage: jstall deadlock [-hV] [--keep] [--dumps=<dumps>] [--interval=<interval>]
+                       [<targets>...]
+Detect JVM-reported thread deadlocks
+      [<targets>...]    PID, filter or dump files
+      --dumps=<dumps>   Number of dumps to collect, default is 2
+  -h, --help            Show this help message and exit.
+      --interval=<interval>
+                        Interval between dumps, default is 5s
+      --keep            Persist dumps to disk
+  -V, --version         Print version information and exit.
+```
+<!-- END help_deadlock -->
 
-**Targets:**
-* **PID** — Process ID of a running JVM
-* **Filter** — String to match JVM main class names (analyzes all matches in parallel)
-* **Files** — Path to existing thread dump files
-
-**Options:**
-* `--keep` — Persist collected dumps to disk
-
-**Note:** Uses only the first thread dump. Errors if `--dumps`, `--interval`, or `--top` are passed.
-
-**Exit codes:**
-* `0` — no deadlock
-* `2` — deadlock detected (returns highest exit code from all targets)
+**Exit codes:** `0` = no deadlock, `2` = deadlock detected
 
 ---
 
@@ -299,173 +190,80 @@ jstall deadlock <pid | filter | dumps...> [options]
 
 Lists all threads sorted by CPU time in a table format.
 
-```bash
-jstall threads <pid | filter | dumps...> [options]
+<!-- BEGIN help_threads -->
 ```
-
-**Targets:**
-* **PID** — Process ID of a running JVM
-* **Filter** — String to match JVM main class names (analyzes all matches in parallel)
-* **Files** — Path to existing thread dump files
-
-**Options:**
-* `--dumps <n>` — Number of dumps to collect (default: 2, must be ≥ 2)
-* `--interval <duration>` — Time between dumps (default: 5s)
-* `--top <n>` — Maximum number of threads to show (default: all)
-* `--keep` — Persist collected dumps to disk
-* `--no-native` — Ignore threads without stack traces (typically native/system threads)
-
-**Note:** Threads are grouped by thread ID, so threads with the same name but different IDs are tracked separately.
-
-**Output columns:**
-* **THREAD** — Thread name (grouped by thread ID)
-* **CPU TIME** — CPU time consumed during the observation period (in seconds)
-* **CPU %** — Percentage of total CPU time across all threads
-* **STATES** — Distribution of thread states across dumps with percentages
-* **TOP STACK FRAME** — Most common top stack frame across all dumps
-
-**Example output:**
+Usage: jstall threads [-hV] [--keep] [--no-native] [--dumps=<dumps>]
+                      [--interval=<interval>] [--top=<top>] [<targets>...]
+List all threads sorted by CPU time
+      [<targets>...]    PID, filter or dump files
+      --dumps=<dumps>   Number of dumps to collect, default is 2
+  -h, --help            Show this help message and exit.
+      --interval=<interval>
+                        Interval between dumps, default is 5s
+      --keep            Persist dumps to disk
+      --no-native       Ignore threads without stack traces (typically
+                          native/system threads)
+      --top=<top>       Maximum number of threads to show (default: all)
+  -V, --version         Print version information and exit.
 ```
-Threads (3 dumps):
-Combined CPU time: 4.57s, Elapsed time: 10.00s (45.7% overall utilization)
+<!-- END help_threads -->
 
-THREAD                CPU TIME    CPU %      STATES                          TOP STACK FRAME
-------------------------------------------------------------------------------------------------
-Worker-1              2.45s       53.6%      RUNNABLE: 100%                  com.example.Worker.processTask
-Worker-2              1.23s       26.9%      RUNNABLE: 67%, WAITING: 33%     java.lang.Thread.sleep
-GC Thread             0.89s       19.5%      RUNNABLE: 100%                  sun.gc.G1YoungGC.collect
-```
+Shows thread name, CPU time, CPU %, state distribution, and top stack frame.
 
 ---
 
 ### `waiting-threads`
 
-Identifies threads waiting on the same lock instance across all thread dumps with no CPU time progress.
-These threads are potentially starving - waiting without making progress.
+Identifies threads waiting on the same lock instance across all dumps with no CPU progress.
 
-```bash
-jstall waiting-threads <pid | filter | dumps...> [options]
+<!-- BEGIN help_waiting_threads -->
 ```
-
-**Targets:**
-* **PID** — Process ID of a running JVM
-* **Filter** — String to match JVM main class names (analyzes all matches in parallel)
-* **Files** — Path to existing thread dump files
-
-**Options:**
-* `--dumps <n>` — Number of dumps to collect (default: 2, must be ≥ 2)
-* `--interval <duration>` — Time between dumps (default: 5s)
-* `--keep` — Persist collected dumps to disk
-* `--no-native` — Ignore threads without stack traces (typically native/system threads)
-
-**Detection Criteria (all must be met):**
-* Thread appears in **ALL** thread dumps (100% consistency)
-* Thread is in WAITING or TIMED_WAITING state in **ALL** dumps
-* Thread has no or minimal CPU time usage (≤ 0.0001s)
-* Thread is waiting on the **same lock instance** across **ALL** dumps
-
-**Key Features:**
-* **Lock Contention Detection** — Highlights when multiple threads are blocked on the same lock
-* **Lock Instance Tracking** — Verifies the same lock instance ID across all dumps
-* **Starvation Analysis** — Identifies threads that are truly stuck vs. occasionally waiting
-
-**Note:** This analyzer is very strict to avoid false positives. Threads that occasionally wait or change locks will not be flagged.
-
-**Example output:**
+Usage: jstall waiting-threads [-hV] [--keep] [--no-native] [--dumps=<dumps>]
+                              [--interval=<interval>] [<targets>...]
+Identify threads waiting without progress (potentially starving)
+      [<targets>...]    PID, filter or dump files
+      --dumps=<dumps>   Number of dumps to collect, default is 2
+  -h, --help            Show this help message and exit.
+      --interval=<interval>
+                        Interval between dumps, default is 5s
+      --keep            Persist dumps to disk
+      --no-native       Ignore threads without stack traces (typically
+                          native/system threads)
+  -V, --version         Print version information and exit.
 ```
-Threads waiting on the same lock instance across ALL dumps
-with no CPU time progress (threshold: 0.0001s)
-════════════════════════════════════════════════════════════
+<!-- END help_waiting_threads -->
 
-⚠️  LOCK CONTENTION DETECTED
-Multiple threads blocked on the same lock instance in all 3 dumps:
+**Detection criteria:** Thread in ALL dumps, WAITING/TIMED_WAITING state, CPU ≤ 0.0001s, same lock instance.
 
-Lock instance 0x00000000d5f78a10:
-  → 2 threads blocked:
-    • WaitingWorker-1
-    • WaitingWorker-2
-
-Thread Details:
-────────────────────────────────────────────────────────────
-
-1. WaitingWorker-1
-   Present in all 3 dumps
-   CPU time: 0.0000s (no progress, ≤ 0.0001s)
-   Waiting at: java.lang.Object.wait
-   Lock instance: 0x00000000d5f78a10 (same in all 3 dumps)
-
-2. WaitingWorker-2
-   Present in all 3 dumps
-   CPU time: 0.0000s (no progress, ≤ 0.0001s)
-   Waiting at: java.lang.Object.wait
-   Lock instance: 0x00000000d5f78a10 (same in all 3 dumps)
-
-════════════════════════════════════════════════════════════
-Summary: 2 thread(s) potentially starving
-         2 thread(s) in lock contention on 1 lock(s)
-```
+Highlights lock contention when multiple threads are blocked on the same lock.
 
 ---
 
-
 ### `flame`
 
-Generates a flamegraph using async-profiler for CPU, allocation, or lock profiling.
+Generates a flamegraph using async-profiler.
 
-```bash
-jstall flame <pid | filter> [options]
+<!-- BEGIN help_flame -->
 ```
-
-**Targets:**
-* **PID** — Process ID of a running JVM
-* **Filter** — String to match JVM main class names
-  * **Must match exactly one JVM** — if filter matches multiple JVMs, command fails with error listing all matches
-  * Use `jstall list <filter>` to preview which JVMs match
-
-**Options:**
-* `-d`, `--duration <duration>` — Profiling duration (default: 10s)
-  * Supports: `30s`, `2m`, `500ms`, or bare numbers (treated as seconds)
-* `-e`, `--event <event>` — Profiling event (default: cpu)
-  * `cpu` — CPU profiling (requires perf_events on Linux)
-  * `alloc` — Allocation profiling
-  * `lock` — Lock contention profiling
-  * `wall` — Wall-clock profiling (works everywhere)
-  * `itimer` — Old-style CPU profiling (fallback)
-* `-i`, `--interval <interval>` — Sampling interval (default: 10ms)
-  * Supports: `10ms`, `1s`, `5000000ns`, `500us`, or bare numbers (treated as nanoseconds)
-* `-o`, `--output <file>` — Output file (default: flame.html)
-* `--open` — Automatically open the generated HTML file in browser (HTML format only)
-
-**Examples:**
-
-```bash
-# Quick CPU profile (10 seconds, default)
-jstall flame 12345
-
-# Quick profile and automatically open in browser
-jstall flame 12345 --open
-
-# CPU profiling for 30 seconds
-jstall flame 12345 -d 30s -e cpu
-
-# Wall-clock profiling with auto-open (works on all platforms)
-jstall flame 12345 -e wall -d 60s --open
-
-# Allocation profiling
-jstall flame 12345 -e alloc -d 2m -o allocations.html
-
-# Generate JFR file for further analysis
-jstall flame 12345 -e cpu -f jfr -d 10s -o profile.jfr
-
-# Lock contention profiling
-jstall flame 12345 -e lock -d 15s
+Usage: jstall flame [-hV] [--open] [-d=<duration>] [-e=<event>] [-i=<interval>]
+                    [-o=<outputFile>] [<target>]
+Generate a flamegraph of the application using async-profiler
+      [<target>]        PID or filter (filters JVMs by main class name)
+  -d, --duration=<duration>
+                        Profiling duration (default: 10s)
+  -e, --event=<event>   Profiling event (default: cpu). Options: cpu, alloc,
+                          lock, wall, itimer
+  -h, --help            Show this help message and exit.
+  -i, --interval=<interval>
+                        Sampling interval (default: 10ms)
+  -o, --output=<outputFile>
+                        Output HTML file (default: flame.html)
+      --open            Automatically open the generated HTML file in browser
+  -V, --version         Print version information and exit.
 ```
+<!-- END help_flame -->
 
-**Platform Support:**
-* Linux (x64, arm64) — Full support for all events
-* macOS — Full support (CPU profiling uses wall-clock sampling)
-
-**Note:** Uses [async-profiler](https://github.com/async-profiler/async-profiler) via [ap-loader](https://github.com/jvm-profiling-tools/ap-loader). If async-profiler is not supported on your platform, the command will exit with an error message.
+**Note:** Filter must match exactly one JVM. Uses [async-profiler](https://github.com/async-profiler/async-profiler).
 
 ## Development
 
@@ -475,23 +273,15 @@ jstall flame 12345 -e lock -d 15s
 mvn clean package
 ```
 
-### Building a native image with GraalVM
+[bin/sync-documentation.py](bin/sync-documentation.py) is used to synchronize the CLI help messages into this README.
 
-```bash
-# Requirements: Current JVM must be GraalVM with native-image installed
-# Install GraalVM from https://www.graalvm.org/ or use SDKMAN:
-# sdk install java 25.0.1-graalce
+[bin/releaser.sh](bin/releaser.sh) is a helper script to create new releases.
 
-# Build native image (produces target/jstall binary)
-mvn package -DskipTests -Pnative
+### Extending
 
-# Run the native executable
-target/jstall <pid>
-```
-
-The native image versions are far larger than the normal executable,
-but have slightly faster startup times.
-Native images are not created by default, as they are platform-specific.
+Extend this tool by adding new analyzers. You can do this by implementing an analysis, creating a new command,
+and adding it to the main CLI class (and adding the analysis optionally to the status command).
+Please also update the README accordingly.
 
 ## Support, Feedback, Contributing
 

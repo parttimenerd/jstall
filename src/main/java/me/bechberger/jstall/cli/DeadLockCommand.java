@@ -9,7 +9,8 @@ import picocli.CommandLine.Command;
  */
 @Command(
     name = "deadlock",
-    description = "Detect JVM-reported thread deadlocks"
+    description = "Detect JVM-reported thread deadlocks",
+    mixinStandardHelpOptions = true
 )
 public class DeadLockCommand extends BaseAnalyzerCommand {
 
