@@ -70,7 +70,7 @@ Add the following dependency to your `pom.xml`:
 <dependency>
     <groupId>me.bechberger</groupId>
     <artifactId>jstall</artifactId>
-    <version>0.4.2</version>
+    <version>0.4.3</version>
 </dependency>
 ```
 
@@ -146,7 +146,8 @@ Run multiple analyzers over thread dumps (default command)
 <!-- BEGIN help_most_work -->
 ```
 Usage: jstall most-work [-hV] [--keep] [--no-native] [--dumps=<dumps>]
-                        [--interval=<interval>] [--top=<top>] [<targets>...]
+                        [--interval=<interval>] [--stack-depth=<stackDepth>]
+                        [--top=<top>] [<targets>...]
 Identify threads doing the most work across dumps
       [<targets>...]    PID, filter or dump files
       --dumps=<dumps>   Number of dumps to collect, default is 2
@@ -156,6 +157,8 @@ Identify threads doing the most work across dumps
       --keep            Persist dumps to disk
       --no-native       Ignore threads without stack traces (typically
                           native/system threads)
+      --stack-depth=<stackDepth>
+                        Stack trace depth to show (default: 10, 0=all)
       --top=<top>       Number of top threads to show (default: 3)
   -V, --version         Print version information and exit.
 ```
@@ -219,7 +222,8 @@ Identifies threads waiting on the same lock instance across all dumps with no CP
 <!-- BEGIN help_waiting_threads -->
 ```
 Usage: jstall waiting-threads [-hV] [--keep] [--no-native] [--dumps=<dumps>]
-                              [--interval=<interval>] [<targets>...]
+                              [--interval=<interval>]
+                              [--stack-depth=<stackDepth>] [<targets>...]
 Identify threads waiting without progress (potentially starving)
       [<targets>...]    PID, filter or dump files
       --dumps=<dumps>   Number of dumps to collect, default is 2
@@ -229,6 +233,8 @@ Identify threads waiting without progress (potentially starving)
       --keep            Persist dumps to disk
       --no-native       Ignore threads without stack traces (typically
                           native/system threads)
+      --stack-depth=<stackDepth>
+                        Stack trace depth to show (1=inline, 0=all, default: 1)
   -V, --version         Print version information and exit.
 ```
 <!-- END help_waiting_threads -->
