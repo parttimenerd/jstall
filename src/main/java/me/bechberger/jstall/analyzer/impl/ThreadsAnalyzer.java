@@ -32,7 +32,7 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
 
     @Override
     public AnalyzerResult analyzeThreadDumps(List<ThreadDump> dumps, Map<String, Object> options) {
-        boolean noNative = getBooleanOption(options, "no-native", false);
+        boolean noNative = getNoNativeOption(options);
         Integer topN = (Integer) options.get("top");
 
         // Track thread activity across dumps using base class

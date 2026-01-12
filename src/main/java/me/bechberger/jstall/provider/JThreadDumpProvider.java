@@ -73,10 +73,10 @@ public class JThreadDumpProvider implements ThreadDumpProvider {
     private String obtainDumpFromJVM(long pid) throws IOException {
         try {
             // Use JMX diagnostic helper to get thread dump
-            return JMXDiagnosticHelper.executeCommand(pid, "Thread.print");
+            return JMXDiagnosticHelper.executeCommand(pid, "threadPrint");
         } catch (Exception e) {
             // Fall back to jstack if JMX approach fails, for GraalVM native-image
-            throw new RuntimeException("Cannot use JMX Diagnostics, maybe submit a GitHub issue at https://github.com/parttimenerd/jstall/issues if you have a reproducer");
+            throw new RuntimeException("Cannot use JMX Diagnostics, maybe submit a GitHub issue at https://github.com/parttimenerd/jstall/issues if you have a reproducer", e);
         }
     }
 

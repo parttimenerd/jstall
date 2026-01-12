@@ -31,7 +31,8 @@ class WaitingThreadsAnalyzerTest {
         assertTrue(supported.contains("interval"));
         assertTrue(supported.contains("keep"));
         assertTrue(supported.contains("no-native"));
-        assertEquals(4, supported.size());
+        assertTrue(supported.contains("stack-depth"));
+        assertEquals(5, supported.size());
     }
 
     @Test

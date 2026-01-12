@@ -18,7 +18,7 @@ Features:
 
 ## Quick Start
 
-**Example:** Find out what your application is doing right now
+**Example:** Find out what your application (in our example `MyApplication` with pid `12345`) is doing right now
 
 ```bash
 # Quick status check (checks for deadlocks and hot threads)

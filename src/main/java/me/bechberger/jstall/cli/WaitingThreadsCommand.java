@@ -21,6 +21,9 @@ public class WaitingThreadsCommand extends BaseAnalyzerCommand {
     @Option(names = "--no-native", description = "Ignore threads without stack traces (typically native/system threads)")
     private boolean noNative = false;
 
+    @Option(names = "--stack-depth", description = "Stack trace depth to show (1=inline, 0=all, default: 1)")
+    private int stackDepth = 1;
+
     @Override
     protected Analyzer getAnalyzer() {
         return new WaitingThreadsAnalyzer();
@@ -30,6 +33,7 @@ public class WaitingThreadsCommand extends BaseAnalyzerCommand {
     protected Map<String, Object> getAdditionalOptions() {
         Map<String, Object> options = new HashMap<>();
         options.put("no-native", noNative);
+        options.put("stack-depth", stackDepth);
         return options;
     }
 }

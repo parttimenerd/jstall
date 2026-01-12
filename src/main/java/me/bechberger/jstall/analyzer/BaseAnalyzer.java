@@ -53,6 +53,14 @@ public abstract class BaseAnalyzer implements Analyzer {
         return value instanceof String ? (String) value : defaultValue;
     }
 
+    protected boolean getNoNativeOption(Map<String, Object> options) {
+        return getBooleanOption(options, "no-native", false);
+    }
+
+    protected int getStackDepthOption(Map<String, Object> options) {
+        return getIntOption(options, "stack-depth", 10);
+    }
+
     /**
      * Tracks thread activity across multiple dumps.
      *
@@ -135,6 +143,47 @@ public abstract class BaseAnalyzer implements Analyzer {
         long firstTimestamp = dumps.get(0).timestamp().toEpochMilli();
         long lastTimestamp = dumps.get(dumps.size() - 1).timestamp().toEpochMilli();
         return (lastTimestamp - firstTimestamp) / 1000.0;
+    }
+
+    /**
+     * Formats a stack trace for display with configurable depth.
+     *
+     * @param stackTrace The stack trace string (newline-separated)
+     * @param maxDepth Maximum number of stack frames to show (0 = all, 1 = inline single line)
+     * @param indent Indentation prefix for each line
+     * @param label Label to display before the stack trace (e.g., "Common stack prefix:", "Stack trace:")
+     * @return Formatted stack trace string, or empty string if stackTrace is empty
+     */
+    protected String formatStackTrace(String stackTrace, int maxDepth, String indent, String label) {
+        if (stackTrace == null || stackTrace.isEmpty()) {
+            return "";
+        }
+
+        String[] lines = stackTrace.split("\n");
+        if (lines.length == 0) {
+            return "";
+        }
+
+        StringBuilder sb = new StringBuilder();
+
+        if (maxDepth == 1 && lines.length > 0) {
+            // Inline mode: show only first line on same line as label
+            sb.append(indent).append(label).append(" ").append(lines[0].trim()).append("\n");
+        } else {
+            // Multi-line mode
+            sb.append(indent).append(label).append("\n");
+            int linesToShow = maxDepth > 0 ? Math.min(lines.length, maxDepth) : lines.length;
+
+            for (int i = 0; i < linesToShow; i++) {
+                sb.append(indent + "  ").append(lines[i]).append("\n");
+            }
+
+            if (maxDepth > 0 && lines.length > maxDepth) {
+                sb.append(indent + "  ").append("... (").append(lines.length - maxDepth).append(" more lines)\n");
+            }
+        }
+
+        return sb.toString();
     }
 
     /**

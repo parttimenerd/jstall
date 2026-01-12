@@ -24,6 +24,9 @@ public class MostWorkCommand extends BaseAnalyzerCommand {
     @Option(names = "--no-native", description = "Ignore threads without stack traces (typically native/system threads)")
     private boolean noNative = false;
 
+    @Option(names = "--stack-depth", description = "Stack trace depth to show (default: 10, 0=all)")
+    private int stackDepth = 10;
+
     @Override
     protected Analyzer getAnalyzer() {
         return new MostWorkAnalyzer();
@@ -31,6 +34,10 @@ public class MostWorkCommand extends BaseAnalyzerCommand {
 
     @Override
     protected Map<String, Object> getAdditionalOptions() {
-        return Map.of("top", top, "no-native", noNative);
+        Map<String, Object> options = new HashMap<>();
+        options.put("top", top);
+        options.put("no-native", noNative);
+        options.put("stack-depth", stackDepth);
+        return options;
     }
 }

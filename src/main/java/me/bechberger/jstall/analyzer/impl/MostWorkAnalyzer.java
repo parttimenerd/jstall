@@ -23,7 +23,7 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of("dumps", "interval", "keep", "top", "no-native");
+        return Set.of("dumps", "interval", "keep", "top", "no-native", "stack-depth");
     }
 
     @Override
@@ -34,7 +34,8 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
     @Override
     public AnalyzerResult analyzeThreadDumps(List<ThreadDump> dumps, Map<String, Object> options) {
         int topN = getIntOption(options, "top", 3);
-        boolean ignoreEmptyStacks = getBooleanOption(options, "no-native", false);
+        boolean ignoreEmptyStacks = getNoNativeOption(options);
+        int stackDepth = getStackDepthOption(options);
 
         // Track thread activity across dumps using base class
         Map<Long, ThreadActivity> threadActivities = trackThreadActivity(
@@ -54,10 +55,10 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
         // Sort threads using base class method
         List<ThreadActivity> topThreads = sortThreadsByCpuTime(threadActivities.values(), topN);
 
-        return AnalyzerResult.ok(formatAsText(topThreads, dumps.size(), totalCpuTimeSec, elapsedTimeSec));
+        return AnalyzerResult.ok(formatAsText(topThreads, dumps.size(), totalCpuTimeSec, elapsedTimeSec, stackDepth));
     }
 
-    private String formatAsText(List<ThreadActivity> topThreads, int totalDumps, double totalCpuTimeSec, double elapsedTimeSec) {
+    private String formatAsText(List<ThreadActivity> topThreads, int totalDumps, double totalCpuTimeSec, double elapsedTimeSec, int stackDepth) {
         if (topThreads.isEmpty()) {
             return "No threads found";
         }
@@ -116,17 +117,8 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
             // Show common stack prefix
             if (!activity.stackTraces.isEmpty()) {
                 String commonStack = activity.getCommonStackPrefix();
-                if (commonStack.isEmpty()) {
-                    continue;
-                }
-                sb.append("   Common stack prefix:\n");
-                String[] lines = commonStack.split("\n");
-                for (int i = 0; i < Math.min(lines.length, 10); i++) {
-                    sb.append("   ").append(lines[i]).append("\n");
-                }
-                if (lines.length > 10) {
-                    sb.append("   ... (").append(lines.length - 10).append(" more lines)\n");
-                }
+                String formatted = formatStackTrace(commonStack, stackDepth, "   ", "Common stack prefix:");
+                sb.append(formatted);
             }
             sb.append("\n");
         }

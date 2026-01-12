@@ -28,7 +28,8 @@ class MostWorkAnalyzerTest {
         assertTrue(supported.contains("keep"));
         assertTrue(supported.contains("top"));
         assertTrue(supported.contains("no-native"));
-        assertEquals(5, supported.size());
+        assertTrue(supported.contains("stack-depth"));
+        assertEquals(6, supported.size());
     }
 
     @Test

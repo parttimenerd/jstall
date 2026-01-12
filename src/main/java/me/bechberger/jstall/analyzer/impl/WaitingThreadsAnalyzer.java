@@ -17,6 +17,11 @@ import java.util.stream.Collectors;
  */
 public class WaitingThreadsAnalyzer extends BaseAnalyzer {
 
+    /** Threads that are ignored because they belong to the JVM and should not make any progress. */
+    private final Set<String> IGNORED_THREAD_NAMES = Set.of(
+        "Finalizer"
+    );
+
     /**
      * Everything larger in seconds is considered CPU activity.
      */
@@ -29,7 +34,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of("dumps", "interval", "keep", "no-native");
+        return Set.of("dumps", "interval", "keep", "no-native", "stack-depth");
     }
 
     @Override
@@ -39,7 +44,8 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
 
     @Override
     public AnalyzerResult analyzeThreadDumps(List<ThreadDump> dumps, Map<String, Object> options) {
-        boolean noNative = getBooleanOption(options, "no-native", false);
+        boolean noNative = getNoNativeOption(options);
+        int stackDepth = getStackDepthOption(options);
 
         if (dumps.isEmpty()) {
             return AnalyzerResult.ok("No thread dumps available");
@@ -56,6 +62,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
 
         // Filter for threads that are waiting without CPU progress
         List<WaitingThreadActivity> waitingThreads = threadActivities.values().stream()
+            .filter(activity -> !IGNORED_THREAD_NAMES.contains(activity.getThreadName()))
             .filter(activity -> isWaitingWithoutProgress(activity, totalDumps))
             .sorted((a, b) -> {
                 // Sort by thread name
@@ -70,7 +77,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
         // Group threads by the lock object they're waiting on
         Map<String, List<WaitingThreadActivity>> threadsByLock = groupThreadsByLock(waitingThreads);
 
-        return AnalyzerResult.ok(formatAsText(waitingThreads, threadsByLock, dumps.size()));
+        return AnalyzerResult.ok(formatAsText(waitingThreads, threadsByLock, dumps.size(), stackDepth));
     }
 
     /**
@@ -155,7 +162,8 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
 
     private String formatAsText(List<WaitingThreadActivity> waitingThreads,
                                 Map<String, List<WaitingThreadActivity>> threadsByLock,
-                                int totalDumps) {
+                                int totalDumps,
+                                int stackDepth) {
         StringBuilder sb = new StringBuilder();
 
         // Header explaining what was found
@@ -197,16 +205,18 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
                 sb.append("   CPU time: not available\n");
             }
 
-            // Show the waiting location
-            String topFrame = activity.getTopStackFrame();
-            if (!topFrame.isEmpty()) {
-                sb.append("   Waiting at: ").append(topFrame).append("\n");
-            }
-
             // Show lock information - guaranteed to be consistent across all dumps
             String lockId = activity.getLockId();
             if (lockId != null && !lockId.isEmpty()) {
                 sb.append("   Lock instance: ").append(lockId).append(" (same in all ").append(totalDumps).append(" dumps)\n");
+            }
+
+            // Show common stack trace with configurable depth
+            // Since threads are waiting on the same lock in all dumps, the stack trace should be the same
+            if (!activity.stackTraces.isEmpty()) {
+                String stackTrace = activity.stackTraces.getFirst(); // Use first stack trace
+                String formatted = formatStackTrace(stackTrace, stackDepth, "   ", "Stack:");
+                sb.append(formatted);
             }
 
             sb.append("\n");
@@ -233,6 +243,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
         final Map<Thread.State, Integer> stateCounts = new HashMap<>();
         final List<String> topStackFrames = new ArrayList<>();
         final List<String> lockIds = new ArrayList<>();
+        final List<String> stackTraces = new ArrayList<>();
 
         WaitingThreadActivity(ThreadInfo thread) {
             super(thread);
@@ -252,6 +263,13 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
             if (thread.stackTrace() != null && !thread.stackTrace().isEmpty()) {
                 var topFrame = thread.stackTrace().getFirst();
                 topStackFrames.add(topFrame.className() + "." + topFrame.methodName());
+
+                // Build full stack trace string
+                StringBuilder stack = new StringBuilder();
+                for (var frame : thread.stackTrace()) {
+                    stack.append(frame.toString().substring(3)).append("\n");
+                }
+                stackTraces.add(stack.toString());
             }
 
             // Track lock information using the helper method
