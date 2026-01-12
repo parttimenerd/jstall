@@ -8,11 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `waiting-threads` command to identify threads waiting on the same lock instance across all thread dumps with no CPU time progress
+- Better name discovery for JVMs without a JMX label (using the process command as a fallback)
+
 ### Changed
-### Deprecated
-### Removed
-### Fixed
-### Security
+- List output to make it more concise
 
 ## [0.4.1] - 2026-01-04
 

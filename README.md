@@ -9,10 +9,12 @@ JStall is a small command-line tool for **one-shot inspection** of running JVMs 
 Features:
 * **Deadlock detection** — Find JVM-reported deadlocks quickly
 * **Hot thread identification** — See which threads are doing the most work
+* **Starvation detection** — Find threads waiting on the same lock with no progress
 * **Offline analysis** — Analyze existing thread dumps
 * **Flamegraph generation** — Short profiling runs with [async-profiler](https://github.com/async-profiler/async-profiler)
 * **Smart filtering** — Target JVMs by name/class instead of PID
 * **Multi-execution** — Analyze multiple JVMs in parallel for faster results
+* **Supports Java 11+** — Works with all modern Java versions
 
 ## Quick Start
 
@@ -69,6 +71,9 @@ jstall threads 12345
 
 # List top 10 threads
 jstall threads 12345 --top 10
+
+# Find threads waiting on the same lock without progress
+jstall waiting-threads 12345
 
 # Analyze offline dumps
 jstall status dump1.txt dump2.txt dump3.txt
@@ -135,6 +140,7 @@ jstall status TestApp
 * ✅ `deadlock` — Checks all matching JVMs for deadlocks
 * ✅ `most-work` — Shows hot threads for each JVM
 * ✅ `threads` — Lists threads for each JVM
+* ✅ `waiting-threads` — Detects starving threads for each JVM
 * ❌ `flame` — **Single JVM only** (fails if filter matches multiple)
 
 **Error handling:**
@@ -206,6 +212,7 @@ When a filter matches multiple JVMs, or multiple PIDs/files are provided:
 **Analyzers (in order):**
 1. `deadlock`
 2. `most-work`
+3. `waiting-threads`
 
 **Exit codes:**
 * `0` — no deadlock
@@ -327,6 +334,75 @@ THREAD                CPU TIME    CPU %      STATES                          TOP
 Worker-1              2.45s       53.6%      RUNNABLE: 100%                  com.example.Worker.processTask
 Worker-2              1.23s       26.9%      RUNNABLE: 67%, WAITING: 33%     java.lang.Thread.sleep
 GC Thread             0.89s       19.5%      RUNNABLE: 100%                  sun.gc.G1YoungGC.collect
+```
+
+---
+
+### `waiting-threads`
+
+Identifies threads waiting on the same lock instance across all thread dumps with no CPU time progress.
+These threads are potentially starving - waiting without making progress.
+
+```bash
+jstall waiting-threads <pid | filter | dumps...> [options]
+```
+
+**Targets:**
+* **PID** — Process ID of a running JVM
+* **Filter** — String to match JVM main class names (analyzes all matches in parallel)
+* **Files** — Path to existing thread dump files
+
+**Options:**
+* `--dumps <n>` — Number of dumps to collect (default: 2, must be ≥ 2)
+* `--interval <duration>` — Time between dumps (default: 5s)
+* `--keep` — Persist collected dumps to disk
+* `--no-native` — Ignore threads without stack traces (typically native/system threads)
+
+**Detection Criteria (all must be met):**
+* Thread appears in **ALL** thread dumps (100% consistency)
+* Thread is in WAITING or TIMED_WAITING state in **ALL** dumps
+* Thread has no or minimal CPU time usage (≤ 0.0001s)
+* Thread is waiting on the **same lock instance** across **ALL** dumps
+
+**Key Features:**
+* **Lock Contention Detection** — Highlights when multiple threads are blocked on the same lock
+* **Lock Instance Tracking** — Verifies the same lock instance ID across all dumps
+* **Starvation Analysis** — Identifies threads that are truly stuck vs. occasionally waiting
+
+**Note:** This analyzer is very strict to avoid false positives. Threads that occasionally wait or change locks will not be flagged.
+
+**Example output:**
+```
+Threads waiting on the same lock instance across ALL dumps
+with no CPU time progress (threshold: 0.0001s)
+════════════════════════════════════════════════════════════
+
+⚠️  LOCK CONTENTION DETECTED
+Multiple threads blocked on the same lock instance in all 3 dumps:
+
+Lock instance 0x00000000d5f78a10:
+  → 2 threads blocked:
+    • WaitingWorker-1
+    • WaitingWorker-2
+
+Thread Details:
+────────────────────────────────────────────────────────────
+
+1. WaitingWorker-1
+   Present in all 3 dumps
+   CPU time: 0.0000s (no progress, ≤ 0.0001s)
+   Waiting at: java.lang.Object.wait
+   Lock instance: 0x00000000d5f78a10 (same in all 3 dumps)
+
+2. WaitingWorker-2
+   Present in all 3 dumps
+   CPU time: 0.0000s (no progress, ≤ 0.0001s)
+   Waiting at: java.lang.Object.wait
+   Lock instance: 0x00000000d5f78a10 (same in all 3 dumps)
+
+════════════════════════════════════════════════════════════
+Summary: 2 thread(s) potentially starving
+         2 thread(s) in lock contention on 1 lock(s)
 ```
 
 ---

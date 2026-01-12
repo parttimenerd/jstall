@@ -19,6 +19,7 @@ import picocli.CommandLine.Command;
         MostWorkCommand.class,
         FlameCommand.class,
         ThreadsCommand.class,
+        WaitingThreadsCommand.class,
         ListCommand.class
     }
 )
@@ -44,12 +45,13 @@ public class Main implements Runnable {
         System.out.println("Usage: jstall <command> <pid|file> [options]");
         System.out.println();
         System.out.println("Available commands:");
-        System.out.println("  list       - List running JVM processes (optionally filter by name)");
-        System.out.println("  status     - Show overall status (deadlocks + most active threads)");
-        System.out.println("  deadlock   - Check for deadlocks");
-        System.out.println("  most-work  - Show threads doing the most work");
-        System.out.println("  flame      - Generate flame graph");
-        System.out.println("  threads    - List all threads");
+        System.out.println("  list            - List running JVM processes (optionally filter by name)");
+        System.out.println("  status          - Show overall status (deadlocks + most active threads)");
+        System.out.println("  deadlock        - Check for deadlocks");
+        System.out.println("  most-work       - Show threads doing the most work");
+        System.out.println("  flame           - Generate flame graph");
+        System.out.println("  threads         - List all threads");
+        System.out.println("  waiting-threads - Identify threads waiting without progress");
         System.out.println();
         JVMDiscovery.printAvailableJVMs(System.out);
     }

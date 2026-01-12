@@ -76,7 +76,7 @@ public class JThreadDumpProvider implements ThreadDumpProvider {
             // Use JMX diagnostic helper to get thread dump
             return JMXDiagnosticHelper.executeCommand(pid, "Thread.print");
         } catch (Exception e) {
-            // Fall back to jstack if JMX approach fails
+            // Fall back to jstack if JMX approach fails, for GraalVM native-image
             return obtainDumpWithJstack(pid);
         }
     }

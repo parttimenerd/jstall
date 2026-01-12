@@ -13,7 +13,7 @@ import java.util.concurrent.Callable;
  */
 @Command(
     name = "list",
-    description = "List running JVM processes",
+    description = "List running JVM processes (excluding this tool)",
     mixinStandardHelpOptions = true
 )
 public class ListCommand implements Callable<Integer> {
@@ -36,22 +36,13 @@ public class ListCommand implements Callable<Integer> {
                 } else {
                     System.out.println("No running JVMs found.");
                 }
-                return 0;
+                return 1;
             }
-
-            // Print header
-            System.out.println("Available JVM processes:");
-            System.out.println();
 
             // Print each JVM
             for (JVMDiscovery.JVMProcess jvm : jvms) {
-                System.out.printf("  %d\t%s%n", jvm.pid(), jvm.mainClass());
+                System.out.println(jvm);
             }
-
-            System.out.println();
-            System.out.printf("Total: %d JVM(s)%s%n",
-                jvms.size(),
-                filter != null && !filter.isBlank() ? " (filtered)" : "");
 
             return 0;
 

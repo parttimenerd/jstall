@@ -2,12 +2,14 @@ package me.bechberger.jstall.util;
 
 import com.sun.tools.attach.VirtualMachine;
 import com.sun.tools.attach.VirtualMachineDescriptor;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -46,12 +48,15 @@ public class JVMDiscovery {
         long currentPid = ProcessHandle.current().pid();
 
         List<VirtualMachineDescriptor> descriptors = VirtualMachine.list();
-
+        if (descriptors.isEmpty()) {
+            return listJVMsFallback(filter);
+        }
         for (VirtualMachineDescriptor desc : descriptors) {
             long pid;
             try {
                 pid = Long.parseLong(desc.id());
             } catch (NumberFormatException e) {
+                System.out.println("Warning: Skipping JVM with non-numeric ID: " + desc.id());
                 continue; // Skip non-numeric IDs
             }
 
@@ -60,7 +65,7 @@ public class JVMDiscovery {
                 continue;
             }
 
-            String mainClass = desc.displayName().isBlank() ? "<unknown>" : desc.displayName();
+            String mainClass = desc.displayName().isBlank() ? tryToFindCommandName(pid) : desc.displayName();
 
             if (hasFilter) {
                 if (mainClass.toLowerCase().contains(filter.toLowerCase())) {
@@ -69,6 +74,60 @@ public class JVMDiscovery {
             } else {
                 jvms.add(new JVMProcess(pid, mainClass));
             }
+        }
+
+        return jvms;
+    }
+
+    private static String tryToFindCommandName(long pid) {
+        try {
+            ProcessHandle handle = ProcessHandle.of(pid).orElse(null);
+            if (handle != null) {
+                return handle.info().command().orElse("<unknown>");
+            }
+        } catch (Exception e) {
+            // Ignore exceptions and fall through
+        }
+        return "<unknown>";
+    }
+
+    private static List<JVMProcess> listJVMsFallback(String filter) throws IOException {
+        List<JVMProcess> jvms = new ArrayList<>();
+        boolean hasFilter = filter != null && !filter.isBlank();
+        long currentPid = ProcessHandle.current().pid();
+
+        ProcessBuilder pb = new ProcessBuilder("jps", "-l");
+        Process process = pb.start();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split("\\s+", 2);
+                if (parts.length < 1) {
+                    continue;
+                }
+
+                long pid;
+                try {
+                    pid = Long.parseLong(parts[0]);
+                } catch (NumberFormatException e) {
+                    System.out.println("Warning: Skipping JVM with non-numeric ID: " + parts[0]);
+                    continue; // Skip non-numeric IDs
+                }
+                // Skip current JVM and jps itself
+                if (pid == currentPid || pid == process.pid()) {
+                    continue;
+                }
+                String mainClass = parts.length > 1 && !parts[1].isEmpty() ? parts[1] : "<unknown>";
+                if (hasFilter) {
+                    if (mainClass.toLowerCase().contains(filter.toLowerCase())) {
+                        jvms.add(new JVMProcess(pid, mainClass));
+                    }
+                } else {
+                    jvms.add(new JVMProcess(pid, mainClass));
+                }
+            }
+        } catch (IOException e) {
+            throw new IOException("Failed to execute jps command", e);
         }
 
         return jvms;
