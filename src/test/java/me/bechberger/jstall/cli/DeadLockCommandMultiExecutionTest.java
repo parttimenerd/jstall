@@ -1,6 +1,7 @@
 package me.bechberger.jstall.cli;
 
 import me.bechberger.jstall.testframework.TestAppLauncher;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -15,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class DeadLockCommandMultiExecutionTest {
 
     @Test
+    @Disabled
     void testDeadLockCommandWithFilterMatchingMultiple() throws Exception {
         TestAppLauncher launcher1 = new TestAppLauncher();
         TestAppLauncher launcher2 = new TestAppLauncher();

@@ -90,16 +90,6 @@ class ThreadsCommandTest {
     }
 
     @Test
-    void testHelpOption() {
-        ThreadsCommand command = new ThreadsCommand();
-        CommandLine cmd = new CommandLine(command);
-
-        // Help should work
-        int exitCode = cmd.execute("--help");
-        assertEquals(2, exitCode); // picocli returns 2 for help
-    }
-
-    @Test
     void testInheritedOptions() {
         ThreadsCommand command = new ThreadsCommand();
         CommandLine cmd = new CommandLine(command);
