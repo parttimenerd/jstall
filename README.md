@@ -1,6 +1,6 @@
 # JStall
 
-[![CI](https://github.com/parttimenerd/jstall/actions/workflows/ci.yml/badge.svg)](https://github.com/parttimenerd/jstall/actions/workflows/ci.yml)
+[![CI](https://github.com/parttimenerd/jstall/actions/workflows/ci.yml/badge.svg)](https://github.com/parttimenerd/jstall/actions/workflows/ci.yml) [![Maven Central Version](https://img.shields.io/maven-central/v/me.bechberger/jstall)](https://central.sonatype.com/artifact/me.bechberger/jstall)
 
 **JStall answers the age-old question: "What is my Java application doing right now?"**
 
@@ -281,7 +281,7 @@ mvn clean package
 
 [bin/sync-documentation.py](bin/sync-documentation.py) is used to synchronize the CLI help messages into this README.
 
-[bin/releaser.sh](bin/releaser.sh) is a helper script to create new releases.
+[release.sh](./release.sh) is a helper script to create new releases.
 
 ### Extending
 
