@@ -3,6 +3,7 @@ package me.bechberger.jstall.analyzer.impl;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.BaseAnalyzer;
 import me.bechberger.jstall.analyzer.DumpRequirement;
+import me.bechberger.jstall.analyzer.ThreadActivityCategorizer;
 import me.bechberger.jstall.util.TablePrinter;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.model.ThreadInfo;
@@ -86,6 +87,7 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
             .addColumn("CPU TIME", TablePrinter.Alignment.RIGHT)
             .addColumn("CPU %", TablePrinter.Alignment.RIGHT)
             .addColumn("STATES", TablePrinter.Alignment.LEFT)
+            .addColumn("ACTIVITY", TablePrinter.Alignment.LEFT)
             .addColumn("TOP STACK FRAME", TablePrinter.Alignment.LEFT);
 
         // Add rows
@@ -98,6 +100,7 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
                 : "N/A";
 
             String states = activity.getStateDistribution();
+            String activityDist = activity.getActivityDistribution();
             String topFrame = activity.getTopStackFrame();
 
             table.addRow(
@@ -105,6 +108,7 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
                 cpuTime,
                 cpuPercentage,
                 states,
+                activityDist,
                 topFrame
             );
         }
@@ -119,6 +123,7 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
      */
     private static class ThreadActivity extends ThreadActivityBase {
         final List<List<String>> stackTraces = new ArrayList<>();
+        final List<ThreadInfo> threadInfos = new ArrayList<>();
         final Map<Thread.State, Integer> stateCounts = new HashMap<>();
         double maxElapsedTimeSec = 0.0;
 
@@ -129,6 +134,9 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
         @Override
         public void addOccurrence(ThreadInfo thread) {
             occurrenceCount++;
+
+            // Track thread info for activity categorization
+            threadInfos.add(thread);
 
             // Track thread state
             stateCounts.put(thread.state(), stateCounts.getOrDefault(thread.state(), 0) + 1);
@@ -175,6 +183,16 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
             }
 
             return sb.toString();
+        }
+
+        String getActivityDistribution() {
+            if (threadInfos.isEmpty()) {
+                return "";
+            }
+
+            Map<ThreadActivityCategorizer.Category, Integer> distribution =
+                ThreadActivityCategorizer.categorizeMultiple(threadInfos);
+            return ThreadActivityCategorizer.formatDistribution(distribution, threadInfos.size());
         }
 
         String getTopStackFrame() {

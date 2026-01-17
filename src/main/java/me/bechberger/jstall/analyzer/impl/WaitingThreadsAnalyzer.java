@@ -34,7 +34,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of("dumps", "interval", "keep", "no-native", "stack-depth");
+        return Set.of("dumps", "interval", "keep", "no-native", "stack-depth", "intelligent-filter");
     }
 
     @Override
@@ -46,6 +46,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
     public AnalyzerResult analyzeThreadDumps(List<ThreadDump> dumps, Map<String, Object> options) {
         boolean noNative = getNoNativeOption(options);
         int stackDepth = getStackDepthOption(options);
+        boolean intelligentFilter = getIntelligentFilterOption(options);
 
         if (dumps.isEmpty()) {
             return AnalyzerResult.ok("No thread dumps available");
@@ -77,7 +78,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
         // Group threads by the lock object they're waiting on
         Map<String, List<WaitingThreadActivity>> threadsByLock = groupThreadsByLock(waitingThreads);
 
-        return AnalyzerResult.ok(formatAsText(waitingThreads, threadsByLock, dumps.size(), stackDepth));
+        return AnalyzerResult.ok(formatAsText(waitingThreads, threadsByLock, dumps.size(), stackDepth, intelligentFilter));
     }
 
     /**
@@ -163,7 +164,8 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
     private String formatAsText(List<WaitingThreadActivity> waitingThreads,
                                 Map<String, List<WaitingThreadActivity>> threadsByLock,
                                 int totalDumps,
-                                int stackDepth) {
+                                int stackDepth,
+                                boolean intelligentFilter) {
         StringBuilder sb = new StringBuilder();
 
         // Header explaining what was found
@@ -211,12 +213,19 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
                 sb.append("   Lock instance: ").append(lockId).append(" (same in all ").append(totalDumps).append(" dumps)\n");
             }
 
-            // Show common stack trace with configurable depth
-            // Since threads are waiting on the same lock in all dumps, the stack trace should be the same
-            if (!activity.stackTraces.isEmpty()) {
-                String stackTrace = activity.stackTraces.getFirst(); // Use first stack trace
-                String formatted = formatStackTrace(stackTrace, stackDepth, "   ", "Stack:");
-                sb.append(formatted);
+            // Show stack trace with optional intelligent filtering
+            if (!activity.threadInfos.isEmpty()) {
+                ThreadInfo firstThread = activity.threadInfos.getFirst();
+                if (firstThread.stackTrace() != null && !firstThread.stackTrace().isEmpty()) {
+                    String formatted = formatStackTraceFromFrames(
+                        firstThread.stackTrace(),
+                        stackDepth,
+                        intelligentFilter,
+                        "   ",
+                        "Stack:"
+                    );
+                    sb.append(formatted);
+                }
             }
 
             sb.append("\n");
@@ -244,6 +253,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
         final List<String> topStackFrames = new ArrayList<>();
         final List<String> lockIds = new ArrayList<>();
         final List<String> stackTraces = new ArrayList<>();
+        final List<ThreadInfo> threadInfos = new ArrayList<>();
 
         WaitingThreadActivity(ThreadInfo thread) {
             super(thread);
@@ -252,6 +262,9 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
         @Override
         public void addOccurrence(ThreadInfo thread) {
             occurrenceCount++;
+
+            // Store thread info for intelligent filtering
+            threadInfos.add(thread);
 
             // Track thread state
             stateCounts.put(thread.state(), stateCounts.getOrDefault(thread.state(), 0) + 1);
