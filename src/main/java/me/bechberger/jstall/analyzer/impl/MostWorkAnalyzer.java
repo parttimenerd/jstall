@@ -3,6 +3,7 @@ package me.bechberger.jstall.analyzer.impl;
 import me.bechberger.jstall.analyzer.BaseAnalyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
+import me.bechberger.jstall.analyzer.ThreadActivityCategorizer;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.model.ThreadInfo;
 
@@ -114,6 +115,12 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
                 sb.append("   States: ").append(stateDistribution).append("\n");
             }
 
+            // Display activity distribution
+            String activityDistribution = activity.getActivityDistribution();
+            if (!activityDistribution.isEmpty()) {
+                sb.append("   Activity: ").append(activityDistribution).append("\n");
+            }
+
             // Show common stack prefix
             if (!activity.stackTraces.isEmpty()) {
                 String commonStack = activity.getCommonStackPrefix();
@@ -131,6 +138,7 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
      */
     private static class ThreadActivity extends ThreadActivityBase {
         final List<String> stackTraces = new ArrayList<>();
+        final List<ThreadInfo> threadInfos = new ArrayList<>();
         final Map<Thread.State, Integer> stateCounts = new HashMap<>();
         double maxElapsedTimeSec = 0.0;
         boolean hasElapsedTimeData = false;
@@ -142,6 +150,9 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
         @Override
         public void addOccurrence(ThreadInfo thread) {
             occurrenceCount++;
+
+            // Track thread info for activity categorization
+            threadInfos.add(thread);
 
             // Track thread state
             stateCounts.put(thread.state(), stateCounts.getOrDefault(thread.state(), 0) + 1);
@@ -192,6 +203,16 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
             }
 
             return sb.toString();
+        }
+
+        String getActivityDistribution() {
+            if (threadInfos.isEmpty()) {
+                return "";
+            }
+
+            Map<ThreadActivityCategorizer.Category, Integer> distribution =
+                ThreadActivityCategorizer.categorizeMultiple(threadInfos);
+            return ThreadActivityCategorizer.formatDistribution(distribution, threadInfos.size());
         }
 
         String getCommonStackPrefix() {

@@ -15,7 +15,7 @@ import java.util.Set;
 /**
  * Meta-analyzer that runs multiple analyzers in sequence.
  *
- * Combines the results of DeadLockAnalyzer, MostWorkAnalyzer, and WaitingThreadsAnalyzer.
+ * Combines the results of DeadLockAnalyzer, MostWorkAnalyzer, ThreadsAnalyzer, and DependencyGraphAnalyzer.
  */
 public class StatusAnalyzer extends BaseAnalyzer {
 
@@ -23,7 +23,8 @@ public class StatusAnalyzer extends BaseAnalyzer {
     private final List<? extends Analyzer> ANALYZERS = List.of(
         new DeadLockAnalyzer(),
         new MostWorkAnalyzer(),
-        new WaitingThreadsAnalyzer()
+        new ThreadsAnalyzer(),
+        new DependencyGraphAnalyzer()
     );
 
     @Override

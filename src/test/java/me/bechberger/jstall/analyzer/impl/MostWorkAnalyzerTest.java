@@ -2,8 +2,12 @@ package me.bechberger.jstall.analyzer.impl;
 
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
+import me.bechberger.jthreaddump.model.StackFrame;
+import me.bechberger.jthreaddump.model.ThreadDump;
+import me.bechberger.jthreaddump.model.ThreadInfo;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -58,5 +62,72 @@ class MostWorkAnalyzerTest {
 
         assertEquals(0, result.exitCode());
         assertNotNull(result.output());
+    }
+
+    @Test
+    void testActivityCategorizationInOutput() {
+        MostWorkAnalyzer analyzer = new MostWorkAnalyzer();
+
+        // Create thread dumps with I/O activity
+        ThreadInfo ioThread = new ThreadInfo(
+            "io-thread",
+            1L,
+            null,
+            5,
+            false,
+            Thread.State.RUNNABLE,
+            1.0,
+            10.0,
+            List.of(
+                new StackFrame("java.io.FileInputStream", "read", "FileInputStream.java", 100)
+            ),
+            List.of(),
+            null,
+            null
+        );
+
+        ThreadDump dump1 = new ThreadDump(
+            Instant.now().minusSeconds(10),
+            "Test Dump 1",
+            List.of(ioThread),
+            null,
+            null,
+            null
+        );
+
+        ThreadInfo ioThread2 = new ThreadInfo(
+            "io-thread",
+            1L,
+            null,
+            5,
+            false,
+            Thread.State.RUNNABLE,
+            2.0,
+            20.0,
+            List.of(
+                new StackFrame("java.io.FileInputStream", "read", "FileInputStream.java", 100)
+            ),
+            List.of(),
+            null,
+            null
+        );
+
+        ThreadDump dump2 = new ThreadDump(
+            Instant.now(),
+            "Test Dump 2",
+            List.of(ioThread2),
+            null,
+            null,
+            null
+        );
+
+        AnalyzerResult result = analyzer.analyzeThreadDumps(List.of(dump1, dump2), Map.of("top", 3));
+
+        assertEquals(0, result.exitCode());
+        String output = result.output();
+
+        // Should contain activity categorization
+        assertTrue(output.contains("Activity:"), "Output should contain 'Activity:' label");
+        assertTrue(output.contains("I/O Read"), "Output should categorize I/O read activity");
     }
 }

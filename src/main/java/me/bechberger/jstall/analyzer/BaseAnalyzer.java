@@ -61,6 +61,10 @@ public abstract class BaseAnalyzer implements Analyzer {
         return getIntOption(options, "stack-depth", 10);
     }
 
+    protected boolean getIntelligentFilterOption(Map<String, Object> options) {
+        return getBooleanOption(options, "intelligent-filter", false);
+    }
+
     /**
      * Tracks thread activity across multiple dumps.
      *
@@ -180,6 +184,47 @@ public abstract class BaseAnalyzer implements Analyzer {
 
             if (maxDepth > 0 && lines.length > maxDepth) {
                 sb.append(indent + "  ").append("... (").append(lines.length - maxDepth).append(" more lines)\n");
+            }
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * Formats a stack trace from StackFrame list with optional intelligent filtering.
+     *
+     * @param frames The stack frames
+     * @param maxDepth Maximum number of frames to show (in intelligent mode: max relevant frames)
+     * @param intelligentFilter Whether to use intelligent filtering
+     * @param indent Indentation prefix for each line
+     * @param label Label to display before the stack trace
+     * @return Formatted stack trace string, or empty string if no frames
+     */
+    protected String formatStackTraceFromFrames(List<me.bechberger.jthreaddump.model.StackFrame> frames,
+                                                int maxDepth,
+                                                boolean intelligentFilter,
+                                                String indent,
+                                                String label) {
+        if (frames == null || frames.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(indent).append(label).append("\n");
+
+        if (intelligentFilter) {
+            // Use intelligent filtering
+            List<IntelligentStackFilter.FilteredFrame> filtered =
+                IntelligentStackFilter.filterStackTrace(frames, maxDepth);
+            sb.append(IntelligentStackFilter.formatFilteredStackTrace(filtered, indent + "  "));
+        } else {
+            // Simple depth-based filtering
+            int linesToShow = maxDepth > 0 ? Math.min(frames.size(), maxDepth) : frames.size();
+            for (int i = 0; i < linesToShow; i++) {
+                sb.append(indent + "  ").append(frames.get(i).toString()).append("\n");
+            }
+            if (maxDepth > 0 && frames.size() > maxDepth) {
+                sb.append(indent + "  ").append("... (").append(frames.size() - maxDepth).append(" more frames)\n");
             }
         }
 
