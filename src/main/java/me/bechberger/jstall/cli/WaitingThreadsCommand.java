@@ -33,7 +33,6 @@ public class WaitingThreadsCommand extends BaseAnalyzerCommand {
     protected Map<String, Object> getAdditionalOptions() {
         Map<String, Object> options = new HashMap<>();
         options.put("no-native", noNative);
-        options.put("stack-depth", stackDepth);
         return options;
     }
 }
