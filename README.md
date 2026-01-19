@@ -18,7 +18,7 @@ Features:
 * **Smart filtering**: Target JVMs by name/class instead of PID
 * **Multi-execution**: Analyze multiple JVMs in parallel for faster results
 * **Supports Java 11+**: Works with all modern Java versions as a target
-* **Experimental AI-powered analysis**: Get intelligent insights from thread dumps using LLM (currently internal use only)
+* **AI-powered analysis**: Get intelligent insights from thread dumps using LLM (supports local models via Ollama or remote Gardener AI)
 ## Quick Start
 
 **Example:** Find out what your application (in our example `MyApplication` with pid `12345`) is doing right now
@@ -373,19 +373,70 @@ AI-powered thread dump analysis using LLM
 - Intelligent filtering enabled by default
 
 **Setup:**
-Create a `.gaw` file containing your API key in one of these locations:
-- Current directory: `./.gaw`
-- Home directory: `~/.gaw`
-- Or set environment variable: `ANSWERING_MACHINE_APIKEY`
+
+**Option 1: Local Models (Ollama)**  
+Run AI analysis with local models for privacy and no API costs:
+1. Install [Ollama](https://ollama.ai/)
+2. Pull a model: `ollama pull qwen3:30b`
+3. Create `.jstall-ai-config` in your home directory or current directory:
+   ```properties
+   provider=ollama
+   model=qwen3:30b
+   ollama.host=http://127.0.0.1:11434
+   ```
+**Note:** Ensure the Ollama server is running before using JStall with local models.
+
+It takes some time to start the model on first use; subsequent calls are faster, therefore:
+
+```bash
+OLLAMA_KEEP_ALIVE=1000m0s OLLAMA_CONTEXT_LENGTH=32000 OLLAMA_MAX_LOADED_MODELS=1 OLLAMA_HOST=http://127.0.0.1:11434 ollama serve
+```
+And also prime the model with a dummy request:
+
+```bash
+ollama chat qwen3:30b --prompt "Hello"
+```
+
+The `qwen3:30b` model is recommended for best results, but others can be used as well.
+It takes 18GB of RAM when loaded and runs reasonably fast on my MacBook Pro M4 48GB.
+
+Maybe also `gpt-oss:20b` works.
+
+**Option 2: Gardener AI (Remote)**  
+Use the Gardener AI API service:
+- Create a `.gaw` file containing your API key in one of these locations:
+  - Current directory: `./.gaw`
+  - Home directory: `~/.gaw`
+  - Or set environment variable: `ANSWERING_MACHINE_APIKEY`
+- Or configure in `.jstall-ai-config`:
+  ```properties
+  provider=gardener
+  model=gpt-50-nano
+  api.key=your-api-key-here
+  ```
+
+**Note:** Ollama supports true token-by-token streaming and thinking mode (`--thinking`), while Gardener AI returns complete responses.
 
 **Examples:**
 
 ```bash
-# Basic AI analysis
+# Basic AI analysis (uses config from .jstall-ai-config)
 jstall ai 12345
+
+# Use local Ollama (override config)
+jstall ai --local 12345
+
+# Use remote Gardener AI (override config)
+jstall ai --remote 12345
 
 # Basic AI analysis with short summary at the end
 jstall ai 12345 --short
+
+# Show thinking process (Ollama only - displays model's reasoning)
+jstall ai 12345 --thinking
+
+# Use local model with thinking mode
+jstall ai --local --thinking 12345
 
 # Ask a specific question
 jstall ai 12345 --question "Why is my application slow?"
@@ -396,8 +447,8 @@ echo "What's causing high memory usage?" | jstall ai 12345 --question -
 # Dry run to see the prompt without API call
 jstall ai 12345 --dry-run
 
-# Use a different model
-jstall ai 12345 --model gpt-4
+# Use a different model (override config)
+jstall ai 12345 --model qwen3:30b
 ```
 
 **Exit codes:** `0` = success, `2` = API key not found, `4` = authentication failed, `5` = API error, `3` = network error

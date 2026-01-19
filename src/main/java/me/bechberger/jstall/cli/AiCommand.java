@@ -2,8 +2,10 @@ package me.bechberger.jstall.cli;
 
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.impl.AiAnalyzer;
-import me.bechberger.jstall.util.AnsweringMachineClient;
-import me.bechberger.jstall.util.ApiKeyResolver;
+import me.bechberger.jstall.util.AiConfig;
+import me.bechberger.jstall.util.GardenerLlmProvider;
+import me.bechberger.jstall.util.LlmProvider;
+import me.bechberger.jstall.util.OllamaLlmProvider;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
@@ -26,8 +28,14 @@ import java.util.Map;
 )
 public class AiCommand extends BaseAnalyzerCommand {
 
-    @Option(names = "--model", description = "LLM model to use (default: gpt-50-nano)")
-    private String model = "gpt-50-nano";
+    @Option(names = "--local", description = "Use local Ollama provider (overrides config)")
+    private boolean useLocal;
+
+    @Option(names = "--remote", description = "Use remote Gardener AI provider (overrides config)")
+    private boolean useRemote;
+
+    @Option(names = "--model", description = "LLM model to use (default from config or provider default)")
+    private String model;
 
     @Option(names = "--question", description = "Custom question to ask (use '-' to read from stdin)")
     private String question;
@@ -51,24 +59,86 @@ public class AiCommand extends BaseAnalyzerCommand {
     @Option(names = "--short", description = "Create a succinct summary of the analysis")
     private boolean shortMode;
 
+    @Option(names = "--thinking", description = "Show thinking tokens (Ollama only)")
+    private boolean showThinking;
+
     private Analyzer analyzer;
 
     @Override
     protected Analyzer getAnalyzer() {
         if (analyzer == null) {
-            // Resolve API key
-            String apiKey;
-            try {
-                apiKey = ApiKeyResolver.resolve();
-            } catch (ApiKeyResolver.ApiKeyNotFoundException e) {
-                System.err.println("Error: " + e.getMessage());
+            // Check for conflicting options
+            if (useLocal && useRemote) {
+                System.err.println("Error: Cannot use both --local and --remote options");
                 System.exit(2);
-                return null; // unreachable
+                return null;
+            }
+
+            // Load AI configuration
+            AiConfig config;
+            try {
+                config = AiConfig.load();
+            } catch (AiConfig.ConfigNotFoundException e) {
+                // If no config found and no override specified, show error
+                if (!useLocal && !useRemote) {
+                    System.err.println("Error: " + e.getMessage());
+                    System.exit(2);
+                    return null;
+                }
+                // Use defaults when overriding
+                config = null;
+            }
+
+            // Determine which provider to use
+            boolean useOllama;
+            if (useLocal) {
+                useOllama = true;
+            } else if (useRemote) {
+                useOllama = false;
+            } else {
+                // Use config setting
+                useOllama = config != null && config.isOllama();
+            }
+
+            // Create appropriate LLM provider
+            LlmProvider llmProvider;
+            if (useOllama) {
+                String host = (config != null && config.getOllamaHost() != null)
+                    ? config.getOllamaHost()
+                    : "http://127.0.0.1:11434";
+                llmProvider = new OllamaLlmProvider(host);
+            } else {
+                // Gardener AI - need API key
+                String key = (config != null) ? config.getApiKey() : null;
+                if (key == null) {
+                    // Try environment variable as fallback
+                    key = System.getenv("ANSWERING_MACHINE_APIKEY");
+                }
+                if (key == null) {
+                    System.err.println("Error: API key required for Gardener AI provider");
+                    System.err.println("Set ANSWERING_MACHINE_APIKEY environment variable or configure in .jstall-ai-config");
+                    System.exit(2);
+                    return null;
+                }
+                llmProvider = new GardenerLlmProvider(key);
+            }
+
+            // Determine model to use
+            if (model == null) {
+                // If provider was overridden, use provider-specific default
+                if (useLocal || useRemote) {
+                    model = useOllama ? "qwen3:30b" : "gpt-50-nano";
+                } else if (config != null && config.getModel() != null) {
+                    // Use config model
+                    model = config.getModel();
+                } else {
+                    // Use provider defaults based on config
+                    model = useOllama ? "qwen3:30b" : "gpt-50-nano";
+                }
             }
 
             // Create analyzer
-            AnsweringMachineClient client = new AnsweringMachineClient();
-            analyzer = new AiAnalyzer(client, apiKey);
+            analyzer = new AiAnalyzer(llmProvider);
         }
         return analyzer;
     }
@@ -82,6 +152,7 @@ public class AiCommand extends BaseAnalyzerCommand {
         options.put("raw", raw);
         options.put("dry-run", dryRun);
         options.put("short", shortMode);
+        options.put("thinking", showThinking);
 
         // Handle question (with stdin support)
         if (question != null) {
