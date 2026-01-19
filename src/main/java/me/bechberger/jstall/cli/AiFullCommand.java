@@ -55,6 +55,9 @@ public class AiFullCommand implements Callable<Integer> {
     @Option(names = "--dry-run", description = "Perform a dry run without calling the AI API")
     private boolean dryRun;
 
+    @Option(names = "--short", description = "Create a succinct summary of the system analysis")
+    private boolean shortMode;
+
     @Option(names = "--intelligent-filter", description = "Enable intelligent stack filtering (default: true)")
     private Boolean intelligentFilter;
 
@@ -95,6 +98,7 @@ public class AiFullCommand implements Callable<Integer> {
         options.put("model", model);
         options.put("raw", raw);
         options.put("dry-run", dryRun);
+        options.put("short", shortMode);
         options.put("cpu-threshold", cpuThreshold);
 
         // Handle question (with stdin support)
