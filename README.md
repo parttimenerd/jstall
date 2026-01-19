@@ -7,18 +7,18 @@
 JStall is a small command-line tool for **one-shot inspection** of running JVMs using thread dumps and short, on-demand profiling.
 
 Features:
-* **Deadlock detection** — Find JVM-reported deadlocks quickly
-* **Hot thread identification** — See which threads are doing the most work
-* **Thread activity categorization** — Automatically classify threads by activity (I/O, Network, Database, etc.)
-* **Dependency graph** — Visualize which threads wait on locks held by others
-* **Starvation detection** — Find threads waiting on the same lock with no progress
-* **Intelligent stack filtering** — Collapse framework internals, focus on application code
-* **Offline analysis** — Analyze existing thread dumps
-* **Flamegraph generation** — Short profiling runs with [async-profiler](https://github.com/async-profiler/async-profiler)
-* **Smart filtering** — Target JVMs by name/class instead of PID
-* **Multi-execution** — Analyze multiple JVMs in parallel for faster results
-* **Supports Java 11+** — Works with all modern Java versions
-
+* **Deadlock detection**: Find JVM-reported deadlocks quickly
+* **Hot thread identification**: See which threads are doing the most work
+* **Thread activity categorization**: Automatically classify threads by activity (I/O, Network, Database, etc.)
+* **Dependency graph**: Visualize which threads wait on locks held by others
+* **Starvation detection**: Find threads waiting on the same lock with no progress
+* **Intelligent stack filtering**: Collapse framework internals, focus on application code
+* **Offline analysis**: Analyze existing thread dumps
+* **Flamegraph generation**: Short profiling runs with [async-profiler](https://github.com/async-profiler/async-profiler)
+* **Smart filtering**: Target JVMs by name/class instead of PID
+* **Multi-execution**: Analyze multiple JVMs in parallel for faster results
+* **Supports Java 11+**: Works with all modern Java versions as a target
+* **Experimental AI-powered analysis**: Get intelligent insights from thread dumps using LLM (currently internal use only)
 ## Quick Start
 
 **Example:** Find out what your application (in our example `MyApplication` with pid `12345`) is doing right now
@@ -29,6 +29,12 @@ jstall 12345
 
 # Or explicitly run the status command, that also supports using JVM name filters
 jstall status MyApplication
+
+# AI-powered analysis with intelligent insights
+jstall ai 12345
+
+# Analyze all JVMs on the system with AI
+jstall ai full
 
 # Find threads consuming most CPU
 jstall most-work 12345
@@ -66,6 +72,8 @@ Commands:
   waiting-threads   Identify threads waiting without progress (potentially
                       starving)
   dependency-graph  Show thread dependencies (lock wait relationships)
+  ai                AI-powered analysis using LLM
+  ai full           AI-powered analysis of all JVMs on the system
   list              List running JVM processes (excluding this tool)
 ```
 
@@ -319,6 +327,152 @@ Dependency Chains Detected:
 ---------------------------
 Chain: [Database] jdbc-connection-pool → [I/O Write] file-writer → [Network] netty-worker-1
 ```
+
+---
+
+### `ai`
+
+AI-powered thread dump analysis using a Large Language Model (LLM). Combines status analysis with intelligent AI interpretation.
+
+<!-- BEGIN help_ai -->
+```
+Usage: jstall ai [-hV] [--dry-run] [--intelligent-filter] [--keep] [--no-native]
+                 [--raw] [--dumps=<dumps>] [--interval=<interval>]
+                 [--model=<model>] [--question=<question>]
+                 [--stack-depth=<stackDepth>] [--top=<top>] [<targets>...]
+AI-powered thread dump analysis using LLM
+      [<targets>...]    PID, filter or dump files
+      --dumps=<dumps>   Number of dumps to collect, default is 2
+      --dry-run         Perform a dry run without calling the AI API
+  -h, --help            Show this help message and exit.
+      --intelligent-filter
+                        Use intelligent stack trace filtering (collapses
+                          internal frames, focuses on application code)
+      --interval=<interval>
+                        Interval between dumps, default is 5s
+      --keep            Persist dumps to disk
+      --model=<model>   LLM model to use (default: gpt-50-nano)
+      --no-native       Ignore threads without stack traces (typically
+                          native/system threads)
+      --question=<question>
+                        Custom question to ask (use '-' to read from stdin)
+      --raw             Output raw JSON response
+      --stack-depth=<stackDepth>
+                        Stack trace depth to show (default: 10, 0=all, in
+                          intelligent mode: max relevant frames)
+      --top=<top>       Number of top threads (default: 3)
+  -V, --version         Print version information and exit.
+```
+<!-- END help_ai -->
+
+**Features:**
+- Runs comprehensive status analysis (deadlocks, hot threads, dependency graph)
+- Sends analysis to LLM for intelligent interpretation
+- Provides natural language insights and recommendations
+- Supports custom questions about the thread dumps
+- Intelligent filtering enabled by default
+
+**Setup:**
+Create a `.gaw` file containing your API key in one of these locations:
+- Current directory: `./.gaw`
+- Home directory: `~/.gaw`
+- Or set environment variable: `ANSWERING_MACHINE_APIKEY`
+
+**Examples:**
+
+```bash
+# Basic AI analysis
+jstall ai 12345
+
+# Ask a specific question
+jstall ai 12345 --question "Why is my application slow?"
+
+# Read question from stdin
+echo "What's causing high memory usage?" | jstall ai 12345 --question -
+
+# Dry run to see the prompt without API call
+jstall ai 12345 --dry-run
+
+# Use a different model
+jstall ai 12345 --model gpt-4
+```
+
+**Exit codes:** `0` = success, `2` = API key not found, `4` = authentication failed, `5` = API error, `3` = network error
+
+---
+
+### `ai full`
+
+Analyzes **all active JVMs on the system** with AI-powered insights. Discovers running JVMs, analyzes those using CPU, and provides system-wide analysis.
+
+<!-- BEGIN help_ai_full -->
+```
+Usage: jstall ai full [-hV] [--dry-run] [--intelligent-filter] [--no-native]
+                      [--raw] [--cpu-threshold=<cpuThreshold>]
+                      [-i=<interval>] [--model=<model>] [-n=<dumps>]
+                      [--question=<question>] [--stack-depth=<stackDepth>]
+                      [--top=<top>]
+Analyze all JVMs on the system with AI
+      --cpu-threshold=<cpuThreshold>
+                        CPU threshold percentage (default: 1.0%)
+      --dry-run         Perform a dry run without calling the AI API
+  -h, --help            Show this help message and exit.
+  -i, --interval=<interval>
+                        Interval between dumps in seconds (default: 1)
+      --intelligent-filter
+                        Enable intelligent stack filtering (default: true)
+      --model=<model>   LLM model to use (default: gpt-50-nano)
+  -n, --dumps=<dumps>   Number of dumps per JVM (default: 2)
+      --no-native       Ignore threads without stack traces
+      --question=<question>
+                        Custom question to ask (use '-' to read from stdin)
+      --raw             Output raw JSON response
+      --stack-depth=<stackDepth>
+                        Stack trace depth (default: 10, 0=all)
+      --top=<top>       Number of top threads per JVM (default: 3)
+  -V, --version         Print version information and exit.
+```
+<!-- END help_ai_full -->
+
+**How it works:**
+1. Discovers all JVMs on the system
+2. Collects thread dumps from each JVM (in parallel)
+3. Filters JVMs by CPU usage (default: >1% of interval time)
+4. Runs status analysis on each active JVM
+5. Sends combined analysis to AI for system-wide insights
+
+**Output structure:**
+1. High-level summary of overall system state
+2. Cross-JVM issues, bottlenecks, or patterns
+3. Individual analysis sections for each JVM
+
+**Examples:**
+
+```bash
+# Analyze all active JVMs on the system
+jstall ai full
+
+# Lower CPU threshold to include more JVMs
+jstall ai full --cpu-threshold 0.5
+
+# Focus on specific concern
+jstall ai full --question "Which JVMs have memory leak indicators?"
+
+# Dry run to see what would be analyzed
+jstall ai full --dry-run
+
+# More comprehensive analysis with more dumps
+jstall ai full -n 5 -i 2
+```
+
+**Use cases:**
+- Production environment health check
+- Microservices ecosystem analysis  
+- Identify system-wide bottlenecks
+- Cross-service dependency issues
+- Resource usage patterns across multiple JVMs
+
+**Exit codes:** Same as `ai` command
 
 ---
 
