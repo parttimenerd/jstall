@@ -23,7 +23,7 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of("dumps", "interval", "keep", "top", "no-native");
+        return Set.of("dumps", "interval", "keep", "no-native");
     }
 
     @Override
@@ -34,7 +34,6 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
     @Override
     public AnalyzerResult analyzeThreadDumps(List<ThreadDump> dumps, Map<String, Object> options) {
         boolean noNative = getNoNativeOption(options);
-        Integer topN = (Integer) options.get("top");
 
         // Track thread activity across dumps using base class
         Map<Long, ThreadActivity> threadActivities = trackThreadActivity(
@@ -52,7 +51,7 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
         double elapsedTimeSec = calculateElapsedTime(dumps);
 
         // Sort threads using base class method
-        List<ThreadActivity> sortedThreads = sortThreadsByCpuTime(threadActivities.values(), topN);
+        List<ThreadActivity> sortedThreads = sortThreadsByCpuTime(threadActivities.values(), -1);
 
         return AnalyzerResult.ok(formatAsTable(sortedThreads, dumps.size(), totalCpuTimeSec, elapsedTimeSec));
     }

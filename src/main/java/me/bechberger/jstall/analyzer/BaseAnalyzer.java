@@ -106,13 +106,13 @@ public abstract class BaseAnalyzer implements Analyzer {
      * Sorts thread activities by CPU time (descending), with fallback to other criteria.
      *
      * @param activities Collection of thread activities
-     * @param topN Maximum number of threads to return (null for all)
+     * @param topN Maximum number of threads to return (-1 for all)
      * @param <T> The type of ThreadActivity
      * @return Sorted list of thread activities
      */
     protected <T extends ThreadActivityBase> List<T> sortThreadsByCpuTime(
             Collection<T> activities,
-            Integer topN) {
+            int topN) {
 
         return activities.stream()
             .sorted((a, b) -> {
@@ -130,7 +130,7 @@ public abstract class BaseAnalyzer implements Analyzer {
                 // Tertiary: Sort by thread name for stability
                 return a.getThreadName().compareTo(b.getThreadName());
             })
-            .limit(topN != null ? topN : Integer.MAX_VALUE)
+            .limit(topN != -1 ? topN : Integer.MAX_VALUE)
             .collect(Collectors.toList());
     }
 

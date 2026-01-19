@@ -42,6 +42,9 @@ public class AiCommand extends BaseAnalyzerCommand {
     @Option(names = "--stack-depth", description = "Stack trace depth (default: 10, 0=all)")
     private int stackDepth = 10;
 
+    @Option(names = "--dry-run", description = "Perform a dry run without calling the AI API")
+    private boolean dryRun;
+
     private Analyzer analyzer;
 
     @Override
@@ -71,6 +74,7 @@ public class AiCommand extends BaseAnalyzerCommand {
         // AI-specific options
         options.put("model", model);
         options.put("raw", raw);
+        options.put("dry-run", dryRun);
 
         // Handle question (with stdin support)
         if (question != null) {

@@ -18,9 +18,6 @@ import java.util.Map;
 )
 public class ThreadsCommand extends BaseAnalyzerCommand {
 
-    @Option(names = "--top", description = "Maximum number of threads to show (default: all)")
-    private Integer top;
-
     @Option(names = "--no-native", description = "Ignore threads without stack traces (typically native/system threads)")
     private boolean noNative = false;
 
@@ -32,9 +29,6 @@ public class ThreadsCommand extends BaseAnalyzerCommand {
     @Override
     protected Map<String, Object> getAdditionalOptions() {
         Map<String, Object> options = new HashMap<>();
-        if (top != null) {
-            options.put("top", top);
-        }
         options.put("no-native", noNative);
         return options;
     }

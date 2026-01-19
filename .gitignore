@@ -47,3 +47,5 @@ config-schema.json
 
 ### Test cache ###
 .thread-dump-cache/
+
+.gaw
