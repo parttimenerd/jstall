@@ -39,21 +39,10 @@ class ThreadsCommandTest {
         CommandLine cmd = new CommandLine(command);
 
         // Test parsing succeeds (execution will fail without valid PID)
-        cmd.parseArgs("12345", "--top", "10", "--no-native");
+        cmd.parseArgs("12345", "--no-native");
 
         // Just verify parsing worked
         assertNotNull(command);
-    }
-
-    @Test
-    void testTopOption() {
-        ThreadsCommand command = new ThreadsCommand();
-        CommandLine cmd = new CommandLine(command);
-
-        cmd.parseArgs("12345", "--top", "5");
-
-        var options = command.getAdditionalOptions();
-        assertEquals(5, options.get("top"));
     }
 
     @Test

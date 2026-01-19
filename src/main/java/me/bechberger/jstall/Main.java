@@ -56,6 +56,7 @@ public class Main implements Runnable {
         System.out.println("  waiting-threads   - Identify threads waiting without progress");
         System.out.println("  dependency-graph  - Show thread dependencies (lock wait relationships)");
         System.out.println("  ai                - AI-powered analysis using LLM");
+        System.out.println("  ai full           - AI-powered analysis of all JVMs on the system");
         System.out.println();
         JVMDiscovery.printAvailableJVMs(System.out);
     }

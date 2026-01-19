@@ -1,6 +1,6 @@
 package me.bechberger.jstall.cli;
 
-import me.bechberger.jstall.analyzer.Analyzer;
+import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.impl.AiAnalyzer;
 import me.bechberger.jstall.util.AnsweringMachineClient;
 import me.bechberger.jstall.util.ApiKeyResolver;
@@ -12,19 +12,17 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Callable;
 
 /**
- * AI-powered thread dump analysis using LLM.
+ * AI-powered analysis of all JVMs on the system.
  */
 @Command(
-    name = "ai",
-    description = "AI-powered thread dump analysis using LLM",
-    mixinStandardHelpOptions = true,
-    subcommands = {
-        AiFullCommand.class
-    }
+    name = "full",
+    description = "Analyze all JVMs on the system with AI",
+    mixinStandardHelpOptions = true
 )
-public class AiCommand extends BaseAnalyzerCommand {
+public class AiFullCommand implements Callable<Integer> {
 
     @Option(names = "--model", description = "LLM model to use (default: gpt-50-nano)")
     private String model = "gpt-50-nano";
@@ -35,8 +33,17 @@ public class AiCommand extends BaseAnalyzerCommand {
     @Option(names = "--raw", description = "Output raw JSON response")
     private boolean raw = false;
 
+    @Option(names = "--cpu-threshold", description = "CPU threshold percentage (default: 1.0%)")
+    private double cpuThreshold = 1.0;
+
+    @Option(names = {"-n", "--dumps"}, description = "Number of dumps per JVM (default: 2)")
+    private int dumps = 2;
+
+    @Option(names = {"-i", "--interval"}, description = "Interval between dumps in seconds (default: 1)")
+    private double interval = 1.0;
+
     // Status options
-    @Option(names = "--top", description = "Number of top threads (default: 3)")
+    @Option(names = "--top", description = "Number of top threads per JVM (default: 3)")
     private int top = 3;
 
     @Option(names = "--no-native", description = "Ignore threads without stack traces")
@@ -48,36 +55,47 @@ public class AiCommand extends BaseAnalyzerCommand {
     @Option(names = "--dry-run", description = "Perform a dry run without calling the AI API")
     private boolean dryRun;
 
-    private Analyzer analyzer;
+    @Option(names = "--intelligent-filter", description = "Enable intelligent stack filtering (default: true)")
+    private Boolean intelligentFilter;
 
     @Override
-    protected Analyzer getAnalyzer() {
-        if (analyzer == null) {
-            // Resolve API key
-            String apiKey;
-            try {
-                apiKey = ApiKeyResolver.resolve();
-            } catch (ApiKeyResolver.ApiKeyNotFoundException e) {
-                System.err.println("Error: " + e.getMessage());
-                System.exit(2);
-                return null; // unreachable
-            }
-
-            // Create analyzer
-            AnsweringMachineClient client = new AnsweringMachineClient();
-            analyzer = new AiAnalyzer(client, apiKey);
+    public Integer call() {
+        // Resolve API key
+        String apiKey;
+        try {
+            apiKey = ApiKeyResolver.resolve();
+        } catch (ApiKeyResolver.ApiKeyNotFoundException e) {
+            System.err.println("Error: " + e.getMessage());
+            return 2;
         }
-        return analyzer;
+
+        // Create analyzer
+        AnsweringMachineClient client = new AnsweringMachineClient();
+        AiAnalyzer analyzer = new AiAnalyzer(client, apiKey);
+
+        // Build options
+        Map<String, Object> options = buildOptions();
+
+        // Run full system analysis
+        long intervalMs = (long) (interval * 1000);
+        AnalyzerResult result = analyzer.analyzeFullSystem(dumps, intervalMs, options);
+
+        // Print output if not already printed by streaming
+        if (raw || dryRun) {
+            System.out.println(result.output());
+        }
+
+        return result.exitCode();
     }
 
-    @Override
-    protected Map<String, Object> getAdditionalOptions() {
+    private Map<String, Object> buildOptions() {
         Map<String, Object> options = new HashMap<>();
 
         // AI-specific options
         options.put("model", model);
         options.put("raw", raw);
         options.put("dry-run", dryRun);
+        options.put("cpu-threshold", cpuThreshold);
 
         // Handle question (with stdin support)
         if (question != null) {
@@ -109,6 +127,8 @@ public class AiCommand extends BaseAnalyzerCommand {
         // Enable intelligent-filter by default for AI command if not explicitly set
         if (intelligentFilter == null) {
             options.put("intelligent-filter", true);
+        } else {
+            options.put("intelligent-filter", intelligentFilter);
         }
 
         return options;
