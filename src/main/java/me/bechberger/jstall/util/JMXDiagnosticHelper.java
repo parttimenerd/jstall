@@ -76,29 +76,18 @@ public class JMXDiagnosticHelper implements AutoCloseable {
         }
     }
 
-    /**
-     * Executes a diagnostic command without arguments.
-     *
-     * @param command The diagnostic command to execute (e.g., "Thread.print", "GC.heap_info")
-     * @return The command output as a String
-     * @throws IOException if the command execution fails
-     */
-    public String executeCommand(String command) throws IOException {
-        return executeCommand(command, (String[]) null);
+    public String executeCommand(String mbeanCommand, String jcmdCommand) throws IOException {
+        return executeCommand(mbeanCommand, jcmdCommand, (String[]) null);
     }
 
-    /**
-     * Executes a diagnostic command with arguments.
-     *
-     * @param command The diagnostic command to execute
-     * @param args Optional arguments for the command
-     * @return The command output as a String
-     * @throws IOException if the command execution fails
-     */
-    public String executeCommand(String command, String... args) throws IOException {
+    public String executeCommand(String mbeanCommand, String jcmdCommand, String... args) throws IOException {
         if (noMBeanConnection) {
-            return executeCommandNoMBean(command, args);
+            return executeCommandNoMBean(jcmdCommand, args);
         }
+        return executeCommandMBean(mbeanCommand, args);
+    }
+
+    private String executeCommandMBean(String command, String... args) throws IOException {
         try {
             Object[] params = new Object[] { args };
             String[] signature = new String[] { "[Ljava.lang.String;" };
@@ -109,7 +98,7 @@ public class JMXDiagnosticHelper implements AutoCloseable {
                 return (String) result;
             } else {
                 throw new IOException("Unexpected result type from " + command + ": " +
-                    (result != null ? result.getClass().getName() : "null"));
+                                      (result != null ? result.getClass().getName() : "null"));
             }
         } catch (Exception e) {
             throw new IOException("Failed to execute diagnostic command '" + command + "': " + e.getMessage(), e);
@@ -119,8 +108,9 @@ public class JMXDiagnosticHelper implements AutoCloseable {
     /** Call jcmd as fallback if MBean connection is not available */
     private String executeCommandNoMBean(String command, String... args) throws IOException {
         ProcessBuilder pb = new ProcessBuilder("jcmd", vm.id(), command);
-        Arrays.stream(args).forEach(a -> pb.command().add(a));
-        System.out.println(pb.command());
+        if (args != null) {
+            Arrays.stream(args).forEach(a -> pb.command().add(a));
+        }
         pb.redirectError(ProcessBuilder.Redirect.PIPE);
         Process process = pb.start();
         try {
@@ -144,47 +134,13 @@ public class JMXDiagnosticHelper implements AutoCloseable {
      * @throws IOException if the operation fails
      */
     public String getThreadDump() throws IOException {
-        return executeCommand("Thread.print");
+        return executeCommand("threadPrint", "Thread.print");
     }
 
-    /**
-     * Gets heap information from the target JVM.
-     *
-     * @return Heap information as a String
-     * @throws IOException if the operation fails
-     */
-    public String getHeapInfo() throws IOException {
-        return executeCommand("GC.heap_info");
-    }
-
-    /**
-     * Triggers a garbage collection in the target JVM.
-     *
-     * @return GC execution result as a String
-     * @throws IOException if the operation fails
-     */
-    public String runGC() throws IOException {
-        return executeCommand("GC.run");
-    }
-
-    /**
-     * Gets the VM version information.
-     *
-     * @return VM version as a String
-     * @throws IOException if the operation fails
-     */
-    public String getVMVersion() throws IOException {
-        return executeCommand("VM.version");
-    }
-
-    /**
-     * Gets VM command line flags.
-     *
-     * @return VM flags as a String
-     * @throws IOException if the operation fails
-     */
-    public String getVMFlags() throws IOException {
-        return executeCommand("VM.flags");
+    public static String getThreadDump(long pid) throws IOException {
+        try (JMXDiagnosticHelper helper = new JMXDiagnosticHelper(pid)) {
+            return helper.getThreadDump();
+        }
     }
 
     @Override
@@ -215,14 +171,13 @@ public class JMXDiagnosticHelper implements AutoCloseable {
      * Creates a connection, executes the command, and closes the connection.
      *
      * @param pid Process ID of the target JVM
-     * @param command The diagnostic command to execute
      * @param args Optional arguments for the command
      * @return The command output as a String
      * @throws IOException if attachment, execution, or cleanup fails
      */
-    public static String executeCommand(long pid, String command, String... args) throws IOException {
+    public static String executeCommand(long pid, String mbeanCommand, String jcmdCommand, String... args) throws IOException {
         try (JMXDiagnosticHelper helper = new JMXDiagnosticHelper(pid)) {
-            return helper.executeCommand(command, args);
+            return helper.executeCommand(mbeanCommand, jcmdCommand, args);
         }
     }
 }

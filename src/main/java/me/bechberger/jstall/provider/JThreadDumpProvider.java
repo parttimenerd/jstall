@@ -73,7 +73,7 @@ public class JThreadDumpProvider implements ThreadDumpProvider {
     private String obtainDumpFromJVM(long pid) throws IOException {
         try {
             // Use JMX diagnostic helper to get thread dump
-            return JMXDiagnosticHelper.executeCommand(pid, "Thread.print");
+            return JMXDiagnosticHelper.getThreadDump(pid);
         } catch (Exception e) {
             throw new RuntimeException("Cannot use JMX Diagnostics, maybe submit a GitHub issue at https://github.com/parttimenerd/jstall/issues if you have a reproducer", e);
         }
