@@ -26,7 +26,7 @@ public class AiAnalyzer extends BaseAnalyzer {
         "You're a helpful thread dump analyzer. Given the following thread dump analysis, answer the user's question.";
 
     private static final String DEFAULT_USER_PROMPT =
-        "Summarize the thread dump analysis and provide insights, summarizing the state of the application based on the thread dump analysis.";
+        "Summarize the current state of the application. State any potential issues found in the thread dumps. But start with a short summary of the overall state.\n";
 
     private final AnsweringMachineClient client;
     private final String apiKey;
@@ -54,6 +54,7 @@ public class AiAnalyzer extends BaseAnalyzer {
         options.add("model");
         options.add("question");
         options.add("raw");
+        options.add("dry-run");
         return options;
     }
 
@@ -68,6 +69,7 @@ public class AiAnalyzer extends BaseAnalyzer {
         String model = getStringOption(options, "model", "gpt-50-nano");
         String customQuestion = getStringOption(options, "question", null);
         boolean rawOutput = getBooleanOption(options, "raw", false);
+        boolean dryRun = getBooleanOption(options, "dry-run", false);
 
         // Enable intelligent filtering by default
         Map<String, Object> statusOptions = new HashMap<>(options);
@@ -91,6 +93,19 @@ public class AiAnalyzer extends BaseAnalyzer {
 
         // Build prompts
         String userPrompt = buildUserPrompt(analysis, customQuestion);
+
+        // Dry-run mode: just print the prompt without calling the API
+        if (dryRun) {
+            StringBuilder output = new StringBuilder();
+            output.append("=== DRY RUN MODE ===\n\n");
+            output.append("Model: ").append(model).append("\n\n");
+            output.append("System Prompt:\n");
+            output.append(SYSTEM_PROMPT).append("\n\n");
+            output.append("User Prompt:\n");
+            output.append(userPrompt).append("\n");
+            output.append("\n=== END DRY RUN ===\n");
+            return AnalyzerResult.ok(output.toString());
+        }
 
         // Call LLM API
         try {
