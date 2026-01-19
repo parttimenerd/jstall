@@ -71,7 +71,9 @@ public class DependencyGraphAnalyzer extends BaseAnalyzer {
                 waitReasons.put(waiter, lockId);
             }
         }
-
+        if (dependencies.isEmpty()) {
+            return AnalyzerResult.nothing();
+        }
         return AnalyzerResult.ok(formatDependencyGraph(dependencies, waitReasons, latestDump));
     }
 
@@ -90,9 +92,6 @@ public class DependencyGraphAnalyzer extends BaseAnalyzer {
     private String formatDependencyGraph(Map<ThreadInfo, Set<ThreadInfo>> dependencies,
                                         Map<ThreadInfo, String> waitReasons,
                                         ThreadDump dump) {
-        if (dependencies.isEmpty()) {
-            return "No thread dependencies found (no threads waiting on locks held by other threads)";
-        }
 
         StringBuilder sb = new StringBuilder();
         sb.append("Thread Dependency Graph\n");

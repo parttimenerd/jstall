@@ -58,7 +58,7 @@ public abstract class BaseAnalyzer implements Analyzer {
     }
 
     protected int getStackDepthOption(Map<String, Object> options) {
-        return getIntOption(options, "stack-depth", 10);
+        return getIntOption(options, "stack-depth", 20);
     }
 
     protected boolean getIntelligentFilterOption(Map<String, Object> options) {
