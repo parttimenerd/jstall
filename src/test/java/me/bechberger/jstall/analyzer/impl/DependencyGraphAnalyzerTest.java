@@ -94,7 +94,7 @@ class DependencyGraphAnalyzerTest {
                 new StackFrame("com.example.MyApp", "method1", "MyApp.java", 100)
             ),
             List.of(
-                new LockInfo("0x12345", "java.lang.Object", "locked")
+                new LockInfo("0x12345", "java.lang.Object", LockInfo.LockOperation.LOCKED)
             ),
             null,
             null
@@ -113,8 +113,10 @@ class DependencyGraphAnalyzerTest {
             List.of(
                 new StackFrame("com.example.MyApp", "method2", "MyApp.java", 200)
             ),
-            List.of(),
-            "0x12345",
+            List.of(
+                new LockInfo("0x12345", "java.lang.Object", LockInfo.LockOperation.WAITING_TO_LOCK)
+            ),
+            null,
             null
         );
 
@@ -159,9 +161,10 @@ class DependencyGraphAnalyzerTest {
                 new StackFrame("java.io.FileInputStream", "read", "FileInputStream.java", 100)
             ),
             List.of(
-                new LockInfo("0xAAAA", "java.lang.Object", "locked")
+                new LockInfo("0xAAAA", "java.lang.Object", LockInfo.LockOperation.LOCKED),
+                new LockInfo("0xBBBB", "java.lang.Object", LockInfo.LockOperation.WAITING_TO_LOCK)
             ),
-            "0xBBBB",
+            null,
             null
         );
 
@@ -179,9 +182,10 @@ class DependencyGraphAnalyzerTest {
                 new StackFrame("sun.nio.ch.KQueue", "poll", null, null)
             ),
             List.of(
-                new LockInfo("0xBBBB", "java.lang.Object", "locked")
+                new LockInfo("0xBBBB", "java.lang.Object", LockInfo.LockOperation.LOCKED),
+                new LockInfo("0xCCCC", "java.lang.Object", LockInfo.LockOperation.WAITING_TO_LOCK)
             ),
-            "0xCCCC",
+            null,
             null
         );
 
@@ -199,7 +203,7 @@ class DependencyGraphAnalyzerTest {
                 new StackFrame("com.example.MyApp", "compute", "MyApp.java", 300)
             ),
             List.of(
-                new LockInfo("0xCCCC", "java.lang.Object", "locked")
+                new LockInfo("0xCCCC", "java.lang.Object", LockInfo.LockOperation.LOCKED)
             ),
             null,
             null
@@ -249,7 +253,7 @@ class DependencyGraphAnalyzerTest {
                 new StackFrame("com.example.MyApp", "method1", "MyApp.java", 100)
             ),
             List.of(
-                new LockInfo("0x12345", "java.lang.Object", "locked")
+                new LockInfo("0x12345", "java.lang.Object", LockInfo.LockOperation.LOCKED)
             ),
             null,
             null
@@ -268,8 +272,10 @@ class DependencyGraphAnalyzerTest {
             List.of(
                 new StackFrame("com.example.MyApp", "method2", "MyApp.java", 200)
             ),
-            List.of(),
-            "0x12345",
+            List.of(
+                new LockInfo("0x12345", "java.lang.Object", LockInfo.LockOperation.WAITING_TO_LOCK)
+            ),
+            null,
             null
         );
 
@@ -286,8 +292,10 @@ class DependencyGraphAnalyzerTest {
             List.of(
                 new StackFrame("com.example.MyApp", "method3", "MyApp.java", 300)
             ),
-            List.of(),
-            "0x12345",
+            List.of(
+                new LockInfo("0x12345", "java.lang.Object", LockInfo.LockOperation.WAITING_TO_LOCK)
+            ),
+            null,
             null
         );
 
@@ -331,7 +339,7 @@ class DependencyGraphAnalyzerTest {
                 new StackFrame("com.example.OldApp", "oldMethod", "OldApp.java", 100)
             ),
             List.of(
-                new LockInfo("0xOLD1", "java.lang.Object", "locked")
+                new LockInfo("0xOLD1", "java.lang.Object", LockInfo.LockOperation.LOCKED)
             ),
             null,
             null
@@ -349,8 +357,10 @@ class DependencyGraphAnalyzerTest {
             List.of(
                 new StackFrame("com.example.OldApp", "oldMethod2", "OldApp.java", 200)
             ),
-            List.of(),
-            "0xOLD1",
+            List.of(
+                new LockInfo("0xOLD1", "java.lang.Object", LockInfo.LockOperation.WAITING_TO_LOCK)
+            ),
+            null,
             null
         );
 
@@ -377,7 +387,7 @@ class DependencyGraphAnalyzerTest {
                 new StackFrame("java.sql.Connection", "executeQuery", "Connection.java", 100)
             ),
             List.of(
-                new LockInfo("0xNEW1", "java.lang.Object", "locked")
+                new LockInfo("0xNEW1", "java.lang.Object", LockInfo.LockOperation.LOCKED)
             ),
             null,
             null
@@ -395,8 +405,10 @@ class DependencyGraphAnalyzerTest {
             List.of(
                 new StackFrame("java.io.FileOutputStream", "write", "FileOutputStream.java", 200)
             ),
-            List.of(),
-            "0xNEW1",
+            List.of(
+                new LockInfo("0xNEW1", "java.lang.Object", LockInfo.LockOperation.WAITING_TO_LOCK)
+            ),
+            null,
             null
         );
 
@@ -451,7 +463,7 @@ class DependencyGraphAnalyzerTest {
                 new StackFrame("java.sql.Connection", "executeQuery", "Connection.java", 100)
             ),
             List.of(
-                new LockInfo("0xDB01", "java.lang.Object", "locked")
+                new LockInfo("0xDB01", "java.lang.Object", LockInfo.LockOperation.LOCKED)
             ),
             null,
             null
@@ -470,8 +482,10 @@ class DependencyGraphAnalyzerTest {
             List.of(
                 new StackFrame("java.io.FileOutputStream", "write", "FileOutputStream.java", 200)
             ),
-            List.of(),
-            "0xDB01",
+            List.of(
+                new LockInfo("0xDB01", "java.lang.Object", LockInfo.LockOperation.WAITING_TO_LOCK)
+            ),
+            null,
             null
         );
 

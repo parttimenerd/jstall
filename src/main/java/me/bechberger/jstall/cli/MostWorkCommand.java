@@ -27,9 +27,6 @@ public class MostWorkCommand extends BaseAnalyzerCommand {
     @Option(names = "--stack-depth", description = "Stack trace depth to show (default: 10, 0=all, in intelligent mode: max relevant frames)")
     private int stackDepth = 10;
 
-    @Option(names = "--intelligent-filter", description = "Use intelligent stack trace filtering (collapses internal frames, focuses on application code)")
-    private boolean intelligentFilter = false;
-
     @Override
     protected Analyzer getAnalyzer() {
         return new MostWorkAnalyzer();
@@ -41,7 +38,6 @@ public class MostWorkCommand extends BaseAnalyzerCommand {
         options.put("top", top);
         options.put("no-native", noNative);
         options.put("stack-depth", stackDepth);
-        options.put("intelligent-filter", intelligentFilter);
         return options;
     }
 }

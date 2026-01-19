@@ -8,17 +8,22 @@ import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 /**
  * Helper class for executing diagnostic commands on remote JVM processes via JMX.
  *
  * <p>This class uses the Attach API to connect to a target JVM and execute
  * diagnostic commands through the DiagnosticCommandMBean.
+ * <p>If it fails, it tries to fall back to jcmd
  *
  * <p>Example usage:
  * <pre>{@code
  * // Get thread dump
- * String threadDump = JMXDiagnosticHelper.executeCommand(12345, "threadPrint");
+ * String threadDump = JMXDiagnosticHelper.executeCommand(12345, "Thread.print");
  *
  * // Get heap dump
  * String heapInfo = JMXDiagnosticHelper.executeCommand(12345, "GC.heap_info");
@@ -32,9 +37,10 @@ public class JMXDiagnosticHelper implements AutoCloseable {
     private static final String DIAGNOSTIC_COMMAND_MBEAN = "com.sun.management:type=DiagnosticCommand";
 
     private final VirtualMachine vm;
-    private final JMXConnector connector;
-    private final MBeanServerConnection mbsc;
-    private final ObjectName diagnosticCmd;
+    private boolean noMBeanConnection;
+    private JMXConnector connector;
+    private MBeanServerConnection mbsc;
+    private ObjectName diagnosticCmd;
 
     /**
      * Creates a new JMXDiagnosticHelper attached to the specified JVM process.
@@ -47,16 +53,21 @@ public class JMXDiagnosticHelper implements AutoCloseable {
             // Attach to the target VM
             this.vm = VirtualMachine.attach(String.valueOf(pid));
 
-            // Start or get the JMX management agent
-            String jmxUrl = vm.startLocalManagementAgent();
-            JMXServiceURL url = new JMXServiceURL(jmxUrl);
+            try {
+                // Start or get the JMX management agent
+                String jmxUrl = vm.startLocalManagementAgent();
+                JMXServiceURL url = new JMXServiceURL(jmxUrl);
 
-            // Connect via JMX
-            this.connector = JMXConnectorFactory.connect(url);
-            this.mbsc = connector.getMBeanServerConnection();
+                // Connect via JMX
+                this.connector = JMXConnectorFactory.connect(url);
+                this.mbsc = connector.getMBeanServerConnection();
 
-            // Get the DiagnosticCommand MBean
-            this.diagnosticCmd = new ObjectName(DIAGNOSTIC_COMMAND_MBEAN);
+                // Get the DiagnosticCommand MBean
+                this.diagnosticCmd = new ObjectName(DIAGNOSTIC_COMMAND_MBEAN);
+                this.noMBeanConnection = false;
+            } catch (IOException e) {
+                this.noMBeanConnection = true;
+            }
 
         } catch (Exception e) {
             // Clean up on failure
@@ -68,7 +79,7 @@ public class JMXDiagnosticHelper implements AutoCloseable {
     /**
      * Executes a diagnostic command without arguments.
      *
-     * @param command The diagnostic command to execute (e.g., "threadPrint", "GC.heap_info")
+     * @param command The diagnostic command to execute (e.g., "Thread.print", "GC.heap_info")
      * @return The command output as a String
      * @throws IOException if the command execution fails
      */
@@ -85,6 +96,9 @@ public class JMXDiagnosticHelper implements AutoCloseable {
      * @throws IOException if the command execution fails
      */
     public String executeCommand(String command, String... args) throws IOException {
+        if (noMBeanConnection) {
+            return executeCommandNoMBean(command, args);
+        }
         try {
             Object[] params = new Object[] { args };
             String[] signature = new String[] { "[Ljava.lang.String;" };
@@ -102,6 +116,26 @@ public class JMXDiagnosticHelper implements AutoCloseable {
         }
     }
 
+    /** Call jcmd as fallback if MBean connection is not available */
+    private String executeCommandNoMBean(String command, String... args) throws IOException {
+        ProcessBuilder pb = new ProcessBuilder("jcmd", vm.id(), command);
+        Arrays.stream(args).forEach(a -> pb.command().add(a));
+        System.out.println(pb.command());
+        pb.redirectError(ProcessBuilder.Redirect.PIPE);
+        Process process = pb.start();
+        try {
+            process.waitFor();
+        } catch (InterruptedException e) {
+            throw  new IOException("jcmd execution interrupted", e);
+        }
+        String error = new String(process.getErrorStream().readAllBytes());
+        String output = new String(process.getInputStream().readAllBytes());
+        if (process.exitValue() != 0) {
+            throw new IOException("jcmd failed: " + error);
+        }
+        return output;
+    }
+
     /**
      * Gets a thread dump from the target JVM.
      * Equivalent to executing "Thread.print" via jcmd.
@@ -110,7 +144,7 @@ public class JMXDiagnosticHelper implements AutoCloseable {
      * @throws IOException if the operation fails
      */
     public String getThreadDump() throws IOException {
-        return executeCommand("threadPrint");
+        return executeCommand("Thread.print");
     }
 
     /**

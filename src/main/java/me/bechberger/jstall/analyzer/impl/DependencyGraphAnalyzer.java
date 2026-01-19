@@ -45,16 +45,16 @@ public class DependencyGraphAnalyzer extends BaseAnalyzer {
             // Track locks held by this thread
             if (thread.locks() != null) {
                 for (LockInfo lock : thread.locks()) {
-                    if (lock.lockType() != null && lock.lockType().contains("locked")) {
+                    if (lock.isLocked()) {
                         lockOwners.put(lock.lockId(), thread);
                     }
                 }
             }
 
             // Track what lock this thread is waiting on
-            if (thread.waitingOnLock() != null) {
-                threadWaitingOn.put(thread, thread.waitingOnLock());
-            }
+            getWaitedOnLock(thread).ifPresent(lock -> {
+                threadWaitingOn.put(thread, lock.lockId());
+            });
         }
 
         // Build dependency graph
@@ -73,6 +73,18 @@ public class DependencyGraphAnalyzer extends BaseAnalyzer {
         }
 
         return AnalyzerResult.ok(formatDependencyGraph(dependencies, waitReasons, latestDump));
+    }
+
+    public Optional<LockInfo> getWaitedOnLock(ThreadInfo thread) {
+        List<LockInfo> locksList = thread.locks().stream().filter(LockInfo::isBlocking).toList();
+        if (locksList.isEmpty()) {
+            return Optional.empty();
+        }
+        if (locksList.size() == 1) {
+            return Optional.of(locksList.get(0));
+        } else {
+            throw new IllegalStateException("Multiple locks found with blocking status for thread: " + thread.name());
+        }
     }
 
     private String formatDependencyGraph(Map<ThreadInfo, Set<ThreadInfo>> dependencies,

@@ -99,37 +99,6 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
     }
 
     /**
-     * Helper method to extract the lock a thread is waiting on.
-     * A thread can only be waiting on one lock at a time.
-     *
-     * @param info The thread info to analyze
-     * @return Optional containing the LockInfo if the thread is waiting on a lock, empty otherwise
-     * @throws IllegalStateException if multiple "waiting on" locks are found (should not happen)
-     */
-    private static Optional<LockInfo> getWaitedOnLock(ThreadInfo info) {
-        // First, try to get from the locks list (preferred method)
-        if (info.locks() != null && !info.locks().isEmpty()) {
-            List<LockInfo> locksList = info.locks().stream()
-                .filter(lock -> "waiting on".equals(lock.lockType()))
-                .toList();
-
-            if (locksList.size() == 1) {
-                return Optional.of(locksList.getFirst());
-            } else if (locksList.size() > 1) {
-                throw new IllegalStateException("Multiple locks found with 'waiting on' status for thread: " + info.name());
-            }
-        }
-
-        // Fallback: use the waitingOnLock field if available
-        if (info.waitingOnLock() != null && !info.waitingOnLock().isEmpty()) {
-            // Create a LockInfo from the waitingOnLock string
-            return Optional.of(new LockInfo(info.waitingOnLock(), null, "waiting on"));
-        }
-
-        return Optional.empty();
-    }
-
-    /**
      * Determines if a thread is waiting without making progress.
      * A thread is considered waiting without progress if:
      * 1. It appears in ALL thread dumps
@@ -286,7 +255,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
             }
 
             // Track lock information using the helper method
-            getWaitedOnLock(thread).ifPresent(lock -> {
+            thread.getWaitedOnLock().ifPresent(lock -> {
                 if (lock.lockId() != null && !lock.lockId().isEmpty()) {
                     lockIds.add(lock.lockId());
                 }

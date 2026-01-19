@@ -21,6 +21,7 @@ import picocli.CommandLine.Command;
         ThreadsCommand.class,
         WaitingThreadsCommand.class,
         DependencyGraphCommand.class,
+        AiCommand.class,
         ListCommand.class
     }
 )
@@ -54,6 +55,7 @@ public class Main implements Runnable {
         System.out.println("  threads           - List all threads");
         System.out.println("  waiting-threads   - Identify threads waiting without progress");
         System.out.println("  dependency-graph  - Show thread dependencies (lock wait relationships)");
+        System.out.println("  ai                - AI-powered analysis using LLM");
         System.out.println();
         JVMDiscovery.printAvailableJVMs(System.out);
     }

@@ -82,9 +82,6 @@
                 <executions>
                     <!-- No automatic executions - use: mvn exec:java@generate-schema -->
                 </executions>
-                <configuration>
-                    <mainClass>me.bechberger.jstack.config.SchemaGenerator</mainClass>
-                </configuration>
             </plugin>
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
@@ -146,9 +143,9 @@
                     <release>21</release>
                     <additionalJOptions>
                         <additionalJOption>--add-modules</additionalJOption>
-                        <additionalJOption>jdk.jfr,java.management,jdk.attach</additionalJOption>
+                        <additionalJOption>jdk.jfr,java.management,jdk.attach,java.net.http</additionalJOption>
                         <additionalJOption>--add-reads</additionalJOption>
-                        <additionalJOption>com.fasterxml.jackson.annotation=jdk.jfr,jdk.attach,java.management</additionalJOption>
+                        <additionalJOption>com.fasterxml.jackson.annotation=jdk.jfr,jdk.attach,java.management,java.net.http</additionalJOption>
                     </additionalJOptions>
                 </configuration>
             </plugin>
@@ -244,17 +241,10 @@
             <artifactId>picocli</artifactId>
             <version>4.7.7</version>
         </dependency>
-        <!-- Picocli code generation for GraalVM native-image -->
-        <dependency>
-            <groupId>info.picocli</groupId>
-            <artifactId>picocli-codegen</artifactId>
-            <version>4.7.7</version>
-            <scope>provided</scope>
-        </dependency>
         <dependency>
             <groupId>me.bechberger</groupId>
             <artifactId>jthreaddump</artifactId>
-            <version>0.3.1</version>
+            <version>0.4.0</version>
         </dependency>
         <dependency>
             <groupId>me.bechberger</groupId>
