@@ -384,6 +384,9 @@ Create a `.gaw` file containing your API key in one of these locations:
 # Basic AI analysis
 jstall ai 12345
 
+# Basic AI analysis with short summary at the end
+jstall ai 12345 --short
+
 # Ask a specific question
 jstall ai 12345 --question "Why is my application slow?"
 

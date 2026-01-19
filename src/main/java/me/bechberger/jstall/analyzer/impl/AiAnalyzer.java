@@ -23,7 +23,7 @@ import java.util.Set;
 public class AiAnalyzer extends BaseAnalyzer {
 
     private static final String SYSTEM_PROMPT =
-        "You're a helpful thread dump analyzer. Given the following thread dump analysis, answer the user's question.";
+        "You're a helpful thread dump analyzer that likes to be on the point. Given the following thread dump analysis, answer the user's question.";
 
     private static final String DEFAULT_USER_PROMPT =
         "Summarize the current state of the application. State any potential issues found in the thread dumps. But start with a short summary of the overall state.\n";
@@ -55,6 +55,7 @@ public class AiAnalyzer extends BaseAnalyzer {
         options.add("question");
         options.add("raw");
         options.add("dry-run");
+        options.add("short");
         return options;
     }
 
@@ -70,6 +71,7 @@ public class AiAnalyzer extends BaseAnalyzer {
         String customQuestion = getStringOption(options, "question", null);
         boolean rawOutput = getBooleanOption(options, "raw", false);
         boolean dryRun = getBooleanOption(options, "dry-run", false);
+        boolean shortMode = getBooleanOption(options, "short", false);
 
         // Enable intelligent filtering by default
         Map<String, Object> statusOptions = new HashMap<>(options);
@@ -109,27 +111,14 @@ public class AiAnalyzer extends BaseAnalyzer {
 
         // Call LLM API
         try {
-            List<AnsweringMachineClient.Message> messages = new ArrayList<>();
-            messages.add(new AnsweringMachineClient.Message("system", SYSTEM_PROMPT));
-            messages.add(new AnsweringMachineClient.Message("user", userPrompt));
+            String aiAnalysis = callLLM(model, userPrompt, rawOutput);
 
-            if (rawOutput) {
-                // Return raw JSON
-                String rawResponse = client.getCompletionRaw(apiKey, model, messages);
-                return AnalyzerResult.ok(rawResponse);
-            } else {
-                // Stream response
-                StringBuilder output = new StringBuilder();
-                client.streamCompletion(apiKey, model, messages, content -> {
-                    output.append(content);
-                    // Print to stdout immediately for streaming effect
-                    System.out.print(content);
-                    System.out.flush();
-                });
-                System.out.println(); // Final newline
-
-                return AnalyzerResult.ok(output.toString());
+            // If short mode, run through LLM again for succinct summary
+            if (shortMode && !rawOutput) {
+                aiAnalysis = createShortSummary(model, aiAnalysis, false);
             }
+
+            return AnalyzerResult.ok(aiAnalysis);
 
         } catch (AnsweringMachineClient.ApiException e) {
             if (e.isAuthError()) {
@@ -181,6 +170,7 @@ public class AiAnalyzer extends BaseAnalyzer {
         String customQuestion = getStringOption(options, "question", null);
         boolean rawOutput = getBooleanOption(options, "raw", false);
         boolean dryRun = getBooleanOption(options, "dry-run", false);
+        boolean shortMode = getBooleanOption(options, "short", false);
         double cpuThreshold = getDoubleOption(options, "cpu-threshold", 1.0);
 
         // Enable intelligent filtering by default
@@ -230,26 +220,14 @@ public class AiAnalyzer extends BaseAnalyzer {
 
         // Call LLM API
         try {
-            List<AnsweringMachineClient.Message> messages = new ArrayList<>();
-            messages.add(new AnsweringMachineClient.Message("system", SYSTEM_PROMPT));
-            messages.add(new AnsweringMachineClient.Message("user", userPrompt));
+            String aiAnalysis = callLLM(model, userPrompt, rawOutput);
 
-            if (rawOutput) {
-                // Return raw JSON
-                String rawResponse = client.getCompletionRaw(apiKey, model, messages);
-                return AnalyzerResult.ok(rawResponse);
-            } else {
-                // Stream response
-                StringBuilder output = new StringBuilder();
-                client.streamCompletion(apiKey, model, messages, content -> {
-                    output.append(content);
-                    // Print to stdout immediately for streaming effect
-                    System.out.print(content);
-                    System.out.flush();
-                });
-                System.out.println(); // Final newline
-                return AnalyzerResult.ok(output.toString());
+            // If short mode, run through LLM again for succinct summary
+            if (shortMode && !rawOutput) {
+                aiAnalysis = createShortSummary(model, aiAnalysis, true);
             }
+
+            return AnalyzerResult.ok(aiAnalysis);
 
         } catch (AnsweringMachineClient.ApiException e) {
             if (e.isAuthError()) {
@@ -288,6 +266,9 @@ public class AiAnalyzer extends BaseAnalyzer {
         prompt.append("Give the JVMs nicer names, but omit sentences like 'Here is a concise, findings-focused analysis of the 5 active JVMs, with nicer names and non-generic guidance.'" +
                       " and omit trying to explain what any JVM is doing in general. Just use 'name (pid)'.\n");
         prompt.append("Don't use JVM1, ..., but 'name (pid)'.\n");
+        prompt.append("Every fact needs to be based on the data provided; do not make up any facts or invent any findings" +
+                      "and mention short reasons for every statement, be as specific as possible.\n");
+        prompt.append("Be succinct and to the point, the user is focused on performance.\n");
         if (customQuestion != null && !customQuestion.trim().isEmpty()) {
             prompt.append("\n\nUser's specific question: ");
             prompt.append(customQuestion.trim());
@@ -309,5 +290,64 @@ public class AiAnalyzer extends BaseAnalyzer {
         } catch (NumberFormatException e) {
             return defaultValue;
         }
+    }
+
+    /**
+     * Calls the LLM with the given prompt and returns the response.
+     */
+    private String callLLM(String model, String userPrompt, boolean rawOutput) throws IOException, AnsweringMachineClient.ApiException {
+        List<AnsweringMachineClient.Message> messages = new ArrayList<>();
+        messages.add(new AnsweringMachineClient.Message("system", SYSTEM_PROMPT));
+        messages.add(new AnsweringMachineClient.Message("user", userPrompt));
+
+        if (rawOutput) {
+            // Return raw JSON
+            return client.getCompletionRaw(apiKey, model, messages);
+        } else {
+            // Stream response
+            StringBuilder output = new StringBuilder();
+            client.streamCompletion(apiKey, model, messages, content -> {
+                output.append(content);
+                // Print to stdout immediately for streaming effect
+                System.out.print(content);
+                System.out.flush();
+            });
+            System.out.println(); // Final newline
+            return output.toString();
+        }
+    }
+
+    /**
+     * Creates a short summary of the analysis by running it through the LLM again.
+     */
+    private String createShortSummary(String model, String fullAnalysis, boolean isSystemMode) throws IOException, AnsweringMachineClient.ApiException {
+        System.err.println("\n--- Creating short summary ---\n");
+
+        String summaryPrompt;
+        if (isSystemMode) {
+            summaryPrompt = "Analyze the following system-wide analysis and provide a succinct summary of the current state of the system.\n" +
+                    "Focus on the most important findings and issues. Be specific and data-driven.\n" +
+                    "Keep it to 3-5 key points maximum. Don't give any advice, just state the state. Don't repeat yourself.\n\n" +
+                    "Full Analysis:\n---\n" + fullAnalysis + "\n---";
+        } else {
+            summaryPrompt = "Analyze the following application analysis and provide a succinct summary of the current state of the application.\n" +
+                    "Focus on the most important findings and issues. Be specific and data-driven.\n" +
+                    "Keep it to 3-5 key points maximum. Don't give any advice, just state the state. Don't repeat yourself.\n\n" +
+                    "Full Analysis:\n---\n" + fullAnalysis + "\n---";
+        }
+
+        List<AnsweringMachineClient.Message> messages = new ArrayList<>();
+        messages.add(new AnsweringMachineClient.Message("system", SYSTEM_PROMPT));
+        messages.add(new AnsweringMachineClient.Message("user", summaryPrompt));
+
+        StringBuilder summary = new StringBuilder();
+        client.streamCompletion(apiKey, model, messages, content -> {
+            summary.append(content);
+            System.out.print(content);
+            System.out.flush();
+        });
+        System.out.println(); // Final newline
+
+        return summary.toString();
     }
 }

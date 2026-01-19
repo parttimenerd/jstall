@@ -48,6 +48,9 @@ public class AiCommand extends BaseAnalyzerCommand {
     @Option(names = "--dry-run", description = "Perform a dry run without calling the AI API")
     private boolean dryRun;
 
+    @Option(names = "--short", description = "Create a succinct summary of the analysis")
+    private boolean shortMode;
+
     private Analyzer analyzer;
 
     @Override
@@ -78,6 +81,7 @@ public class AiCommand extends BaseAnalyzerCommand {
         options.put("model", model);
         options.put("raw", raw);
         options.put("dry-run", dryRun);
+        options.put("short", shortMode);
 
         // Handle question (with stdin support)
         if (question != null) {
