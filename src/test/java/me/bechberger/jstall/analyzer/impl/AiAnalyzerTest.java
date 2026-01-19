@@ -3,7 +3,7 @@ package me.bechberger.jstall.analyzer.impl;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.model.ThreadDumpWithRaw;
-import me.bechberger.jstall.util.AnsweringMachineClient;
+import me.bechberger.jstall.util.LlmProvider;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.model.ThreadInfo;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,23 +11,22 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class AiAnalyzerTest {
 
     private AiAnalyzer analyzer;
-    private MockAnsweringMachineClient mockClient;
-    private static final String TEST_API_KEY = "test-api-key";
+    private MockLlmProvider mockProvider;
 
     @BeforeEach
     void setUp() {
-        mockClient = new MockAnsweringMachineClient();
-        analyzer = new AiAnalyzer(mockClient, TEST_API_KEY);
+        mockProvider = new MockLlmProvider();
+        analyzer = new AiAnalyzer(mockProvider);
     }
 
     @Test
@@ -43,6 +42,7 @@ class AiAnalyzerTest {
         assertTrue(supported.contains("model"));
         assertTrue(supported.contains("question"));
         assertTrue(supported.contains("raw"));
+        assertTrue(supported.contains("thinking"));
 
         // Should include options from StatusAnalyzer
         assertTrue(supported.contains("keep"));
@@ -56,7 +56,7 @@ class AiAnalyzerTest {
 
     @Test
     void testAnalyzeWithDefaultOptions() {
-        mockClient.setResponse("This is a summary of the thread dump analysis.");
+        mockProvider.setResponse("This is a summary of the thread dump analysis.");
 
         List<ThreadDumpWithRaw> dumps = createTestDumps(2);
         AnalyzerResult result = analyzer.analyze(dumps, Map.of());
@@ -66,12 +66,12 @@ class AiAnalyzerTest {
         assertEquals("This is a summary of the thread dump analysis.", result.output());
 
         // Verify default model was used
-        assertEquals("gpt-50-nano", mockClient.getLastModel());
+        assertEquals("gpt-50-nano", mockProvider.getLastModel());
     }
 
     @Test
     void testAnalyzeWithCustomModel() {
-        mockClient.setResponse("Analysis result");
+        mockProvider.setResponse("Analysis result");
 
         List<ThreadDumpWithRaw> dumps = createTestDumps(2);
         Map<String, Object> options = Map.of("model", "gpt-4");
@@ -79,12 +79,12 @@ class AiAnalyzerTest {
         AnalyzerResult result = analyzer.analyze(dumps, options);
 
         assertEquals(0, result.exitCode());
-        assertEquals("gpt-4", mockClient.getLastModel());
+        assertEquals("gpt-4", mockProvider.getLastModel());
     }
 
     @Test
     void testAnalyzeWithCustomQuestion() {
-        mockClient.setResponse("Answer to custom question");
+        mockProvider.setResponse("Answer to custom question");
 
         List<ThreadDumpWithRaw> dumps = createTestDumps(2);
         Map<String, Object> options = Map.of("question", "What is causing the deadlock?");
@@ -95,16 +95,16 @@ class AiAnalyzerTest {
         assertNotNull(result.output());
 
         // Verify custom question was included in messages
-        List<AnsweringMachineClient.Message> messages = mockClient.getLastMessages();
+        List<LlmProvider.Message> messages = mockProvider.getLastMessages();
         assertNotNull(messages);
         assertTrue(messages.stream()
             .anyMatch(m -> m.content.contains("What is causing the deadlock?")));
     }
 
     @Test
-    void testAnalyzeWithRawOutput() throws Exception {
+    void testAnalyzeWithRawOutput() {
         String rawJson = "{\"choices\": [{\"message\": {\"content\": \"Raw response\"}}]}";
-        mockClient.setRawResponse(rawJson);
+        mockProvider.setRawResponse(rawJson);
 
         List<ThreadDumpWithRaw> dumps = createTestDumps(2);
         Map<String, Object> options = Map.of("raw", true);
@@ -117,7 +117,7 @@ class AiAnalyzerTest {
 
     @Test
     void testAnalyzeWithAuthenticationError() {
-        mockClient.setAuthError();
+        mockProvider.setAuthError();
 
         List<ThreadDumpWithRaw> dumps = createTestDumps(2);
         AnalyzerResult result = analyzer.analyze(dumps, Map.of());
@@ -129,18 +129,18 @@ class AiAnalyzerTest {
 
     @Test
     void testAnalyzeWithApiError() {
-        mockClient.setApiError(500, "Internal server error");
+        mockProvider.setApiError(500, "Internal server error");
 
         List<ThreadDumpWithRaw> dumps = createTestDumps(2);
         AnalyzerResult result = analyzer.analyze(dumps, Map.of());
 
         assertEquals(5, result.exitCode());
-        assertTrue(result.output().contains("API error"));
+        assertTrue(result.output().contains("LLM error"));
     }
 
     @Test
     void testAnalyzeWithNetworkError() {
-        mockClient.setNetworkError();
+        mockProvider.setNetworkError();
 
         List<ThreadDumpWithRaw> dumps = createTestDumps(2);
         AnalyzerResult result = analyzer.analyze(dumps, Map.of());
@@ -151,7 +151,7 @@ class AiAnalyzerTest {
 
     @Test
     void testIntelligentFilteringEnabledByDefault() {
-        mockClient.setResponse("Analysis");
+        mockProvider.setResponse("Analysis");
 
         List<ThreadDumpWithRaw> dumps = createTestDumps(2);
         analyzer.analyze(dumps, Map.of());
@@ -163,12 +163,12 @@ class AiAnalyzerTest {
 
     @Test
     void testSystemPromptIncluded() {
-        mockClient.setResponse("Response");
+        mockProvider.setResponse("Response");
 
         List<ThreadDumpWithRaw> dumps = createTestDumps(2);
         analyzer.analyze(dumps, Map.of());
 
-        List<AnsweringMachineClient.Message> messages = mockClient.getLastMessages();
+        List<LlmProvider.Message> messages = mockProvider.getLastMessages();
         assertNotNull(messages);
         assertTrue(messages.stream()
             .anyMatch(m -> m.role.equals("system") && m.content.contains("thread dump analyzer")));
@@ -206,8 +206,8 @@ class AiAnalyzerTest {
         return List.of(dumpWithRaw, dumpWithRaw).subList(0, Math.min(count, 2));
     }
 
-    // Mock implementation of AnsweringMachineClient for testing
-    private static class MockAnsweringMachineClient extends AnsweringMachineClient {
+    // Mock implementation of LlmProvider for testing
+    private static class MockLlmProvider implements LlmProvider {
         private String response;
         private String rawResponse;
         private boolean authError;
@@ -215,7 +215,8 @@ class AiAnalyzerTest {
         private int apiErrorCode;
         private String apiErrorMessage;
         private String lastModel;
-        private List<Message> lastMessages;
+        private List<LlmProvider.Message> lastMessages;
+        private boolean supportsStreaming = false;
 
         public void setResponse(String response) {
             this.response = response;
@@ -254,50 +255,56 @@ class AiAnalyzerTest {
             return lastModel;
         }
 
-        public List<Message> getLastMessages() {
+        public List<LlmProvider.Message> getLastMessages() {
             return lastMessages;
         }
 
         @Override
-        public void streamCompletion(String apiKey, String model, List<Message> messages,
-                                     Consumer<String> outputHandler)
-                throws IOException, ApiException {
-            this.lastModel = model;
-            this.lastMessages = messages;
-
-            if (networkError) {
-                throw new IOException("Network error");
-            }
-
-            if (authError) {
-                throw new ApiException(401, "Unauthorized");
-            }
-
-            if (apiErrorCode != 0) {
-                throw new ApiException(apiErrorCode, apiErrorMessage);
-            }
-
-            if (response != null) {
-                outputHandler.accept(response);
-            }
+        public boolean supportsStreaming() {
+            return supportsStreaming;
         }
 
         @Override
-        public String getCompletionRaw(String apiKey, String model, List<Message> messages)
-                throws IOException, ApiException {
+        public String chat(String model, List<LlmProvider.Message> messages, LlmProvider.StreamHandlers handlers)
+                throws IOException, LlmProvider.LlmException {
             this.lastModel = model;
-            this.lastMessages = messages;
+            this.lastMessages = new ArrayList<>(messages);
 
             if (networkError) {
                 throw new IOException("Network error");
             }
 
             if (authError) {
-                throw new ApiException(401, "Unauthorized");
+                throw new LlmProvider.LlmException("Unauthorized", 401);
             }
 
             if (apiErrorCode != 0) {
-                throw new ApiException(apiErrorCode, apiErrorMessage);
+                throw new LlmProvider.LlmException(apiErrorMessage, apiErrorCode);
+            }
+
+            if (response != null && handlers.responseHandler != null) {
+                handlers.responseHandler.accept(response);
+            }
+
+            return response != null ? response : "";
+        }
+
+        @Override
+        public String getRawResponse(String model, List<LlmProvider.Message> messages)
+                throws IOException, LlmProvider.LlmException {
+            this.lastModel = model;
+            this.lastMessages = new ArrayList<>(messages);
+
+            if (networkError) {
+                throw new IOException("Network error");
+            }
+
+            if (authError) {
+                throw new LlmProvider.LlmException("Unauthorized", 401);
+            }
+
+            if (apiErrorCode != 0) {
+                throw new LlmProvider.LlmException(apiErrorMessage, apiErrorCode);
             }
 
             return rawResponse != null ? rawResponse : "{}";

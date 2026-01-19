@@ -4,7 +4,7 @@ import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.BaseAnalyzer;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.model.ThreadDumpWithRaw;
-import me.bechberger.jstall.util.AnsweringMachineClient;
+import me.bechberger.jstall.util.LlmProvider;
 import me.bechberger.jstall.util.SystemAnalyzer;
 
 import java.io.IOException;
@@ -29,18 +29,15 @@ public class AiAnalyzer extends BaseAnalyzer {
         "Summarize the current state of the application. State any potential issues found in the thread dumps." +
         "Don't offer generic advice; focus on the specific findings from the analyses. But start with a short summary of the overall state.\n";
 
-    private final AnsweringMachineClient client;
-    private final String apiKey;
+    private final LlmProvider llmProvider;
 
     /**
-     * Creates an AI analyzer with the specified API key.
+     * Creates an AI analyzer with the specified LLM provider.
      *
-     * @param client The answering machine client
-     * @param apiKey API key for authentication
+     * @param llmProvider The LLM provider to use
      */
-    public AiAnalyzer(AnsweringMachineClient client, String apiKey) {
-        this.client = client;
-        this.apiKey = apiKey;
+    public AiAnalyzer(LlmProvider llmProvider) {
+        this.llmProvider = llmProvider;
     }
 
     @Override
@@ -57,6 +54,7 @@ public class AiAnalyzer extends BaseAnalyzer {
         options.add("raw");
         options.add("dry-run");
         options.add("short");
+        options.add("thinking");
         return options;
     }
 
@@ -73,6 +71,7 @@ public class AiAnalyzer extends BaseAnalyzer {
         boolean rawOutput = getBooleanOption(options, "raw", false);
         boolean dryRun = getBooleanOption(options, "dry-run", false);
         boolean shortMode = getBooleanOption(options, "short", false);
+        boolean showThinking = getBooleanOption(options, "thinking", false);
 
         // Enable intelligent filtering by default
         Map<String, Object> statusOptions = new HashMap<>(options);
@@ -109,16 +108,16 @@ public class AiAnalyzer extends BaseAnalyzer {
 
         // Call LLM API
         try {
-            String aiAnalysis = callLLM(model, userPrompt, rawOutput);
+            String aiAnalysis = callLLM(model, userPrompt, rawOutput, showThinking);
 
             // If short mode, run through LLM again for succinct summary
             if (shortMode && !rawOutput) {
-                aiAnalysis = createShortSummary(model, aiAnalysis, false);
+                aiAnalysis = createShortSummary(model, aiAnalysis, false, showThinking);
             }
 
             return AnalyzerResult.ok(aiAnalysis);
 
-        } catch (AnsweringMachineClient.ApiException e) {
+        } catch (LlmProvider.LlmException e) {
             if (e.isAuthError()) {
                 return AnalyzerResult.withExitCode(
                     "Authentication failed: " + e.getMessage() + "\nPlease check your API key.",
@@ -126,7 +125,7 @@ public class AiAnalyzer extends BaseAnalyzer {
                 );
             } else {
                 return AnalyzerResult.withExitCode(
-                    "API error: " + e.getMessage(),
+                    "LLM error: " + e.getMessage(),
                     5
                 );
             }
@@ -145,6 +144,14 @@ public class AiAnalyzer extends BaseAnalyzer {
         prompt.append(analysis);
         prompt.append("\n---\n\n");
         prompt.append(DEFAULT_USER_PROMPT);
+
+        // Add provider-specific instructions
+        String additionalInstructions = llmProvider.getAdditionalInstructions();
+        if (!additionalInstructions.isEmpty()) {
+            prompt.append("\nAdditional Instructions:\n");
+            prompt.append(additionalInstructions);
+            prompt.append("\n");
+        }
 
         if (customQuestion != null && !customQuestion.trim().isEmpty()) {
             prompt.append("\n\nUser's specific question: ");
@@ -169,6 +176,7 @@ public class AiAnalyzer extends BaseAnalyzer {
         boolean rawOutput = getBooleanOption(options, "raw", false);
         boolean dryRun = getBooleanOption(options, "dry-run", false);
         boolean shortMode = getBooleanOption(options, "short", false);
+        boolean showThinking = getBooleanOption(options, "thinking", false);
         double cpuThreshold = getDoubleOption(options, "cpu-threshold", 1.0);
 
         // Enable intelligent filtering by default
@@ -218,16 +226,16 @@ public class AiAnalyzer extends BaseAnalyzer {
 
         // Call LLM API
         try {
-            String aiAnalysis = callLLM(model, userPrompt, rawOutput);
+            String aiAnalysis = callLLM(model, userPrompt, rawOutput, showThinking);
 
             // If short mode, run through LLM again for succinct summary
             if (shortMode && !rawOutput) {
-                aiAnalysis = createShortSummary(model, aiAnalysis, true);
+                aiAnalysis = createShortSummary(model, aiAnalysis, true, showThinking);
             }
 
             return AnalyzerResult.ok(aiAnalysis);
 
-        } catch (AnsweringMachineClient.ApiException e) {
+        } catch (LlmProvider.LlmException e) {
             if (e.isAuthError()) {
                 return AnalyzerResult.withExitCode(
                     "Authentication failed: " + e.getMessage() + "\nPlease check your API key.",
@@ -235,7 +243,7 @@ public class AiAnalyzer extends BaseAnalyzer {
                 );
             } else {
                 return AnalyzerResult.withExitCode(
-                    "API error: " + e.getMessage(),
+                    "LLM error: " + e.getMessage(),
                     5
                 );
             }
@@ -267,6 +275,15 @@ public class AiAnalyzer extends BaseAnalyzer {
         prompt.append("Every fact needs to be based on the data provided; do not make up any facts or invent any findings" +
                       "and mention short reasons for every statement, be as specific as possible.\n");
         prompt.append("Be succinct and to the point, the user is focused on performance.\n");
+
+        // Add provider-specific instructions
+        String additionalInstructions = llmProvider.getAdditionalInstructions();
+        if (!additionalInstructions.isEmpty()) {
+            prompt.append("\nAdditional Instructions:\n");
+            prompt.append(additionalInstructions);
+            prompt.append("\n");
+        }
+
         if (customQuestion != null && !customQuestion.trim().isEmpty()) {
             prompt.append("\n\nUser's specific question: ");
             prompt.append(customQuestion.trim());
@@ -293,23 +310,38 @@ public class AiAnalyzer extends BaseAnalyzer {
     /**
      * Calls the LLM with the given prompt and returns the response.
      */
-    private String callLLM(String model, String userPrompt, boolean rawOutput) throws IOException, AnsweringMachineClient.ApiException {
-        List<AnsweringMachineClient.Message> messages = new ArrayList<>();
-        messages.add(new AnsweringMachineClient.Message("system", SYSTEM_PROMPT));
-        messages.add(new AnsweringMachineClient.Message("user", userPrompt));
+    private String callLLM(String model, String userPrompt, boolean rawOutput, boolean showThinking)
+            throws IOException, LlmProvider.LlmException {
+
+        List<LlmProvider.Message> messages = new ArrayList<>();
+        messages.add(new LlmProvider.Message("system", SYSTEM_PROMPT));
+        messages.add(new LlmProvider.Message("user", userPrompt));
 
         if (rawOutput) {
-            // Return raw JSON
-            return client.getCompletionRaw(apiKey, model, messages);
+            // Return raw response
+            return llmProvider.getRawResponse(model, messages);
         } else {
             // Stream response
             StringBuilder output = new StringBuilder();
-            client.streamCompletion(apiKey, model, messages, content -> {
-                output.append(content);
-                // Print to stdout immediately for streaming effect
-                System.out.print(content);
-                System.out.flush();
-            });
+
+            // Warn if thinking mode is requested but provider doesn't support streaming
+            if (showThinking && !llmProvider.supportsStreaming()) {
+                System.err.println("Note: Thinking mode not supported by this provider (no streaming support)");
+            }
+
+            LlmProvider.StreamHandlers handlers = new LlmProvider.StreamHandlers(
+                content -> {
+                    output.append(content);
+                    System.out.print(content);
+                    System.out.flush();
+                },
+                showThinking && llmProvider.supportsStreaming() ? (thinkingToken -> {
+                    System.err.print(thinkingToken);
+                    System.err.flush();
+                }) : null
+            );
+
+            llmProvider.chat(model, messages, handlers);
             System.out.println(); // Final newline
             return output.toString();
         }
@@ -318,7 +350,9 @@ public class AiAnalyzer extends BaseAnalyzer {
     /**
      * Creates a short summary of the analysis by running it through the LLM again.
      */
-    private String createShortSummary(String model, String fullAnalysis, boolean isSystemMode) throws IOException, AnsweringMachineClient.ApiException {
+    private String createShortSummary(String model, String fullAnalysis, boolean isSystemMode, boolean showThinking)
+            throws IOException, LlmProvider.LlmException {
+
         System.err.println("\n--- Creating short summary ---\n");
 
         String summaryPrompt;
@@ -334,16 +368,25 @@ public class AiAnalyzer extends BaseAnalyzer {
                     "Full Analysis:\n---\n" + fullAnalysis + "\n---";
         }
 
-        List<AnsweringMachineClient.Message> messages = new ArrayList<>();
-        messages.add(new AnsweringMachineClient.Message("system", SYSTEM_PROMPT));
-        messages.add(new AnsweringMachineClient.Message("user", summaryPrompt));
+        List<LlmProvider.Message> messages = new ArrayList<>();
+        messages.add(new LlmProvider.Message("system", SYSTEM_PROMPT));
+        messages.add(new LlmProvider.Message("user", summaryPrompt));
 
         StringBuilder summary = new StringBuilder();
-        client.streamCompletion(apiKey, model, messages, content -> {
-            summary.append(content);
-            System.out.print(content);
-            System.out.flush();
-        });
+
+        LlmProvider.StreamHandlers handlers = new LlmProvider.StreamHandlers(
+            content -> {
+                summary.append(content);
+                System.out.print(content);
+                System.out.flush();
+            },
+            showThinking && llmProvider.supportsStreaming() ? (thinkingToken -> {
+                System.err.print(thinkingToken);
+                System.err.flush();
+            }) : null
+        );
+
+        llmProvider.chat(model, messages, handlers);
         System.out.println(); // Final newline
 
         return summary.toString();

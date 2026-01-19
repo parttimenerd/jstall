@@ -73,7 +73,7 @@ class DependencyGraphAnalyzerTest {
         AnalyzerResult result = analyzer.analyzeThreadDumps(List.of(dump), Map.of());
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.output().contains("No thread dependencies found"));
+        assertTrue(result.output().isEmpty());
     }
 
     @Test
