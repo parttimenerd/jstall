@@ -26,7 +26,8 @@ public class AiAnalyzer extends BaseAnalyzer {
         "You're a helpful thread dump analyzer that likes to be on the point. Given the following thread dump analysis, answer the user's question.";
 
     private static final String DEFAULT_USER_PROMPT =
-        "Summarize the current state of the application. State any potential issues found in the thread dumps. But start with a short summary of the overall state.\n";
+        "Summarize the current state of the application. State any potential issues found in the thread dumps." +
+        "Don't offer generic advice; focus on the specific findings from the analyses. But start with a short summary of the overall state.\n";
 
     private final AnsweringMachineClient client;
     private final String apiKey;
@@ -75,9 +76,6 @@ public class AiAnalyzer extends BaseAnalyzer {
 
         // Enable intelligent filtering by default
         Map<String, Object> statusOptions = new HashMap<>(options);
-        if (!statusOptions.containsKey("intelligent-filter")) {
-            statusOptions.put("intelligent-filter", true);
-        }
 
         // Run status analyzer to get thread dump analysis
         StatusAnalyzer statusAnalyzer = new StatusAnalyzer();
