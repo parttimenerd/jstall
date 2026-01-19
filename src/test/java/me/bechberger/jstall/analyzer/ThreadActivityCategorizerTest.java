@@ -398,6 +398,70 @@ class ThreadActivityCategorizerTest {
             ThreadActivityCategorizer.categorize(socketThread));
     }
 
+    @Test
+    void testNativeCategorization() {
+        ThreadInfo nativeThread = createThread(
+            Thread.State.RUNNABLE,
+            new StackFrame("java.net.PlainSocketImpl", "socketAccept", null, null, true)
+        );
+
+        assertEquals(ThreadActivityCategorizer.Category.NATIVE,
+            ThreadActivityCategorizer.categorize(nativeThread));
+    }
+
+    @Test
+    void testCategoryGroups() {
+        // Test Networking group
+        assertEquals(ThreadActivityCategorizer.CategoryGroup.NETWORKING,
+            ThreadActivityCategorizer.Category.NETWORK_READ.getGroup());
+        assertEquals(ThreadActivityCategorizer.CategoryGroup.NETWORKING,
+            ThreadActivityCategorizer.Category.NETWORK_WRITE.getGroup());
+        assertEquals(ThreadActivityCategorizer.CategoryGroup.NETWORKING,
+            ThreadActivityCategorizer.Category.NETWORK.getGroup());
+
+        // Test I/O group
+        assertEquals(ThreadActivityCategorizer.CategoryGroup.IO,
+            ThreadActivityCategorizer.Category.IO_READ.getGroup());
+        assertEquals(ThreadActivityCategorizer.CategoryGroup.IO,
+            ThreadActivityCategorizer.Category.IO_WRITE.getGroup());
+        assertEquals(ThreadActivityCategorizer.CategoryGroup.IO,
+            ThreadActivityCategorizer.Category.IO.getGroup());
+        assertEquals(ThreadActivityCategorizer.CategoryGroup.IO,
+            ThreadActivityCategorizer.Category.DB.getGroup());
+
+        // Test Locking group
+        assertEquals(ThreadActivityCategorizer.CategoryGroup.LOCKING,
+            ThreadActivityCategorizer.Category.LOCK_WAIT.getGroup());
+        assertEquals(ThreadActivityCategorizer.CategoryGroup.LOCKING,
+            ThreadActivityCategorizer.Category.SLEEP.getGroup());
+        assertEquals(ThreadActivityCategorizer.CategoryGroup.LOCKING,
+            ThreadActivityCategorizer.Category.PARK.getGroup());
+
+        // Test Java group
+        assertEquals(ThreadActivityCategorizer.CategoryGroup.JAVA,
+            ThreadActivityCategorizer.Category.AWT.getGroup());
+        assertEquals(ThreadActivityCategorizer.CategoryGroup.JAVA,
+            ThreadActivityCategorizer.Category.TIMER.getGroup());
+        assertEquals(ThreadActivityCategorizer.CategoryGroup.JAVA,
+            ThreadActivityCategorizer.Category.VIRTUAL_THREAD.getGroup());
+        assertEquals(ThreadActivityCategorizer.CategoryGroup.JAVA,
+            ThreadActivityCategorizer.Category.FORK_JOIN.getGroup());
+        assertEquals(ThreadActivityCategorizer.CategoryGroup.JAVA,
+            ThreadActivityCategorizer.Category.EXTERNAL_PROCESS.getGroup());
+
+        // Test Native group
+        assertEquals(ThreadActivityCategorizer.CategoryGroup.NATIVE,
+            ThreadActivityCategorizer.Category.NATIVE.getGroup());
+
+        // Test Computation group
+        assertEquals(ThreadActivityCategorizer.CategoryGroup.COMPUTATION,
+            ThreadActivityCategorizer.Category.COMPUTATION.getGroup());
+
+        // Test Unknown group
+        assertEquals(ThreadActivityCategorizer.CategoryGroup.UNKNOWN,
+            ThreadActivityCategorizer.Category.UNKNOWN.getGroup());
+    }
+
     // Helper methods
 
     private ThreadInfo createThread(StackFrame... frames) {

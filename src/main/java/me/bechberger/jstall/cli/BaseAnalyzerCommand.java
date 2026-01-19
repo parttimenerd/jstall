@@ -44,6 +44,9 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
     @Option(names = "--keep", description = "Persist dumps to disk")
     protected boolean keep = false;
 
+    @Option(names = "--intelligent-filter", description = "Use intelligent stack trace filtering (collapses internal frames, focuses on application code)")
+    protected Boolean intelligentFilter;
+
     /**
      * Returns the analyzer to use for this command.
      */
@@ -258,6 +261,9 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
         options.put("dumps", dumpCount);
         options.put("interval", interval != null ? interval : (intervalMs + "ms"));
         options.put("keep", keep);
+        if (intelligentFilter != null) {
+            options.put("intelligent-filter", intelligentFilter);
+        }
         options.putAll(getAdditionalOptions());
         return options;
     }

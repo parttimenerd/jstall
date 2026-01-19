@@ -24,9 +24,6 @@ public class WaitingThreadsCommand extends BaseAnalyzerCommand {
     @Option(names = "--stack-depth", description = "Stack trace depth to show (1=inline, 0=all, default: 1, in intelligent mode: max relevant frames)")
     private int stackDepth = 1;
 
-    @Option(names = "--intelligent-filter", description = "Use intelligent stack trace filtering (collapses internal frames, focuses on application code)")
-    private boolean intelligentFilter = false;
-
     @Override
     protected Analyzer getAnalyzer() {
         return new WaitingThreadsAnalyzer();
@@ -37,7 +34,6 @@ public class WaitingThreadsCommand extends BaseAnalyzerCommand {
         Map<String, Object> options = new HashMap<>();
         options.put("no-native", noNative);
         options.put("stack-depth", stackDepth);
-        options.put("intelligent-filter", intelligentFilter);
         return options;
     }
 }
