@@ -1,6 +1,6 @@
 package me.bechberger.jstall.cli;
 
-import me.bechberger.jstall.model.ThreadDumpWithRaw;
+import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jstall.provider.JThreadDumpProvider;
 import me.bechberger.jstall.provider.ThreadDumpProvider;
 
@@ -23,7 +23,7 @@ public class CommandHelper {
      * @return List of thread dumps with raw strings
      * @throws IOException if dump collection/loading fails
      */
-    public static List<ThreadDumpWithRaw> collectDumps(
+    public static List<ThreadDumpSnapshot> collectDumps(
             List<String> targets,
             int dumpCount,
             long intervalMs,

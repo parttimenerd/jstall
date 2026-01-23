@@ -4,9 +4,8 @@ import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.BaseAnalyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
-import me.bechberger.jstall.model.ThreadDumpWithRaw;
+import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jstall.runner.AnalyzerRunner;
-import me.bechberger.jthreaddump.model.ThreadDump;
 
 import java.util.List;
 import java.util.Map;
@@ -24,7 +23,8 @@ public class StatusAnalyzer extends BaseAnalyzer {
         new DeadLockAnalyzer(),
         new MostWorkAnalyzer(),
         new ThreadsAnalyzer(),
-        new DependencyGraphAnalyzer()
+        new DependencyGraphAnalyzer(),
+        new SystemProcessAnalyzer()
     );
 
     @Override
@@ -49,7 +49,7 @@ public class StatusAnalyzer extends BaseAnalyzer {
 
     @SuppressWarnings("unchecked")
     @Override
-    public AnalyzerResult analyze(List<ThreadDumpWithRaw> dumps, Map<String, Object> options) {
+    public AnalyzerResult analyze(List<ThreadDumpSnapshot> dumps, Map<String, Object> options) {
         AnalyzerRunner runner = new AnalyzerRunner();
 
         var runResult = runner.runAnalyzers((List<Analyzer>) ANALYZERS, dumps, options);

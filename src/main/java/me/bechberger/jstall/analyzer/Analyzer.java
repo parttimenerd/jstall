@@ -1,6 +1,6 @@
 package me.bechberger.jstall.analyzer;
 
-import me.bechberger.jstall.model.ThreadDumpWithRaw;
+import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jthreaddump.model.ThreadDump;
 
 import java.util.List;
@@ -40,8 +40,8 @@ public interface Analyzer {
         return 5000;
     }
 
-    default AnalyzerResult analyze(List<ThreadDumpWithRaw> dumpsWithRaw, Map<String, Object> options) {
-        List<ThreadDump> dumps = dumpsWithRaw.stream().map(ThreadDumpWithRaw::parsed).toList();
+    default AnalyzerResult analyze(List<ThreadDumpSnapshot> dumpsWithRaw, Map<String, Object> options) {
+        List<ThreadDump> dumps = dumpsWithRaw.stream().map(ThreadDumpSnapshot::parsed).toList();
         return analyzeThreadDumps(dumps, options);
     }
 

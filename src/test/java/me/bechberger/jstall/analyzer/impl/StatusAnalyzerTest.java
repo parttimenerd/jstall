@@ -2,7 +2,7 @@ package me.bechberger.jstall.analyzer.impl;
 
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
-import me.bechberger.jstall.model.ThreadDumpWithRaw;
+import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.parser.ThreadDumpParser;
 import org.junit.jupiter.api.Test;
@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class StatusAnalyzerTest {
 
     // Helper method to create minimal test dumps
-    private List<ThreadDumpWithRaw> createTestDumps(int count) throws IOException {
+    private List<ThreadDumpSnapshot> createTestDumps(int count) throws IOException {
         // Create minimal thread dump content
         String dumpContent = """
             2024-12-29 13:00:00
@@ -30,8 +30,8 @@ class StatusAnalyzerTest {
 
         ThreadDump parsed = ThreadDumpParser.parse(dumpContent);
         return List.of(
-            new ThreadDumpWithRaw(parsed, dumpContent),
-            new ThreadDumpWithRaw(parsed, dumpContent)
+            new ThreadDumpSnapshot(parsed, dumpContent, null),
+            new ThreadDumpSnapshot(parsed, dumpContent, null)
         ).subList(0, Math.min(count, 2));
     }
 
@@ -76,7 +76,7 @@ class StatusAnalyzerTest {
         );
 
         // Use at least 2 dumps since MostWorkAnalyzer requires MANY
-        List<ThreadDumpWithRaw> dumps = createTestDumps(2);
+        List<ThreadDumpSnapshot> dumps = createTestDumps(2);
         AnalyzerResult result = analyzer.analyze(dumps, options);
 
         // Should return result from constituent analyzers
@@ -93,7 +93,7 @@ class StatusAnalyzerTest {
         );
 
         // Use at least 2 dumps
-        List<ThreadDumpWithRaw> dumps = createTestDumps(2);
+        List<ThreadDumpSnapshot> dumps = createTestDumps(2);
         AnalyzerResult result = analyzer.analyze(dumps, options);
 
         // Output should contain sections from both analyzers
@@ -113,7 +113,7 @@ class StatusAnalyzerTest {
             "keep", false
         );
 
-        List<ThreadDumpWithRaw> dumps = createTestDumps(2);
+        List<ThreadDumpSnapshot> dumps = createTestDumps(2);
 
         // Should not throw exception even though some options aren't used by all analyzers
         assertDoesNotThrow(() -> {
@@ -131,7 +131,7 @@ class StatusAnalyzerTest {
         StatusAnalyzer analyzer = new StatusAnalyzer();
         Map<String, Object> options = Map.of("keep", false);
 
-        List<ThreadDumpWithRaw> dumps = createTestDumps(2);
+        List<ThreadDumpSnapshot> dumps = createTestDumps(2);
         AnalyzerResult result = analyzer.analyze(dumps, options);
 
         // With minimal dumps, exit code should be 0

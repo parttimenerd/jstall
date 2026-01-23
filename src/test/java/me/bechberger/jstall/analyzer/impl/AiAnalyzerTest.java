@@ -2,7 +2,7 @@ package me.bechberger.jstall.analyzer.impl;
 
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
-import me.bechberger.jstall.model.ThreadDumpWithRaw;
+import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jstall.util.LlmProvider;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.model.ThreadInfo;
@@ -58,7 +58,7 @@ class AiAnalyzerTest {
     void testAnalyzeWithDefaultOptions() {
         mockProvider.setResponse("This is a summary of the thread dump analysis.");
 
-        List<ThreadDumpWithRaw> dumps = createTestDumps(2);
+        List<ThreadDumpSnapshot> dumps = createTestDumps(2);
         AnalyzerResult result = analyzer.analyze(dumps, Map.of());
 
         assertEquals(0, result.exitCode());
@@ -73,7 +73,7 @@ class AiAnalyzerTest {
     void testAnalyzeWithCustomModel() {
         mockProvider.setResponse("Analysis result");
 
-        List<ThreadDumpWithRaw> dumps = createTestDumps(2);
+        List<ThreadDumpSnapshot> dumps = createTestDumps(2);
         Map<String, Object> options = Map.of("model", "gpt-4");
 
         AnalyzerResult result = analyzer.analyze(dumps, options);
@@ -86,7 +86,7 @@ class AiAnalyzerTest {
     void testAnalyzeWithCustomQuestion() {
         mockProvider.setResponse("Answer to custom question");
 
-        List<ThreadDumpWithRaw> dumps = createTestDumps(2);
+        List<ThreadDumpSnapshot> dumps = createTestDumps(2);
         Map<String, Object> options = Map.of("question", "What is causing the deadlock?");
 
         AnalyzerResult result = analyzer.analyze(dumps, options);
@@ -106,7 +106,7 @@ class AiAnalyzerTest {
         String rawJson = "{\"choices\": [{\"message\": {\"content\": \"Raw response\"}}]}";
         mockProvider.setRawResponse(rawJson);
 
-        List<ThreadDumpWithRaw> dumps = createTestDumps(2);
+        List<ThreadDumpSnapshot> dumps = createTestDumps(2);
         Map<String, Object> options = Map.of("raw", true);
 
         AnalyzerResult result = analyzer.analyze(dumps, options);
@@ -119,7 +119,7 @@ class AiAnalyzerTest {
     void testAnalyzeWithAuthenticationError() {
         mockProvider.setAuthError();
 
-        List<ThreadDumpWithRaw> dumps = createTestDumps(2);
+        List<ThreadDumpSnapshot> dumps = createTestDumps(2);
         AnalyzerResult result = analyzer.analyze(dumps, Map.of());
 
         assertEquals(4, result.exitCode());
@@ -131,7 +131,7 @@ class AiAnalyzerTest {
     void testAnalyzeWithApiError() {
         mockProvider.setApiError(500, "Internal server error");
 
-        List<ThreadDumpWithRaw> dumps = createTestDumps(2);
+        List<ThreadDumpSnapshot> dumps = createTestDumps(2);
         AnalyzerResult result = analyzer.analyze(dumps, Map.of());
 
         assertEquals(5, result.exitCode());
@@ -142,7 +142,7 @@ class AiAnalyzerTest {
     void testAnalyzeWithNetworkError() {
         mockProvider.setNetworkError();
 
-        List<ThreadDumpWithRaw> dumps = createTestDumps(2);
+        List<ThreadDumpSnapshot> dumps = createTestDumps(2);
         AnalyzerResult result = analyzer.analyze(dumps, Map.of());
 
         assertEquals(3, result.exitCode());
@@ -153,7 +153,7 @@ class AiAnalyzerTest {
     void testIntelligentFilteringEnabledByDefault() {
         mockProvider.setResponse("Analysis");
 
-        List<ThreadDumpWithRaw> dumps = createTestDumps(2);
+        List<ThreadDumpSnapshot> dumps = createTestDumps(2);
         analyzer.analyze(dumps, Map.of());
 
         // The analyzer should have enabled intelligent filtering
@@ -165,7 +165,7 @@ class AiAnalyzerTest {
     void testSystemPromptIncluded() {
         mockProvider.setResponse("Response");
 
-        List<ThreadDumpWithRaw> dumps = createTestDumps(2);
+        List<ThreadDumpSnapshot> dumps = createTestDumps(2);
         analyzer.analyze(dumps, Map.of());
 
         List<LlmProvider.Message> messages = mockProvider.getLastMessages();
@@ -175,7 +175,7 @@ class AiAnalyzerTest {
     }
 
     // Helper method to create test thread dumps
-    private List<ThreadDumpWithRaw> createTestDumps(int count) {
+    private List<ThreadDumpSnapshot> createTestDumps(int count) {
         ThreadInfo thread = new ThreadInfo(
             "test-thread",
             1L,
@@ -201,7 +201,7 @@ class AiAnalyzerTest {
         );
 
         String rawDump = "Test thread dump content";
-        ThreadDumpWithRaw dumpWithRaw = new ThreadDumpWithRaw(dump, rawDump);
+        ThreadDumpSnapshot dumpWithRaw = new ThreadDumpSnapshot(dump, rawDump, null);
 
         return List.of(dumpWithRaw, dumpWithRaw).subList(0, Math.min(count, 2));
     }

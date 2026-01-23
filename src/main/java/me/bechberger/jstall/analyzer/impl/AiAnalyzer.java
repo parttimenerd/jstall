@@ -3,7 +3,7 @@ package me.bechberger.jstall.analyzer.impl;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.BaseAnalyzer;
 import me.bechberger.jstall.analyzer.DumpRequirement;
-import me.bechberger.jstall.model.ThreadDumpWithRaw;
+import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jstall.util.LlmProvider;
 import me.bechberger.jstall.util.SystemAnalyzer;
 
@@ -64,7 +64,7 @@ public class AiAnalyzer extends BaseAnalyzer {
     }
 
     @Override
-    public AnalyzerResult analyze(List<ThreadDumpWithRaw> dumps, Map<String, Object> options) {
+    public AnalyzerResult analyze(List<ThreadDumpSnapshot> dumps, Map<String, Object> options) {
         // Extract AI-specific options
         String model = getStringOption(options, "model", "gpt-50-nano");
         String customQuestion = getStringOption(options, "question", null);

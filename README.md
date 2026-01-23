@@ -562,7 +562,7 @@ Categories appear in `most-work`, `threads`, and `dependency-graph` command outp
 
 ---
 
-## Intelligent Stack Trace Filtering
+### Intelligent Stack Trace Filtering
 
 Use `--intelligent-filter` to automatically collapse framework internals and focus on application code and important operations.
 
@@ -606,6 +606,21 @@ Stack:
 ```
 
 ---
+
+### `processes`
+
+Checks whether there are any processes running on the system that take a high amount of CPU. 
+Helpful to identify e.g. a virus scanner or other interfering processes that use more than 20% of the available CPU-time. 
+Also report if non-own processes are consuming more than 40% of CPU time. 
+In either of these cases, list all processes with a CPU usage above 1% of CPU time.
+
+<!-- BEGIN help_processes -->
+```
+Usage: jstall processes [-hV] [--cpu-threshold=<cpuThreshold>]
+                          [--own-process-cpu-threshold=<ownProcessCpuThreshold>]
+
+```                          
+<!-- END help_processes -->
 
 ### `flame`
 
