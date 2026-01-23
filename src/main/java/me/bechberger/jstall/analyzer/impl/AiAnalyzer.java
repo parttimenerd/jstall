@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * AI-powered thread dump analyzer using LLM.
@@ -114,7 +115,9 @@ public class AiAnalyzer extends BaseAnalyzer {
             if (shortMode && !rawOutput) {
                 aiAnalysis = createShortSummary(model, aiAnalysis, false, showThinking);
             }
-
+            if (llmProvider.supportsStreaming()) {
+                return AnalyzerResult.ok(""); // Output already printed during streaming
+            }
             return AnalyzerResult.ok(aiAnalysis);
 
         } catch (LlmProvider.LlmException e) {
@@ -329,11 +332,22 @@ public class AiAnalyzer extends BaseAnalyzer {
                 System.err.println("Note: Thinking mode not supported by this provider (no streaming support)");
             }
 
+            AtomicBoolean hadClosingThink = new AtomicBoolean(false);
+
             LlmProvider.StreamHandlers handlers = new LlmProvider.StreamHandlers(
                 content -> {
-                    output.append(content);
-                    System.out.print(content);
-                    System.out.flush();
+                    if (hadClosingThink.get() || showThinking) {
+                        output.append(content);
+                        System.out.print(content);
+                        System.out.flush();
+                    }
+                    if (content.contains("</think>")) {
+                        content = content.substring(content.indexOf("</think>") + "</think>".length());
+                        output.append(content);
+                        System.out.print(content);
+                        System.out.flush();
+                        hadClosingThink.set(true);
+                    }
                 },
                 showThinking && llmProvider.supportsStreaming() ? (thinkingToken -> {
                     System.err.print(thinkingToken);

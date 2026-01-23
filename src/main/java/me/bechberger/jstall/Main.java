@@ -2,6 +2,7 @@ package me.bechberger.jstall;
 
 import me.bechberger.jstall.cli.*;
 import me.bechberger.jstall.util.JVMDiscovery;
+import org.slf4j.simple.SimpleLogger;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
@@ -29,6 +30,7 @@ import picocli.CommandLine.Command;
 public class Main implements Runnable {
 
     public static void main(String[] args) {
+        System.setProperty(SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "Warn");
         // If no subcommand is specified, default to "status"
         if (args.length > 0 && !args[0].startsWith("-") && isNumericOrFile(args[0])) {
             // First arg is PID or file, prepend "status"
