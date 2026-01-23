@@ -2,7 +2,7 @@ package me.bechberger.jstall.integration;
 
 import me.bechberger.jstall.analyzer.impl.MostWorkAnalyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
-import me.bechberger.jstall.model.ThreadDumpWithRaw;
+import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jstall.testframework.TestAppLauncher;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.parser.ThreadDumpParser;
@@ -33,10 +33,10 @@ public class MostWorkAnalyzerIntegrationTest {
 
             // Capture multiple dumps
             List<String> dumpContents = launcher.captureMultipleThreadDumps(3, 500);
-            List<ThreadDumpWithRaw> dumps = new ArrayList<>();
+            List<ThreadDumpSnapshot> dumps = new ArrayList<>();
             for (String content : dumpContents) {
                 ThreadDump parsed = ThreadDumpParser.parse(content);
-                dumps.add(new ThreadDumpWithRaw(parsed, content));
+                dumps.add(new ThreadDumpSnapshot(parsed, content, null));
             }
             // Analyze
             MostWorkAnalyzer analyzer = new MostWorkAnalyzer();
@@ -65,10 +65,10 @@ public class MostWorkAnalyzerIntegrationTest {
             Thread.sleep(1000);
 
             List<String> dumpContents = launcher.captureMultipleThreadDumps(3, 500);
-            List<ThreadDumpWithRaw> dumps = new ArrayList<>();
+            List<ThreadDumpSnapshot> dumps = new ArrayList<>();
             for (String content : dumpContents) {
                 ThreadDump parsed = ThreadDumpParser.parse(content);
-                dumps.add(new ThreadDumpWithRaw(parsed, content));
+                dumps.add(new ThreadDumpSnapshot(parsed, content, null));
             }
             // Test with top=2
             MostWorkAnalyzer analyzer = new MostWorkAnalyzer();

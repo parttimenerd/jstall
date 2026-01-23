@@ -2,7 +2,7 @@ package me.bechberger.jstall.util;
 
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.impl.StatusAnalyzer;
-import me.bechberger.jstall.model.ThreadDumpWithRaw;
+import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jstall.provider.JThreadDumpProvider;
 import me.bechberger.jstall.provider.ThreadDumpProvider;
 import me.bechberger.jthreaddump.model.ThreadDump;
@@ -25,14 +25,14 @@ public class SystemAnalyzer {
      */
     public static class JVMAnalysis {
         public final JVMDiscovery.JVMProcess process;
-        public final List<ThreadDumpWithRaw> dumps;
+        public final List<ThreadDumpSnapshot> dumps;
         public final String statusAnalysis;
         public final double cpuTimeSeconds;
         public final double elapsedTimeSeconds;
         public final double cpuPercentage;
 
         public JVMAnalysis(JVMDiscovery.JVMProcess process,
-                          List<ThreadDumpWithRaw> dumps,
+                          List<ThreadDumpSnapshot> dumps,
                           String statusAnalysis,
                           double cpuTimeSeconds,
                           double elapsedTimeSeconds) {
@@ -118,7 +118,7 @@ public class SystemAnalyzer {
     private JVMAnalysis analyzeJVM(JVMDiscovery.JVMProcess jvm, int count, long intervalMs,
                                    Map<String, Object> options) throws IOException {
         // Collect dumps
-        List<ThreadDumpWithRaw> dumps = provider.collectFromJVM(jvm.pid(), count, intervalMs, null);
+        List<ThreadDumpSnapshot> dumps = provider.collectFromJVM(jvm.pid(), count, intervalMs, null);
 
         // Run status analysis
         AnalyzerResult statusResult = statusAnalyzer.analyze(dumps, options);
@@ -134,10 +134,10 @@ public class SystemAnalyzer {
     /**
      * Calculates total CPU time across all threads in all dumps.
      */
-    private double calculateTotalCpuTime(List<ThreadDumpWithRaw> dumps) {
+    private double calculateTotalCpuTime(List<ThreadDumpSnapshot> dumps) {
         double totalCpuTime = 0.0;
 
-        for (ThreadDumpWithRaw dumpWithRaw : dumps) {
+        for (ThreadDumpSnapshot dumpWithRaw : dumps) {
             ThreadDump dump = dumpWithRaw.parsed();
             for (ThreadInfo thread : dump.threads()) {
                 if (thread.cpuTimeSec() != null) {
@@ -152,7 +152,7 @@ public class SystemAnalyzer {
     /**
      * Calculates elapsed time between first and last dump.
      */
-    private double calculateElapsedTime(List<ThreadDumpWithRaw> dumps) {
+    private double calculateElapsedTime(List<ThreadDumpSnapshot> dumps) {
         if (dumps.size() < 2) {
             return 0.0;
         }

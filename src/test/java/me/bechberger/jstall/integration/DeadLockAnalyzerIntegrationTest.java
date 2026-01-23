@@ -2,7 +2,7 @@ package me.bechberger.jstall.integration;
 
 import me.bechberger.jstall.analyzer.impl.DeadLockAnalyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
-import me.bechberger.jstall.model.ThreadDumpWithRaw;
+import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jstall.testframework.TestAppLauncher;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.parser.ThreadDumpParser;
@@ -34,7 +34,7 @@ public class DeadLockAnalyzerIntegrationTest {
             ThreadDump dump = ThreadDumpParser.parse(dumpContent);
 
             DeadLockAnalyzer analyzer = new DeadLockAnalyzer();
-            AnalyzerResult result = analyzer.analyze(List.of(new ThreadDumpWithRaw(dump, dumpContent)), Map.of());
+            AnalyzerResult result = analyzer.analyze(List.of(new ThreadDumpSnapshot(dump, dumpContent, null)), Map.of());
 
             // Verify deadlock was detected
             assertEquals(2, result.exitCode(), "Expected exit code 2 for deadlock");
@@ -63,7 +63,7 @@ public class DeadLockAnalyzerIntegrationTest {
             String dumpContent = launcher.captureThreadDump();
             ThreadDump dump = ThreadDumpParser.parse(dumpContent);
             DeadLockAnalyzer analyzer = new DeadLockAnalyzer();
-            AnalyzerResult result = analyzer.analyze(List.of(new ThreadDumpWithRaw(dump, dumpContent)), Map.of());
+            AnalyzerResult result = analyzer.analyze(List.of(new ThreadDumpSnapshot(dump, dumpContent, null)), Map.of());
 
             // Verify no deadlock
             assertEquals(0, result.exitCode(), "Expected exit code 0 for no deadlock");

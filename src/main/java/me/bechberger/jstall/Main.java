@@ -22,7 +22,8 @@ import picocli.CommandLine.Command;
         WaitingThreadsCommand.class,
         DependencyGraphCommand.class,
         AiCommand.class,
-        ListCommand.class
+        ListCommand.class,
+        SystemProcessCommand.class
     }
 )
 public class Main implements Runnable {

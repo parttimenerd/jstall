@@ -3,7 +3,7 @@ package me.bechberger.jstall.cli;
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
-import me.bechberger.jstall.model.ThreadDumpWithRaw;
+import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jstall.provider.JThreadDumpProvider;
 import me.bechberger.jstall.provider.ThreadDumpProvider;
 import me.bechberger.jstall.util.JVMDiscovery;
@@ -121,7 +121,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
         int dumpCount = dumps != null ? dumps : analyzer.defaultDumpCount();
         long intervalMs = interval != null ? parseDuration(interval) : analyzer.defaultIntervalMs();
 
-        List<ThreadDumpWithRaw> threadDumps;
+        List<ThreadDumpSnapshot> threadDumps;
 
         if (target instanceof TargetResolver.ResolvedTarget.Pid pid) {
             // Collect from running JVM
@@ -164,7 +164,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             CompletableFuture<TargetResult> future = CompletableFuture.supplyAsync(() -> {
                 try {
                     ThreadDumpProvider provider = new JThreadDumpProvider();
-                    List<ThreadDumpWithRaw> threadDumps;
+                    List<ThreadDumpSnapshot> threadDumps;
 
                     if (target instanceof TargetResolver.ResolvedTarget.Pid pid) {
                         Path persistPath = keep ? Path.of("dumps") : null;

@@ -3,8 +3,7 @@ package me.bechberger.jstall.analyzer.impl;
 import me.bechberger.jstall.analyzer.BaseAnalyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
-import me.bechberger.jstall.model.ThreadDumpWithRaw;
-import me.bechberger.jthreaddump.model.ThreadDump;
+import me.bechberger.jstall.model.ThreadDumpSnapshot;
 
 import java.util.List;
 import java.util.Map;
@@ -34,12 +33,12 @@ public class DeadLockAnalyzer extends BaseAnalyzer {
     }
 
     @Override
-    public AnalyzerResult analyze(List<ThreadDumpWithRaw> dumpsWithRaw, Map<String, Object> options) {
+    public AnalyzerResult analyze(List<ThreadDumpSnapshot> dumpsWithRaw, Map<String, Object> options) {
         if (dumpsWithRaw.isEmpty()) {
             return AnalyzerResult.ok("No thread dump available");
         }
 
-        ThreadDumpWithRaw dumpWithRaw = dumpsWithRaw.getFirst();
+        ThreadDumpSnapshot dumpWithRaw = dumpsWithRaw.getFirst();
 
         // Check if there's a deadlock section in the raw dump
         String deadlockInfo = extractDeadlockInfo(dumpWithRaw.raw());

@@ -1,6 +1,7 @@
 package me.bechberger.jstall.provider;
 
-import me.bechberger.jstall.model.ThreadDumpWithRaw;
+import me.bechberger.jstall.model.SystemEnvironment;
+import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jstall.util.JMXDiagnosticHelper;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.parser.ThreadDumpParser;
@@ -11,6 +12,8 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -25,12 +28,12 @@ public class JThreadDumpProvider implements ThreadDumpProvider {
         DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS");
 
     @Override
-    public List<ThreadDumpWithRaw> collectFromJVM(long pid, int count, long intervalMs, Path persistTo) throws IOException {
+    public List<ThreadDumpSnapshot> collectFromJVM(long pid, int count, long intervalMs, Path persistTo) throws IOException {
         if (count < 1) {
             throw new IllegalArgumentException("Count must be at least 1, got: " + count);
         }
 
-        List<ThreadDumpWithRaw> dumps = new ArrayList<>();
+        List<ThreadDumpSnapshot> dumps = new ArrayList<>();
 
         for (int i = 0; i < count; i++) {
             if (i > 0) {
@@ -44,7 +47,7 @@ public class JThreadDumpProvider implements ThreadDumpProvider {
 
             String dumpContent = obtainDumpFromJVM(pid);
             ThreadDump dump = ThreadDumpParser.parse(dumpContent);
-            dumps.add(new ThreadDumpWithRaw(dump, dumpContent));
+            dumps.add(new ThreadDumpSnapshot(dump, dumpContent, SystemEnvironment.createCurrent()));
 
             if (persistTo != null) {
                 persistDump(dumpContent, persistTo, i);
@@ -55,14 +58,16 @@ public class JThreadDumpProvider implements ThreadDumpProvider {
     }
 
     @Override
-    public List<ThreadDumpWithRaw> loadFromFiles(List<Path> dumpFiles) throws IOException {
-        List<ThreadDumpWithRaw> dumps = new ArrayList<>();
+    public List<ThreadDumpSnapshot> loadFromFiles(List<Path> dumpFiles) throws IOException {
+        List<ThreadDumpSnapshot> dumps = new ArrayList<>();
 
         for (Path file : dumpFiles) {
             String content = Files.readString(file);
             ThreadDump dump = ThreadDumpParser.parse(content);
-            dumps.add(new ThreadDumpWithRaw(dump, content));
+            dumps.add(new ThreadDumpSnapshot(dump, content, null));
         }
+
+        dumps.sort(Comparator.comparing(d -> d.parsed().timestamp()));
 
         return dumps;
     }

@@ -1,5 +1,6 @@
 package me.bechberger.jstall.analyzer;
 
+import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.model.ThreadInfo;
 
@@ -293,6 +294,14 @@ public abstract class BaseAnalyzer implements Analyzer {
                 }
                 lastCpuTimeSec = thread.cpuTimeSec();
                 hasCpuTimeData = true;
+            }
+        }
+    }
+
+    public static void assertSortedByDate(List<ThreadDumpSnapshot> dumps) {
+        for (int i = 1; i < dumps.size(); i++) {
+            if (dumps.get(i).parsed().timestamp().isBefore(dumps.get(i - 1).parsed().timestamp())) {
+                throw new IllegalArgumentException("Thread dumps are not sorted by date");
             }
         }
     }
