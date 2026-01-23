@@ -39,6 +39,9 @@ public record SystemEnvironment(List<Process> processes) {
 
     private record PsProcessInfo(long pid, Duration cpuTime, String command) {}
 
+    /**
+     * This works on Mac and Linux systems to get CPU time and command line for processes.
+     */
     private static Map<Long, PsProcessInfo> tryCallPs() throws IOException, InterruptedException {
         java.lang.Process process = new ProcessBuilder("ps", "-aeo", "pid,time,command").start();
         InputStream stream = process.getInputStream();
