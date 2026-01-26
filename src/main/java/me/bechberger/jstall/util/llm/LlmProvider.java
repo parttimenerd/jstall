@@ -1,4 +1,4 @@
-package me.bechberger.jstall.util;
+package me.bechberger.jstall.util.llm;
 
 import java.io.IOException;
 import java.util.List;

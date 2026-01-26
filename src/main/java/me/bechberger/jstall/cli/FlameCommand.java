@@ -1,12 +1,12 @@
 package me.bechberger.jstall.cli;
 
+import me.bechberger.minicli.annotations.Command;
+import me.bechberger.minicli.MiniCli;
+import me.bechberger.minicli.annotations.Option;
 import me.bechberger.jstall.util.JVMDiscovery;
 import me.bechberger.jstall.util.TargetResolver;
+import me.bechberger.minicli.annotations.Parameters;
 import one.profiler.AsyncProfilerLoader;
-import picocli.CommandLine;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
-import picocli.CommandLine.Parameters;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -21,8 +21,7 @@ import java.util.concurrent.Callable;
  */
 @Command(
     name = "flame",
-    description = "Generate a flamegraph of the application using async-profiler",
-    mixinStandardHelpOptions = true
+    description = "Generate a flamegraph of the application using async-profiler"
 )
 public class FlameCommand implements Callable<Integer> {
 
@@ -48,7 +47,7 @@ public class FlameCommand implements Callable<Integer> {
     public Integer call() {
         // Show help and list JVMs if no target specified
         if (target == null) {
-            new CommandLine(this).usage(System.out);
+            MiniCli.usage(this, System.out);
             System.out.println();
             JVMDiscovery.printAvailableJVMs(System.out);
             return 1;

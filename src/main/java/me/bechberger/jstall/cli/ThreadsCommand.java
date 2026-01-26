@@ -2,8 +2,8 @@ package me.bechberger.jstall.cli;
 
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.impl.ThreadsAnalyzer;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
+import me.bechberger.minicli.annotations.Command;
+import me.bechberger.minicli.annotations.Option;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -13,8 +13,7 @@ import java.util.Map;
  */
 @Command(
     name = "threads",
-    description = "List all threads sorted by CPU time",
-    mixinStandardHelpOptions = true
+    description = "List all threads sorted by CPU time"
 )
 public class ThreadsCommand extends BaseAnalyzerCommand {
 

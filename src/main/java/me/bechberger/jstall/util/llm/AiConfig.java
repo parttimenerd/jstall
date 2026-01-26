@@ -1,4 +1,4 @@
-package me.bechberger.jstall.util;
+package me.bechberger.jstall.util.llm;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -30,19 +30,41 @@ public class AiConfig {
         OLLAMA
     }
 
+    /**
+     * Think mode for Ollama.
+     *
+     * <p>Ollama supports a boolean think flag for many models. The model "gpt-oss" requires
+     * a string think mode ("low", "medium", "high"); passing true/false is ignored.
+     */
+    public enum OllamaThinkMode {
+        OFF,
+        LOW,
+        MEDIUM,
+        HIGH
+    }
+
     private final Provider provider;
     private final String model;
     private final String apiKey;
     private final String ollamaHost;
+    private final OllamaThinkMode ollamaThinkMode;
 
     /**
      * Creates a config with explicit values.
      */
     public AiConfig(Provider provider, String model, String apiKey, String ollamaHost) {
+        this(provider, model, apiKey, ollamaHost, null);
+    }
+
+    /**
+     * Creates a config with explicit values.
+     */
+    public AiConfig(Provider provider, String model, String apiKey, String ollamaHost, OllamaThinkMode ollamaThinkMode) {
         this.provider = provider;
         this.model = model;
         this.apiKey = apiKey;
         this.ollamaHost = ollamaHost;
+        this.ollamaThinkMode = ollamaThinkMode;
     }
 
     /**
@@ -173,7 +195,33 @@ public class AiConfig {
         String apiKey = props.getProperty("api.key");
         String ollamaHost = props.getProperty("ollama.host", "http://127.0.0.1:11434");
 
-        return new AiConfig(provider, model, apiKey, ollamaHost);
+        boolean isGptOss = model != null && model.toLowerCase().startsWith("gpt-oss");
+
+        // Ollama think mode:
+        // - For most models: handled as boolean (OFF => think=false; otherwise think=true)
+        // - For model gpt-oss*: prefers string think: low|medium|high
+        //   Additionally, we map:
+        //     true  -> high
+        //     false -> low
+        //   (this exists because gpt-oss ignores boolean think values)
+        // Default: ON/high
+        String thinkStr = props.getProperty("ollama.think");
+        OllamaThinkMode thinkMode;
+        if (thinkStr == null) {
+            thinkMode = OllamaThinkMode.HIGH;
+        } else {
+            thinkMode = switch (thinkStr.trim().toLowerCase()) {
+                case "false", "0" -> isGptOss ? OllamaThinkMode.LOW : OllamaThinkMode.OFF;
+                case "true", "1" -> OllamaThinkMode.HIGH;
+                case "off", "none" -> OllamaThinkMode.OFF;
+                case "low" -> OllamaThinkMode.LOW;
+                case "medium" -> OllamaThinkMode.MEDIUM;
+                case "high" -> OllamaThinkMode.HIGH;
+                default -> throw new IllegalArgumentException("Invalid ollama.think value: " + thinkStr);
+            };
+        }
+
+        return new AiConfig(provider, model, apiKey, ollamaHost, thinkMode);
     }
 
     public Provider getProvider() {
@@ -190,6 +238,25 @@ public class AiConfig {
 
     public String getOllamaHost() {
         return ollamaHost;
+    }
+
+    /**
+     * Returns configured ollama think mode (nullable if not configured).
+     */
+    public OllamaThinkMode getOllamaThinkMode() {
+        return ollamaThinkMode;
+    }
+
+    /**
+     * Returns effective think mode based on model.
+     *
+     * <p>Note: since 0.4.3+ we default to HIGH (thinking enabled) unless configured.
+     */
+    public OllamaThinkMode getEffectiveOllamaThinkMode() {
+        if (ollamaThinkMode != null) {
+            return ollamaThinkMode;
+        }
+        return OllamaThinkMode.HIGH;
     }
 
     public boolean isGardener() {

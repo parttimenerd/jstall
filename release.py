@@ -1,15 +1,10 @@
 #!/usr/bin/env python3
-"""
-Bump minor version and deploy jstall library.
+"""release.py
 
-This script:
-1. Reads the current version from pom.xml
-2. Bumps the minor version (e.g., 0.0.0 -> 0.2.0)
-3. Updates pom.xml and Main.java with new version
-4. Runs tests
-5. Builds the package
-6. Optionally deploys to Maven Central
-7. Creates a git tag and commits the changes
+Default command: bump version and release.
+
+Additional command:
+  build-minimal: create a minimal variant (jstall-minimal) in a temporary working directory.
 """
 
 import re
@@ -18,6 +13,248 @@ import subprocess
 import argparse
 from pathlib import Path
 from typing import Tuple
+
+
+def _copytree(src: Path, dst: Path):
+    """Copy repository contents to dst, excluding build/output folders."""
+    import shutil
+
+    ignore_names = {
+        '.git',
+        'target',
+        '.release-backup',
+        'dumps',
+        'harness-215430-12701372015461000502',
+        'harness-221534-4014366627897400427',
+    }
+
+    def _ignore(_dir, names):
+        return {n for n in names if n in ignore_names}
+
+    shutil.copytree(src, dst, ignore=_ignore)
+
+
+def _patch_pom_for_minimal(pom_path: Path):
+    """Patch pom.xml for minimal build."""
+    content = pom_path.read_text()
+
+    # 1) rename artifactId (project)
+    # Replace only the first <artifactId>...</artifactId> after groupId
+    content = re.sub(r'(<groupId>me\\.bechberger</groupId>\s*\n\s*<artifactId>)([^<]+)(</artifactId>)',
+                     r'\1jstall-minimal\3', content, count=1)
+
+    # 2) dependency: jthreaddump -> jthreaddump-minimal
+    content = content.replace('<artifactId>jthreaddump</artifactId>', '<artifactId>jthreaddump-minimal</artifactId>')
+
+    # 3) dependency: ap-loader-all -> ap-loader-none
+    content = content.replace('<artifactId>ap-loader-all</artifactId>', '<artifactId>ap-loader-none</artifactId>')
+
+    # 4) remove JetBrains annotations dependency block
+    # (pom uses groupId "org.jetbrains" and artifactId "annotations")
+    content = re.sub(
+        r'\s*<dependency>\s*(?:(?!</dependency>).)*?<groupId>\s*org\.jetbrains\s*</groupId>'
+        r'(?:(?!</dependency>).)*?<artifactId>\s*annotations\s*</artifactId>'
+        r'(?:(?!</dependency>).)*?</dependency>\s*',
+        '\n',
+        content,
+        flags=re.DOTALL
+    )
+
+    # Use the custom minimal assembly descriptor for the fat jar
+    # Replace descriptorRefs/descriptorRef with a descriptor
+    content = re.sub(
+        r'(<plugin>\s*(?:(?!</plugin>).)*?<artifactId>maven-assembly-plugin</artifactId>\s*(?:(?!</plugin>).)*?<configuration>)\s*<descriptorRefs>\s*<descriptorRef>jar-with-dependencies</descriptorRef>\s*</descriptorRefs>\s*',
+        r'\1\n                    <descriptors>\n                        <descriptor>src/assembly/minimal.xml</descriptor>\n                    </descriptors>\n',
+        content,
+        flags=re.DOTALL,
+    )
+
+    # 5) Remove --add-reads javadoc options (not needed for minimal and causes issues)
+    # Matches the two lines: <additionalJOption>--add-reads</additionalJOption> and the following value line
+    content = re.sub(
+        r'\s*<additionalJOption>--add-reads</additionalJOption>\s*\n\s*<additionalJOption>[^<]*</additionalJOption>',
+        '',
+        content
+    )
+
+    # 6) Minimal builds: strip debug symbols (-g:none)
+    # Add compilerArgs to the existing maven-compiler-plugin configuration (keep <release>21</release> intact).
+    if '-g:none' not in content:
+        content = re.sub(
+            r'(<plugin>\s*(?:(?!</plugin>).)*?<artifactId>maven-compiler-plugin</artifactId>\s*'
+            r'(?:(?!</plugin>).)*?<configuration>)(\s*(?:(?!</configuration>).)*)</configuration>',
+            lambda m: (
+                m.group(1)
+                + m.group(2)
+                + ('\n' if not m.group(2).endswith('\n') else '')
+                + '                    <compilerArgs>\n'
+                + '                        <arg>-g:none</arg>\n'
+                + '                    </compilerArgs>\n'
+                + '                </configuration>'
+            ),
+            content,
+            flags=re.DOTALL,
+            count=1,
+        )
+
+    pom_path.write_text(content)
+
+
+def _strip_nullable_annotations(root: Path):
+    """Remove org.jetbrains.annotations.Nullable import + all @Nullable annotations."""
+    java_files = list(root.glob('src/**/*.java'))
+    for file in java_files:
+        text = file.read_text()
+        new_text = text
+
+        # Remove JetBrains Nullable import
+        new_text = re.sub(r'^\s*import\s+org\.jetbrains\.annotations\.Nullable;\s*\n', '', new_text, flags=re.MULTILINE)
+
+        # Remove any local Nullable import used only for annotation
+        # (in this repo it appears as me.bechberger.jstall.util.Nullable)
+        new_text = re.sub(r'^\s*import\s+me\.bechberger\.jstall\.util\.Nullable;\s*\n', '', new_text, flags=re.MULTILINE)
+
+        # Remove annotation occurrences (simple token delete)
+        new_text = new_text.replace('@Nullable ', '')
+        new_text = new_text.replace('@Nullable', '')
+
+        if new_text != text:
+            file.write_text(new_text)
+
+
+def build_minimal_cmd(project_root: Path, tmp_dir: str | None, copy_to_target: bool = False, run_tests: bool = False):
+    import tempfile
+    import shutil
+
+    user_tmp = None
+    if tmp_dir:
+        user_tmp = Path(tmp_dir).expanduser().resolve()
+        if user_tmp.exists():
+            shutil.rmtree(user_tmp)
+        # Do not create the directory here; shutil.copytree needs the destination to not exist.
+        workdir = user_tmp
+    else:
+        workdir = Path(tempfile.mkdtemp(prefix='jstall-minimal-'))
+
+    print(f"→ Creating minimal build workspace at: {workdir}")
+
+    try:
+        _copytree(project_root, workdir)
+
+        # Minimal filtering is done by the assembly descriptor (src/assembly/minimal.xml)
+
+        pom_path = workdir / 'pom.xml'
+        if not pom_path.exists():
+            raise RuntimeError(f"pom.xml not found in {workdir}")
+
+        _patch_pom_for_minimal(pom_path)
+        _strip_nullable_annotations(workdir)
+
+        if run_tests:
+            print("→ Building & testing jstall-minimal ...")
+            result = subprocess.run(['mvn', 'clean', 'test'], cwd=workdir, text=True)
+            if result.returncode != 0:
+                raise RuntimeError("Maven test failed")
+
+            # Build artifacts (jar + script) after tests
+            result = subprocess.run(['mvn', 'package', '-DskipTests'], cwd=workdir, text=True)
+            if result.returncode != 0:
+                raise RuntimeError("Maven package failed")
+        else:
+            print("→ Building jstall-minimal (skip tests) ...")
+            result = subprocess.run(['mvn', 'clean', 'package', '-DskipTests'], cwd=workdir, text=True)
+            if result.returncode != 0:
+                raise RuntimeError("Maven build failed")
+
+        # Note: assembly + execjar config produces target/jstall.jar and target/jstall
+        jar = workdir / 'target' / 'jstall.jar'
+        script = workdir / 'target' / 'jstall'
+
+        # Strip Maven metadata from the fat jar (dependencies contribute META-INF/maven/*)
+        _strip_maven_metadata_from_jar(jar)
+
+        if jar.exists():
+            print(f"✓ Built: {jar}")
+        else:
+            print(f"✓ Build finished. See: {workdir / 'target'}")
+
+        if copy_to_target:
+            dest_dir = project_root / 'target'
+            dest_dir.mkdir(exist_ok=True)
+
+            dest_jar = dest_dir / 'jstall-minimal.jar'
+            dest_script = dest_dir / 'jstall-minimal'
+
+            if jar.exists():
+                shutil.copy2(jar, dest_jar)
+                # Ensure copied artifact is also stripped (in case copy2 preserved older content)
+                _strip_maven_metadata_from_jar(dest_jar)
+                print(f"✓ Copied to: {dest_jar}")
+            else:
+                print(f"⚠ Minimal jar not found at {jar}, nothing to copy")
+
+            if script.exists():
+                shutil.copy2(script, dest_script)
+                try:
+                    dest_script.chmod(dest_script.stat().st_mode | 0o111)
+                except Exception:
+                    pass
+                print(f"✓ Copied to: {dest_script}")
+            else:
+                print(f"⚠ Minimal script not found at {script}, nothing to copy")
+
+        print("✓ Minimal build done")
+
+    finally:
+        if user_tmp is None:
+            shutil.rmtree(workdir, ignore_errors=True)
+        else:
+            print(f"(tmp workspace kept at {user_tmp})")
+
+
+def test_minimal_cmd(project_root: Path, tmp_dir: str | None):
+    """Build and run tests for the minimal variant and copy its artifacts into target/."""
+    build_minimal_cmd(project_root, tmp_dir=tmp_dir, copy_to_target=True, run_tests=True)
+
+
+def deploy_minimal_cmd(project_root: Path, tmp_dir: str | None):
+    """Build and deploy the minimal variant to Maven Central."""
+    import tempfile
+    import shutil
+
+    user_tmp = None
+    if tmp_dir:
+        user_tmp = Path(tmp_dir).expanduser().resolve()
+        if user_tmp.exists():
+            shutil.rmtree(user_tmp)
+        workdir = user_tmp
+    else:
+        workdir = Path(tempfile.mkdtemp(prefix='jstall-minimal-deploy-'))
+
+    print(f"→ Creating minimal deploy workspace at: {workdir}")
+
+    try:
+        _copytree(project_root, workdir)
+
+        pom_path = workdir / 'pom.xml'
+        if not pom_path.exists():
+            raise RuntimeError(f"pom.xml not found in {workdir}")
+
+        _patch_pom_for_minimal(pom_path)
+        _strip_nullable_annotations(workdir)
+
+        print("→ Deploying jstall-minimal to Maven Central ...")
+        result = subprocess.run(['mvn', 'clean', 'deploy', '-P', 'release', '-DskipTests'], cwd=workdir, text=True)
+        if result.returncode != 0:
+            raise RuntimeError("Maven deploy failed for jstall-minimal")
+
+        print("✓ jstall-minimal deployed to Maven Central")
+
+    finally:
+        if user_tmp is None:
+            shutil.rmtree(workdir, ignore_errors=True)
+        else:
+            print(f"(tmp workspace kept at {user_tmp})")
 
 
 class VersionBumper:
@@ -311,6 +548,13 @@ class VersionBumper:
 Download from the assets below:
 - `jstall.jar` - Executable JAR file (requires Java 21+)
 - `jstall` - Standalone launcher script (Unix/Linux/macOS)
+- `jstall-minimal.jar` - Minimal executable JAR (SapMachine only, see note below)
+- `jstall-minimal` - Minimal launcher script (SapMachine only, see note below)
+
+**Important (jstall-minimal):**
+The `jstall-minimal` artifacts are intended to be used only in combination with a recent [SapMachine](https://sapmachine.io) release.
+These artifacts don't come with `asprof` or `libasyncprofiler` binaries bundled, so you need to ensure that your Java installation includes them,
+SapMachine does.
 
 **Usage:**
 ```bash
@@ -331,6 +575,8 @@ java -jar jstall.jar <pid>
             # Build asset paths
             jar_path = self.project_root / 'target' / 'jstall.jar'
             script_path = self.project_root / 'target' / 'jstall'
+            minimal_jar_path = self.project_root / 'target' / 'jstall-minimal.jar'
+            minimal_script_path = self.project_root / 'target' / 'jstall-minimal'
 
             assets = []
             if jar_path.exists():
@@ -342,6 +588,16 @@ java -jar jstall.jar <pid>
                 assets.append(str(script_path) + '#jstall')
             else:
                 print(f"⚠ jstall script not found at {script_path}")
+
+            if minimal_jar_path.exists():
+                assets.append(str(minimal_jar_path) + '#jstall-minimal.jar')
+            else:
+                print(f"⚠ Minimal JAR not found at {minimal_jar_path}")
+
+            if minimal_script_path.exists():
+                assets.append(str(minimal_script_path) + '#jstall-minimal')
+            else:
+                print(f"⚠ jstall-minimal script not found at {minimal_script_path}")
 
             if not assets:
                 print("⚠ No assets found, creating release without assets")
@@ -463,12 +719,26 @@ java -jar jstall.jar <pid>
             "Building package"
         )
 
+        # Also build and copy the minimal variant into this project's target/
+        # so the release can attach both artifacts.
+        try:
+            build_minimal_cmd(self.project_root, tmp_dir=None, copy_to_target=True)
+        except Exception as e:
+            print(f"⚠ Failed to build/copy jstall-minimal artifacts: {e}")
+
     def deploy_release(self):
         """Deploy to Maven Central using release profile"""
         self.run_command(
             ['mvn', 'clean', 'deploy', '-P', 'release'],
-            "Deploying to Maven Central"
+            "Deploying jstall to Maven Central"
         )
+
+        # Also deploy the minimal variant
+        print("\n→ Deploying jstall-minimal to Maven Central...")
+        try:
+            deploy_minimal_cmd(self.project_root, tmp_dir=None)
+        except Exception as e:
+            print(f"⚠ Failed to deploy jstall-minimal: {e}")
 
     def git_commit(self, version: str):
         """Commit version changes"""
@@ -502,74 +772,70 @@ java -jar jstall.jar <pid>
             )
 
 
+def _strip_maven_metadata_from_jar(jar_path: Path):
+    """Remove META-INF/maven/** entries from a jar/zip file in-place."""
+    import zipfile
+    import tempfile
+    import os
+
+    if not jar_path.exists():
+        return
+
+    with zipfile.ZipFile(jar_path, 'r') as zin:
+        entries = zin.infolist()
+        # Fast path: if there's no META-INF/maven, do nothing
+        if not any(e.filename.startswith('META-INF/maven/') for e in entries):
+            return
+
+        fd, tmp_name = tempfile.mkstemp(prefix=jar_path.stem + '-', suffix='.jar')
+        os.close(fd)
+        tmp_path = Path(tmp_name)
+
+        with zipfile.ZipFile(tmp_path, 'w', compression=zipfile.ZIP_DEFLATED) as zout:
+            for e in entries:
+                if e.filename.startswith('META-INF/maven/'):
+                    continue
+                data = zin.read(e.filename)
+                # Preserve timestamps/permissions where possible
+                zi = zipfile.ZipInfo(e.filename)
+                zi.date_time = e.date_time
+                zi.external_attr = e.external_attr
+                zi.compress_type = zipfile.ZIP_DEFLATED
+                zout.writestr(zi, data)
+
+    tmp_path.replace(jar_path)
+
+
 def main():
+    # Subcommands: keep old behaviour when no subcommand is given
     parser = argparse.ArgumentParser(
-        description='Bump version and deploy jstall library',
+        description='Release helper for jstall',
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog='''
-Examples:
-  # Full release (default): bump minor, test, build, deploy, commit, tag, push, GitHub release
-  ./release.py
-
-  # Patch release
-  ./release.py --patch
-
-  # Major release
-  ./release.py --major
-
-  # Build only, no deploy or GitHub release
-  ./release.py --no-deploy --no-github-release
-
-  # Deploy but skip GitHub release
-  ./release.py --no-github-release
-
-  # Dry run (show what would happen)
-  ./release.py --dry-run
-
-Note: CHANGELOG.md must have content under [Unreleased] section before releasing.
-        '''
     )
 
-    parser.add_argument(
-        '--major',
-        action='store_true',
-        help='Bump major version (x.0.0)'
-    )
-    parser.add_argument(
-        '--minor',
-        action='store_true',
-        help='Bump minor version (0.x.0) [default]'
-    )
-    parser.add_argument(
-        '--patch',
-        action='store_true',
-        help='Bump patch version (0.0.x)'
-    )
-    parser.add_argument(
-        '--no-deploy',
-        action='store_true',
-        help='Skip deployment to Maven Central (deploy is default)'
-    )
-    parser.add_argument(
-        '--no-github-release',
-        action='store_true',
-        help='Skip GitHub release creation (github-release is default)'
-    )
-    parser.add_argument(
-        '--no-push',
-        action='store_true',
-        help='Skip pushing to git remote (push is default)'
-    )
-    parser.add_argument(
-        '--skip-tests',
-        action='store_true',
-        help='Skip running tests'
-    )
-    parser.add_argument(
-        '--dry-run',
-        action='store_true',
-        help='Show what would happen without making changes'
-    )
+    subparsers = parser.add_subparsers(dest='command')
+
+    # build-minimal
+    p_min = subparsers.add_parser('build-minimal', help='Build minimal jstall-minimal variant')
+    p_min.add_argument('--tmp', help='Use this directory as a temporary workspace (it will be deleted and recreated)')
+
+    # test-minimal
+    p_test_min = subparsers.add_parser('test-minimal', help='Build + run tests for minimal jstall-minimal variant')
+    p_test_min.add_argument('--tmp', help='Use this directory as a temporary workspace (it will be deleted and recreated)')
+
+    # deploy-minimal
+    p_deploy_min = subparsers.add_parser('deploy-minimal', help='Deploy jstall-minimal to Maven Central')
+    p_deploy_min.add_argument('--tmp', help='Use this directory as a temporary workspace (it will be deleted and recreated)')
+
+    # Default release options (no subcommand)
+    parser.add_argument('--major', action='store_true', help='Bump major version (x.0.0)')
+    parser.add_argument('--minor', action='store_true', help='Bump minor version (0.x.0) [default]')
+    parser.add_argument('--patch', action='store_true', help='Bump patch version (0.0.x)')
+    parser.add_argument('--no-deploy', action='store_true', help='Skip deployment to Maven Central (deploy is default)')
+    parser.add_argument('--no-github-release', action='store_true', help='Skip GitHub release creation (github-release is default)')
+    parser.add_argument('--no-push', action='store_true', help='Skip pushing to git remote (push is default)')
+    parser.add_argument('--skip-tests', action='store_true', help='Skip running tests')
+    parser.add_argument('--dry-run', action='store_true', help='Show what would happen without making changes')
 
     args = parser.parse_args()
 
@@ -577,6 +843,19 @@ Note: CHANGELOG.md must have content under [Unreleased] section before releasing
     script_path = Path(__file__).resolve()
     project_root = script_path.parent
 
+    if args.command == 'build-minimal':
+        build_minimal_cmd(project_root, args.tmp, copy_to_target=True)
+        return
+
+    if args.command == 'test-minimal':
+        test_minimal_cmd(project_root, args.tmp)
+        return
+
+    if args.command == 'deploy-minimal':
+        deploy_minimal_cmd(project_root, args.tmp)
+        return
+
+    # ---- existing release flow ----
     bumper = VersionBumper(project_root)
 
     # Get current version

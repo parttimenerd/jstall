@@ -1,6 +1,6 @@
-package me.bechberger.jstall.util;
+package me.bechberger.jstall.util.llm;
 
-import me.bechberger.jstall.util.AnsweringMachineClient.ApiException;
+import me.bechberger.jstall.util.llm.AnsweringMachineClient.ApiException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -20,8 +20,11 @@ public class GardenerLlmProvider implements LlmProvider {
     }
 
     @Override
-    public String chat(String model, List<LlmProvider.Message> messages, LlmProvider.StreamHandlers handlers)
+    public String chat(String model, List<LlmProvider.Message> messages, StreamHandlers handlers)
             throws IOException, LlmProvider.LlmException {
+
+        // Gardener doesn't support streamed "thinking" tokens separately.
+        var responseHandler = handlers != null ? handlers.responseHandler : null;
 
         List<AnsweringMachineClient.Message> clientMessages = convertMessages(messages);
         StringBuilder response = new StringBuilder();
@@ -29,8 +32,8 @@ public class GardenerLlmProvider implements LlmProvider {
         try {
             client.streamCompletion(apiKey, model, clientMessages, content -> {
                 response.append(content);
-                if (handlers.responseHandler != null) {
-                    handlers.responseHandler.accept(content);
+                if (responseHandler != null) {
+                    responseHandler.accept(content);
                 }
             });
             return response.toString();

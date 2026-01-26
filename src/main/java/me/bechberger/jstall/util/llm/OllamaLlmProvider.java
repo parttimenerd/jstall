@@ -1,31 +1,43 @@
-package me.bechberger.jstall.util;
+package me.bechberger.jstall.util.llm;
 
-import io.github.ollama4j.Ollama;
-import io.github.ollama4j.exceptions.OllamaException;
-import io.github.ollama4j.models.chat.OllamaChatMessageRole;
-import io.github.ollama4j.models.chat.OllamaChatRequest;
-import io.github.ollama4j.models.chat.OllamaChatResult;
-import io.github.ollama4j.models.chat.OllamaChatStreamObserver;
-import io.github.ollama4j.models.generate.OllamaGenerateTokenHandler;
-import io.github.ollama4j.models.request.ThinkMode;
-import org.slf4j.LoggerFactory;
+import me.bechberger.jstall.util.json.JsonParser;
+import me.bechberger.jstall.util.json.JsonPrinter;
+import me.bechberger.jstall.util.json.JsonValue;
+import me.bechberger.jstall.util.json.JsonValue.JsonArray;
+import me.bechberger.jstall.util.json.JsonValue.JsonBoolean;
+import me.bechberger.jstall.util.json.JsonValue.JsonObject;
+import me.bechberger.jstall.util.json.JsonValue.JsonString;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
- * LLM provider implementation for Ollama (local models).
+ * LLM provider implementation for Ollama (local models) that calls Ollama's HTTP API directly.
  */
 public class OllamaLlmProvider implements LlmProvider {
 
-    private final Ollama ollama;
+    private final URI baseUri;
+    private final HttpClient httpClient;
+    private final AiConfig.OllamaThinkMode defaultThinkMode;
 
     public OllamaLlmProvider(String host) {
-        this.ollama = new Ollama(host);
-        // Set timeout to 20 minutes (1200 seconds) for long-running requests
-        this.ollama.setRequestTimeoutSeconds(1200);
+        this(host, null);
+    }
+
+    public OllamaLlmProvider(String host, AiConfig.OllamaThinkMode defaultThinkMode) {
+        this.baseUri = URI.create(host.endsWith("/") ? host.substring(0, host.length() - 1) : host);
+        this.defaultThinkMode = defaultThinkMode;
+        this.httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(30))
+            .build();
     }
 
     @Override
@@ -39,102 +51,211 @@ public class OllamaLlmProvider implements LlmProvider {
     }
 
     @Override
-    public String chat(String model, List<LlmProvider.Message> messages, LlmProvider.StreamHandlers handlers)
+    public String chat(String model, List<LlmProvider.Message> messages, StreamHandlers handlers)
             throws IOException, LlmProvider.LlmException {
 
+        JsonObject body = buildChatRequestBody(model, messages, true, resolveThinkMode(model, handlers));
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(baseUri.resolve("/api/chat"))
+            .timeout(Duration.ofMinutes(20))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(JsonPrinter.printCompact(body)))
+            .build();
+
         try {
-            // Build chat request using the builder pattern
-            var builder = OllamaChatRequest.builder().withModel(model);
-
-            for (LlmProvider.Message msg : messages) {
-                OllamaChatMessageRole role = convertRole(msg.role);
-                builder = builder.withMessage(role, msg.content);
+            HttpResponse<java.io.InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            if (response.statusCode() >= 400) {
+                throw toLlmException(response.statusCode(), readAll(response.body()));
             }
 
-            // Enable or disable thinking mode based on whether thinking handler is provided
-            if (handlers.thinkingHandler != null) {
-                builder = builder.withThinking(ThinkMode.ENABLED);
-            } else {
-                builder = builder.withThinking(ThinkMode.DISABLED);
-            }
+            StringBuilder fullResponse = new StringBuilder();
 
-            OllamaChatRequest request = builder.build();
+            // Ollama streaming responses are line-delimited JSON objects.
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    line = line.trim();
+                    if (line.isEmpty()) {
+                        continue;
+                    }
 
-            // Create separate handlers
-            StringBuilder response = new StringBuilder();
+                    JsonValue chunk;
+                    try {
+                        chunk = JsonParser.parse(line);
+                    } catch (JsonParser.JsonParseException e) {
+                        // Ignore malformed chunks rather than aborting the whole request
+                        continue;
+                    }
 
-            OllamaGenerateTokenHandler thinkingHandler = handlers.thinkingHandler != null
-                ? handlers.thinkingHandler::accept
-                : null;
+                    JsonObject obj = chunk.asObject();
 
-            OllamaGenerateTokenHandler responseHandler = token -> {
-                response.append(token);
-                if (handlers.responseHandler != null) {
-                    handlers.responseHandler.accept(token);
+                    // done flag is per-chunk
+                    boolean done = obj.has("done") && obj.get("done").isBoolean() && obj.get("done").asBoolean();
+
+                    String token = extractMessageContent(obj);
+                    if (token != null && !token.isEmpty()) {
+                        // Best-effort separation of think / response. Ollama emits text inside <think>...</think>
+                        // For simplicity: if a thinkingHandler is present and we see a <think> tag, route tokens to thinking.
+                        if (handlers.thinkingHandler != null) {
+                            routeTokenWithThinkSupport(token, handlers, fullResponse);
+                        } else {
+                            fullResponse.append(token);
+                            if (handlers.responseHandler != null) {
+                                handlers.responseHandler.accept(token);
+                            }
+                        }
+                    }
+
+                    if (done) {
+                        break;
+                    }
                 }
-            };
+            }
 
-            // Create stream observer with separate handlers
-            OllamaChatStreamObserver streamObserver = new OllamaChatStreamObserver(
-                thinkingHandler,
-                responseHandler
-            );
+            return fullResponse.toString();
 
-            // Make the chat request
-            ollama.chat(request, streamObserver);
-
-            return response.toString();
-
-        } catch (OllamaException e) {
-            throw new LlmProvider.LlmException("Ollama error: " + e.getMessage(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Ollama request interrupted", e);
         }
     }
 
     @Override
     public String getRawResponse(String model, List<LlmProvider.Message> messages)
-            throws LlmProvider.LlmException {
+            throws IOException, LlmProvider.LlmException {
+
+        JsonObject body = buildChatRequestBody(model, messages, false, resolveThinkMode(model, null));
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(baseUri.resolve("/api/chat"))
+            .timeout(Duration.ofMinutes(20))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(JsonPrinter.printCompact(body)))
+            .build();
 
         try {
-            // Build chat request using the builder pattern
-            var builder = OllamaChatRequest.builder().withModel(model);
-
-            for (LlmProvider.Message msg : messages) {
-                OllamaChatMessageRole role = convertRole(msg.role);
-                builder = builder.withMessage(role, msg.content);
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 400) {
+                throw toLlmException(response.statusCode(), response.body());
             }
-
-            OllamaChatRequest request = builder.build();
-
-            // Get response (non-streaming)
-            OllamaChatResult result = ollama.chat(request, null);
-
-            // Return as JSON-like string (best effort)
-            String responseText = result.getResponseModel().getMessage().getResponse();
-            return "{\n  \"model\": \"" + model + "\",\n  \"response\": " +
-                   escapeJson(responseText) + "\n}";
-
-        } catch (OllamaException e) {
-            throw new LlmProvider.LlmException("Ollama error: " + e.getMessage(), e);
+            return response.body();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Ollama request interrupted", e);
         }
     }
 
-    private OllamaChatMessageRole convertRole(String role) {
-        return switch (role.toLowerCase()) {
-            case "system" -> OllamaChatMessageRole.SYSTEM;
-            case "user" -> OllamaChatMessageRole.USER;
-            case "assistant" -> OllamaChatMessageRole.ASSISTANT;
-            default -> OllamaChatMessageRole.USER;
-        };
+    private AiConfig.OllamaThinkMode resolveThinkMode(String model, StreamHandlers handlers) {
+        // If caller wants thinking tokens, thinking must be enabled.
+        boolean wantsThinking = handlers != null && handlers.thinkingHandler != null;
+
+        AiConfig.OllamaThinkMode configured = defaultThinkMode;
+        if (configured == null) {
+            // If not injected, keep backwards-compatible behavior:
+            // - gpt-oss*: HIGH
+            // - others: OFF unless thinking requested
+            if (model != null && model.toLowerCase().startsWith("gpt-oss")) {
+                configured = AiConfig.OllamaThinkMode.HIGH;
+            } else {
+                configured = AiConfig.OllamaThinkMode.OFF;
+            }
+        }
+
+        if (wantsThinking && configured == AiConfig.OllamaThinkMode.OFF) {
+            // Enable thinking if caller asked for it.
+            return AiConfig.OllamaThinkMode.HIGH; // for non-gpt-oss bool think=true is fine
+        }
+
+        return configured;
     }
 
-    private String escapeJson(String text) {
-        if (text == null) {
-            return "null";
+    private JsonObject buildChatRequestBody(String model,
+                                           List<LlmProvider.Message> messages,
+                                           boolean stream,
+                                           AiConfig.OllamaThinkMode thinkMode) {
+
+        JsonArray msgs = new JsonArray();
+        for (LlmProvider.Message m : messages) {
+            msgs = msgs.add(new JsonObject()
+                .put("role", new JsonString(m.role))
+                .put("content", new JsonString(m.content)));
         }
-        return "\"" + text.replace("\\", "\\\\")
-                         .replace("\"", "\\\"")
-                         .replace("\n", "\\n")
-                         .replace("\r", "\\r")
-                         .replace("\t", "\\t") + "\"";
+
+        JsonObject root = new JsonObject()
+            .put("model", new JsonString(model))
+            .put("messages", msgs)
+            .put("stream", new JsonBoolean(stream));
+
+        // Think handling:
+        // - gpt-oss requires string think (low/medium/high)
+        // - other models often accept boolean
+        if (thinkMode != null) {
+            if (model != null && model.toLowerCase().startsWith("gpt-oss")) {
+                if (thinkMode != AiConfig.OllamaThinkMode.OFF) {
+                    root = root.put("think", new JsonString(thinkMode.name().toLowerCase()));
+                }
+            } else {
+                root = root.put("think", new JsonBoolean(thinkMode != AiConfig.OllamaThinkMode.OFF));
+            }
+        }
+
+        return root;
+    }
+
+    private String extractMessageContent(JsonObject chunkObj) {
+        if (!chunkObj.has("message") || !chunkObj.get("message").isObject()) {
+            return null;
+        }
+        JsonObject msg = chunkObj.get("message").asObject();
+        if (!msg.has("content") || !msg.get("content").isString()) {
+            return null;
+        }
+        return msg.get("content").asString();
+    }
+
+    private void routeTokenWithThinkSupport(String token, StreamHandlers handlers, StringBuilder fullResponse) {
+        // Very small state machine would be ideal, but keep it simple:
+        // - content between <think> and </think> goes to thinkingHandler
+        // - everything else goes to responseHandler and is appended to fullResponse
+        // This is robust enough for typical thinking outputs.
+
+        // We do not keep state across chunks here; this means tokens may be mis-routed if tags split.
+        // But this matches "keep it simple".
+        if (token.contains("<think>") || token.contains("</think>")) {
+            if (handlers.thinkingHandler != null) {
+                handlers.thinkingHandler.accept(token);
+            }
+            return;
+        }
+
+        // If it looks like thinking output and handler is present, send it there. Otherwise treat it as response.
+        if (handlers.thinkingHandler != null && token.startsWith("[THINK]") ) {
+            handlers.thinkingHandler.accept(token);
+            return;
+        }
+
+        fullResponse.append(token);
+        if (handlers.responseHandler != null) {
+            handlers.responseHandler.accept(token);
+        }
+    }
+
+    private LlmProvider.LlmException toLlmException(int statusCode, String body) {
+        String msg = body;
+        // Best effort: Ollama error responses are often JSON like {"error":"..."}
+        try {
+            JsonValue parsed = JsonParser.parse(body);
+            if (parsed.isObject()) {
+                JsonObject obj = parsed.asObject();
+                if (obj.has("error") && obj.get("error").isString()) {
+                    msg = obj.get("error").asString();
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return new LlmProvider.LlmException("Ollama error: " + msg, statusCode);
+    }
+
+    private static String readAll(java.io.InputStream in) throws IOException {
+        return new String(in.readAllBytes(), StandardCharsets.UTF_8);
     }
 }

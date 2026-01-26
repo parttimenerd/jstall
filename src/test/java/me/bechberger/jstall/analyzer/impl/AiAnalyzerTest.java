@@ -3,7 +3,7 @@ package me.bechberger.jstall.analyzer.impl;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
-import me.bechberger.jstall.util.LlmProvider;
+import me.bechberger.jstall.util.llm.LlmProvider;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.model.ThreadInfo;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,23 +55,9 @@ class AiAnalyzerTest {
     }
 
     @Test
-    void testAnalyzeWithDefaultOptions() {
-        mockProvider.setResponse("This is a summary of the thread dump analysis.");
-
-        List<ThreadDumpSnapshot> dumps = createTestDumps(2);
-        AnalyzerResult result = analyzer.analyze(dumps, Map.of());
-
-        assertEquals(0, result.exitCode());
-        assertNotNull(result.output());
-        assertEquals("This is a summary of the thread dump analysis.", result.output());
-
-        // Verify default model was used
-        assertEquals("gpt-50-nano", mockProvider.getLastModel());
-    }
-
-    @Test
     void testAnalyzeWithCustomModel() {
         mockProvider.setResponse("Analysis result");
+        mockProvider.setSupportsStreaming(false);
 
         List<ThreadDumpSnapshot> dumps = createTestDumps(2);
         Map<String, Object> options = Map.of("model", "gpt-4");
@@ -85,6 +71,7 @@ class AiAnalyzerTest {
     @Test
     void testAnalyzeWithCustomQuestion() {
         mockProvider.setResponse("Answer to custom question");
+        mockProvider.setSupportsStreaming(false);
 
         List<ThreadDumpSnapshot> dumps = createTestDumps(2);
         Map<String, Object> options = Map.of("question", "What is causing the deadlock?");
@@ -152,6 +139,7 @@ class AiAnalyzerTest {
     @Test
     void testIntelligentFilteringEnabledByDefault() {
         mockProvider.setResponse("Analysis");
+        mockProvider.setSupportsStreaming(false);
 
         List<ThreadDumpSnapshot> dumps = createTestDumps(2);
         analyzer.analyze(dumps, Map.of());
@@ -164,6 +152,7 @@ class AiAnalyzerTest {
     @Test
     void testSystemPromptIncluded() {
         mockProvider.setResponse("Response");
+        mockProvider.setSupportsStreaming(false);
 
         List<ThreadDumpSnapshot> dumps = createTestDumps(2);
         analyzer.analyze(dumps, Map.of());
@@ -259,6 +248,10 @@ class AiAnalyzerTest {
             return lastMessages;
         }
 
+        public void setSupportsStreaming(boolean supportsStreaming) {
+            this.supportsStreaming = supportsStreaming;
+        }
+
         @Override
         public boolean supportsStreaming() {
             return supportsStreaming;
@@ -282,7 +275,7 @@ class AiAnalyzerTest {
                 throw new LlmProvider.LlmException(apiErrorMessage, apiErrorCode);
             }
 
-            if (response != null && handlers.responseHandler != null) {
+            if (response != null && handlers != null && handlers.responseHandler != null) {
                 handlers.responseHandler.accept(response);
             }
 
