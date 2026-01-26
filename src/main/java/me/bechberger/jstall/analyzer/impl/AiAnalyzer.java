@@ -4,7 +4,7 @@ import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.BaseAnalyzer;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
-import me.bechberger.jstall.util.LlmProvider;
+import me.bechberger.jstall.util.llm.LlmProvider;
 import me.bechberger.jstall.util.SystemAnalyzer;
 
 import java.io.IOException;

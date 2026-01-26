@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.3"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.3 https://maven.apache.org/xsd/assembly-1.1.3.xsd">
+
+    <!-- Minimal executable fat jar for jstall-minimal.
+
+         Note: the standard jar-with-dependencies descriptor does not support excluding
+         files *inside* dependency jars (like META-INF/maven/**) in a reliable way.
+         We keep the minimal build robust by also stripping META-INF/maven/** as a
+         post-processing step in release.py.
+    -->
+
+    <id>minimal</id>
+    <formats>
+        <format>jar</format>
+    </formats>
+    <includeBaseDirectory>false</includeBaseDirectory>
+
+    <!-- Project classes/resources -->
+    <fileSets>
+        <fileSet>
+            <directory>${project.build.outputDirectory}</directory>
+            <outputDirectory>/</outputDirectory>
+            <excludes>
+                <exclude>heatmap.html</exclude>
+                <exclude>heatmap/*.*</exclude>
+            </excludes>
+        </fileSet>
+    </fileSets>
+
+    <!-- Dependencies unpacked into the jar -->
+    <dependencySets>
+        <dependencySet>
+            <outputDirectory>/</outputDirectory>
+            <useProjectArtifact>false</useProjectArtifact>
+            <unpack>true</unpack>
+            <scope>runtime</scope>
+            <unpackOptions>
+                <excludes>
+                    <exclude>heatmap.html</exclude>
+                    <exclude>heatmap/**</exclude>
+                    <exclude>one/heatmap/**</exclude>
+                </excludes>
+            </unpackOptions>
+        </dependencySet>
+    </dependencySets>
+
+</assembly>

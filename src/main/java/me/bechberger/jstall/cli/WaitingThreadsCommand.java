@@ -2,8 +2,8 @@ package me.bechberger.jstall.cli;
 
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.impl.WaitingThreadsAnalyzer;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
+import me.bechberger.minicli.annotations.Command;
+import me.bechberger.minicli.annotations.Option;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -13,8 +13,7 @@ import java.util.Map;
  */
 @Command(
     name = "waiting-threads",
-    description = "Identify threads waiting without progress (potentially starving)",
-    mixinStandardHelpOptions = true
+    description = "Identify threads waiting without progress (potentially starving)"
 )
 public class WaitingThreadsCommand extends BaseAnalyzerCommand {
 

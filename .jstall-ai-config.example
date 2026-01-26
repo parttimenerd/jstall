@@ -10,6 +10,17 @@ model=qwen3:30b
 # Ollama host (only needed for ollama provider)
 ollama.host=http://127.0.0.1:11434
 
+# Ollama thinking mode (optional)
+# - Default is ON (high)
+# - For most models:
+#     false disables thinking
+#     anything else enables thinking
+# - For model "gpt-oss" (and gpt-oss:*):
+#     low|medium|high are forwarded as-is
+#     true  maps to high
+#     false maps to low
+#ollama.think=true
+
 # API key (only needed for gardener provider)
 # For Gardener AI, you can also use a .gaw file instead
 #api.key=your-api-key-here

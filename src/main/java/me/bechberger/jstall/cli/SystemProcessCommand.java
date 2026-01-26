@@ -1,17 +1,15 @@
 package me.bechberger.jstall.cli;
 
 import me.bechberger.jstall.analyzer.Analyzer;
-import me.bechberger.jstall.analyzer.impl.DeadLockAnalyzer;
 import me.bechberger.jstall.analyzer.impl.SystemProcessAnalyzer;
-import picocli.CommandLine.Command;
+import me.bechberger.minicli.annotations.Command;
 
 /**
- * Detects deadlocks in thread dumps.
+ * Detects other processes consuming CPU.
  */
 @Command(
     name = "processes",
-    description = "Detect other processes running on the system that consume high CPU time",
-    mixinStandardHelpOptions = true
+    description = "Detect other processes running on the system that consume high CPU time"
 )
 public class SystemProcessCommand extends BaseAnalyzerCommand {
 

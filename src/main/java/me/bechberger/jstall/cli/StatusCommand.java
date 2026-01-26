@@ -2,10 +2,9 @@ package me.bechberger.jstall.cli;
 
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.impl.StatusAnalyzer;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
+import me.bechberger.minicli.annotations.Command;
+import me.bechberger.minicli.annotations.Option;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -13,8 +12,7 @@ import java.util.Map;
  */
 @Command(
     name = "status",
-    description = "Run multiple analyzers over thread dumps (default command)",
-    mixinStandardHelpOptions = true
+    description = "Run multiple analyzers over thread dumps (default command)"
 )
 public class StatusCommand extends BaseAnalyzerCommand {
 

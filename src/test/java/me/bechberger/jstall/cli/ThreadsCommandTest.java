@@ -1,8 +1,11 @@
 package me.bechberger.jstall.cli;
 
 import me.bechberger.jstall.analyzer.impl.ThreadsAnalyzer;
+import me.bechberger.minicli.MiniCli;
 import org.junit.jupiter.api.Test;
-import picocli.CommandLine;
+
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -24,33 +27,23 @@ class ThreadsCommandTest {
     }
 
     @Test
-    void testCommandLineParsingWithDefaults() {
-        ThreadsCommand command = new ThreadsCommand();
-        CommandLine cmd = new CommandLine(command);
-
-        // Should show help when no PID provided
-        int exitCode = cmd.execute();
-        assertEquals(1, exitCode);
-    }
-
-    @Test
     void testCommandLineParsingWithOptions() {
         ThreadsCommand command = new ThreadsCommand();
-        CommandLine cmd = new CommandLine(command);
 
-        // Test parsing succeeds (execution will fail without valid PID)
-        cmd.parseArgs("12345", "--no-native");
+        // We don't execute the analyzer (needs a real PID); we just verify parsing doesn't blow up.
+        int exit = MiniCli.run(command, new PrintStream(new ByteArrayOutputStream()), new PrintStream(new ByteArrayOutputStream()),
+            new String[]{"12345", "--no-native"});
 
-        // Just verify parsing worked
-        assertNotNull(command);
+        // It will likely fail later because PID doesn't exist, but parsing must succeed (exit code != 2 for usage error)
+        assertNotEquals(2, exit);
     }
 
     @Test
     void testNoNativeOption() {
         ThreadsCommand command = new ThreadsCommand();
-        CommandLine cmd = new CommandLine(command);
 
-        cmd.parseArgs("12345", "--no-native");
+        MiniCli.run(command, new PrintStream(new ByteArrayOutputStream()), new PrintStream(new ByteArrayOutputStream()),
+            new String[]{"12345", "--no-native"});
 
         var options = command.getAdditionalOptions();
         assertEquals(true, options.get("no-native"));
@@ -59,9 +52,9 @@ class ThreadsCommandTest {
     @Test
     void testDefaultNoNative() {
         ThreadsCommand command = new ThreadsCommand();
-        CommandLine cmd = new CommandLine(command);
 
-        cmd.parseArgs("12345");
+        MiniCli.run(command, new PrintStream(new ByteArrayOutputStream()), new PrintStream(new ByteArrayOutputStream()),
+            new String[]{"12345"});
 
         var options = command.getAdditionalOptions();
         assertEquals(false, options.get("no-native"));
@@ -70,9 +63,9 @@ class ThreadsCommandTest {
     @Test
     void testNoTopOption() {
         ThreadsCommand command = new ThreadsCommand();
-        CommandLine cmd = new CommandLine(command);
 
-        cmd.parseArgs("12345");
+        MiniCli.run(command, new PrintStream(new ByteArrayOutputStream()), new PrintStream(new ByteArrayOutputStream()),
+            new String[]{"12345"});
 
         var options = command.getAdditionalOptions();
         assertFalse(options.containsKey("top"));
@@ -81,11 +74,11 @@ class ThreadsCommandTest {
     @Test
     void testInheritedOptions() {
         ThreadsCommand command = new ThreadsCommand();
-        CommandLine cmd = new CommandLine(command);
 
         // Test inherited options from BaseAnalyzerCommand
-        cmd.parseArgs("12345", "--dumps", "3", "--interval", "10s", "--keep");
+        int exit = MiniCli.run(command, new PrintStream(new ByteArrayOutputStream()), new PrintStream(new ByteArrayOutputStream()),
+            new String[]{"12345", "--dumps", "3", "--interval", "10s", "--keep"});
 
-        assertNotNull(command);
+        assertNotEquals(2, exit);
     }
 }

@@ -2,8 +2,9 @@ package me.bechberger.jstall.cli;
 
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.impl.MostWorkAnalyzer;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
+import me.bechberger.minicli.annotations.Command;
+import me.bechberger.minicli.annotations.Option;
+import me.bechberger.minicli.annotations.Command;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -13,8 +14,7 @@ import java.util.Map;
  */
 @Command(
     name = "most-work",
-    description = "Identify threads doing the most work across dumps",
-    mixinStandardHelpOptions = true
+    description = "Identify threads doing the most work across dumps"
 )
 public class MostWorkCommand extends BaseAnalyzerCommand {
 

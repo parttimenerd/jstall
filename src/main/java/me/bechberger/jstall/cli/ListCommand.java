@@ -1,8 +1,8 @@
 package me.bechberger.jstall.cli;
 
+import me.bechberger.minicli.annotations.Command;
 import me.bechberger.jstall.util.JVMDiscovery;
-import picocli.CommandLine.Command;
-import picocli.CommandLine.Parameters;
+import me.bechberger.minicli.annotations.Parameters;
 
 import java.io.IOException;
 import java.util.List;
@@ -13,8 +13,7 @@ import java.util.concurrent.Callable;
  */
 @Command(
     name = "list",
-    description = "List running JVM processes (excluding this tool)",
-    mixinStandardHelpOptions = true
+    description = "List running JVM processes (excluding this tool)"
 )
 public class ListCommand implements Callable<Integer> {
 

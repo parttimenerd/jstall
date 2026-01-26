@@ -1,4 +1,4 @@
-package me.bechberger.jstall.util;
+package me.bechberger.jstall.util.llm;
 
 import me.bechberger.jstall.util.json.JsonParser;
 import me.bechberger.jstall.util.json.JsonPrinter;

@@ -48,3 +48,23 @@ jobs:
 
       - name: Run tests
         run: mvn clean test
+
+      - name: Build + test minimal variant
+        if: matrix.java-version == 21
+        run: python3 release.py test-minimal
+
+      - name: Upload minimal JAR artifact
+        if: matrix.java-version == 21
+        uses: actions/upload-artifact@v4
+        with:
+          name: jstall-minimal-jar
+          path: target/jstall-minimal.jar
+          retention-days: 30
+
+      - name: Upload minimal executable artifact
+        if: matrix.java-version == 21
+        uses: actions/upload-artifact@v4
+        with:
+          name: jstall-minimal
+          path: target/jstall-minimal
+          retention-days: 30

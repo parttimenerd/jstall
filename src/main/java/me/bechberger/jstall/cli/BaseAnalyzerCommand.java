@@ -3,14 +3,14 @@ package me.bechberger.jstall.cli;
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
+import me.bechberger.minicli.MiniCli;
+import me.bechberger.minicli.annotations.Option;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jstall.provider.JThreadDumpProvider;
 import me.bechberger.jstall.provider.ThreadDumpProvider;
 import me.bechberger.jstall.util.JVMDiscovery;
 import me.bechberger.jstall.util.TargetResolver;
-import picocli.CommandLine;
-import picocli.CommandLine.Option;
-import picocli.CommandLine.Parameters;
+import me.bechberger.minicli.annotations.Parameters;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -35,10 +35,10 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
     )
     protected List<String> targets;
 
-    @Option(names = "--dumps", description = "Number of dumps to collect, default is 2")
+    @Option(names = "--dumps", description = "Number of dumps to collect, default is ${DEFAULT-VALUE}")
     protected Integer dumps;
 
-    @Option(names = "--interval", description = "Interval between dumps, default is 5s")
+    @Option(names = "--interval", description = "Interval between dumps, default is ${DEFAULT-VALUE}")
     protected String interval;
 
     @Option(names = "--keep", description = "Persist dumps to disk")
@@ -74,7 +74,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
 
         // Show help and list JVMs if no targets specified
         if (targets == null || targets.isEmpty()) {
-            new CommandLine(this).usage(System.out);
+            MiniCli.usage(this, System.out);
             System.out.println();
             JVMDiscovery.printAvailableJVMs(System.out);
             return 1;

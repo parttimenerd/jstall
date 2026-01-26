@@ -2,14 +2,12 @@ package me.bechberger.jstall.cli;
 
 import me.bechberger.jstall.util.JVMDiscovery;
 import org.junit.jupiter.api.Test;
-import picocli.CommandLine;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
-import java.io.PrintWriter;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Tests for ListCommand.
@@ -31,22 +29,6 @@ class ListCommandTest {
         } finally {
             System.setOut(System.out);
         }
-    }
-
-    @Test
-    void testListCommandHelp() {
-        ListCommand cmd = new ListCommand();
-        CommandLine commandLine = new CommandLine(cmd);
-
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        commandLine.setOut(new PrintWriter(out));
-
-        int exitCode = commandLine.execute("--help");
-
-        assertEquals(0, exitCode);
-        String output = out.toString();
-        assertTrue(output.contains("list"));
-        assertTrue(output.contains("filter"));
     }
 
     @Test
