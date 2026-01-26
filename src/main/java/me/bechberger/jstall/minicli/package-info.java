@@ -1,0 +1,1 @@
+package me.bechberger.jstall.minicli;

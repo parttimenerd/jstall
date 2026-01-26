@@ -18,7 +18,8 @@ Features:
 * **Smart filtering**: Target JVMs by name/class instead of PID
 * **Multi-execution**: Analyze multiple JVMs in parallel for faster results
 * **Supports Java 11+**: Works with all modern Java versions as a target
-* **AI-powered analysis**: Get intelligent insights from thread dumps using LLM (supports local models via Ollama or remote Gardener AI)
+* **AI-powered analysis**: Get intelligent insights from thread dumps using LLMs (supports local models via Ollama)
+
 ## Quick Start
 
 **Example:** Find out what your application (in our example `MyApplication` with pid `12345`) is doing right now
@@ -85,7 +86,7 @@ Add the following dependency to your `pom.xml`:
 <dependency>
     <groupId>me.bechberger</groupId>
     <artifactId>jstall</artifactId>
-    <version>0.4.3</version>
+    <version>0.4.4</version>
 </dependency>
 ```
 
@@ -134,26 +135,18 @@ Runs multiple analyzers (deadlock, most-work, threads, dependency-graph) over sh
 
 <!-- BEGIN help_status -->
 ```
-Usage: jstall status [-hV] [--intelligent-filter] [--keep] [--no-native]
-                     [--dumps=<dumps>] [--interval=<interval>]
-                     [--stack-depth=<stackDepth>] [--top=<top>] [<targets>...]
+Usage: status [-hV] [options]
 Run multiple analyzers over thread dumps (default command)
-      [<targets>...]    PID, filter or dump files
-      --dumps=<dumps>   Number of dumps to collect, default is 2
-  -h, --help            Show this help message and exit.
-      --intelligent-filter
-                        Use intelligent stack trace filtering (collapses
-                          internal frames, focuses on application code)
-      --interval=<interval>
-                        Interval between dumps, default is 5s
-      --keep            Persist dumps to disk
-      --no-native       Ignore threads without stack traces (typically
-                          native/system threads)
-      --stack-depth=<stackDepth>
-                        Stack trace depth to show (default: 10, 0=all, in
-                          intelligent mode: max relevant frames)
-      --top=<top>       Number of top threads (default: 3)
-  -V, --version         Print version information and exit.
+  -h, --help      Show this help message and exit.
+  -V, --version   Print version information and exit.
+
+Options:
+  --top  Number of top threads (default: 3)
+  --no-native  Ignore threads without stack traces (typically native/system threads)
+  --dumps  Number of dumps to collect, default is 2
+  --interval  Interval between dumps, default is 5s
+  --keep  Persist dumps to disk
+  --intelligent-filter  Use intelligent stack trace filtering (collapses internal frames, focuses on application code)
 ```
 <!-- END help_status -->
 
@@ -167,27 +160,19 @@ Run multiple analyzers over thread dumps (default command)
 
 <!-- BEGIN help_most_work -->
 ```
-Usage: jstall most-work [-hV] [--intelligent-filter] [--keep] [--no-native]
-                        [--dumps=<dumps>] [--interval=<interval>]
-                        [--stack-depth=<stackDepth>] [--top=<top>]
-                        [<targets>...]
+Usage: most-work [-hV] [options]
 Identify threads doing the most work across dumps
-      [<targets>...]    PID, filter or dump files
-      --dumps=<dumps>   Number of dumps to collect, default is 2
-  -h, --help            Show this help message and exit.
-      --intelligent-filter
-                        Use intelligent stack trace filtering (collapses
-                          internal frames, focuses on application code)
-      --interval=<interval>
-                        Interval between dumps, default is 5s
-      --keep            Persist dumps to disk
-      --no-native       Ignore threads without stack traces (typically
-                          native/system threads)
-      --stack-depth=<stackDepth>
-                        Stack trace depth to show (default: 10, 0=all, in
-                          intelligent mode: max relevant frames)
-      --top=<top>       Number of top threads to show (default: 3)
-  -V, --version         Print version information and exit.
+  -h, --help      Show this help message and exit.
+  -V, --version   Print version information and exit.
+
+Options:
+  --top  Number of top threads to show (default: 3)
+  --no-native  Ignore threads without stack traces (typically native/system threads)
+  --stack-depth  Stack trace depth to show (default: 10, 0=all, in intelligent mode: max relevant frames)
+  --dumps  Number of dumps to collect, default is 2
+  --interval  Interval between dumps, default is 5s
+  --keep  Persist dumps to disk
+  --intelligent-filter  Use intelligent stack trace filtering (collapses internal frames, focuses on application code)
 ```
 <!-- END help_most_work -->
 
@@ -222,8 +207,7 @@ Lists all threads sorted by CPU time in a table format.
 
 <!-- BEGIN help_threads -->
 ```
-Usage: jstall threads [-hV] [--keep] [--no-native] [--dumps=<dumps>]
-                      [--interval=<interval>] [--top=<top>] [<targets>...]
+Usage: threads [-hV] [options]
 List all threads sorted by CPU time
       [<targets>...]    PID, filter or dump files
       --dumps=<dumps>   Number of dumps to collect, default is 2
@@ -248,26 +232,18 @@ Identifies threads waiting on the same lock instance across all dumps with no CP
 
 <!-- BEGIN help_waiting_threads -->
 ```
-Usage: jstall waiting-threads [-hV] [--intelligent-filter] [--keep]
-                              [--no-native] [--dumps=<dumps>]
-                              [--interval=<interval>]
-                              [--stack-depth=<stackDepth>] [<targets>...]
+Usage: waiting-threads [-hV] [options]
 Identify threads waiting without progress (potentially starving)
-      [<targets>...]    PID, filter or dump files
-      --dumps=<dumps>   Number of dumps to collect, default is 2
-  -h, --help            Show this help message and exit.
-      --intelligent-filter
-                        Use intelligent stack trace filtering (collapses
-                          internal frames, focuses on application code)
-      --interval=<interval>
-                        Interval between dumps, default is 5s
-      --keep            Persist dumps to disk
-      --no-native       Ignore threads without stack traces (typically
-                          native/system threads)
-      --stack-depth=<stackDepth>
-                        Stack trace depth to show (1=inline, 0=all, default: 1,
-                          in intelligent mode: max relevant frames)
-  -V, --version         Print version information and exit.
+  -h, --help      Show this help message and exit.
+  -V, --version   Print version information and exit.
+
+Options:
+  --no-native  Ignore threads without stack traces (typically native/system threads)
+  --stack-depth  Stack trace depth to show (1=inline, 0=all, default: 1, in intelligent mode: max relevant frames)
+  --dumps  Number of dumps to collect, default is 2
+  --interval  Interval between dumps, default is 5s
+  --keep  Persist dumps to disk
+  --intelligent-filter  Use intelligent stack trace filtering (collapses internal frames, focuses on application code)
 ```
 <!-- END help_waiting_threads -->
 
@@ -628,21 +604,17 @@ Generates a flamegraph using async-profiler.
 
 <!-- BEGIN help_flame -->
 ```
-Usage: jstall flame [-hV] [--open] [-d=<duration>] [-e=<event>] [-i=<interval>]
-                    [-o=<outputFile>] [<target>]
+Usage: flame [-hV] [options]
 Generate a flamegraph of the application using async-profiler
-      [<target>]        PID or filter (filters JVMs by main class name)
-  -d, --duration=<duration>
-                        Profiling duration (default: 10s)
-  -e, --event=<event>   Profiling event (default: cpu). Options: cpu, alloc,
-                          lock, wall, itimer
-  -h, --help            Show this help message and exit.
-  -i, --interval=<interval>
-                        Sampling interval (default: 10ms)
-  -o, --output=<outputFile>
-                        Output HTML file (default: flame.html)
-      --open            Automatically open the generated HTML file in browser
-  -V, --version         Print version information and exit.
+  -h, --help      Show this help message and exit.
+  -V, --version   Print version information and exit.
+
+Options:
+  -o, --output  Output HTML file (default: flame.html)
+  -d, --duration  Profiling duration (default: 10s)
+  -e, --event  Profiling event (default: cpu). Options: cpu, alloc, lock, wall, itimer
+  -i, --interval  Sampling interval (default: 10ms)
+  --open  Automatically open the generated HTML file in browser
 ```
 <!-- END help_flame -->
 
@@ -675,3 +647,10 @@ Contribution and feedback are encouraged and always welcome.
 ## License
 
 MIT, Copyright 2025 SAP SE or an SAP affiliate company, Johannes Bechberger and contributors
+
+
+TODO:
+- make jthreaddump smaller by removing unneeded JSON export
+- make ap-loader smaller
+- merge ai commands into main, but have special no-ai build of the tool to keep size down
+- aim for < 1MB jar size, preferably < 500KB
