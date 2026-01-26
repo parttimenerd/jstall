@@ -134,7 +134,10 @@ def build_minimal_cmd(project_root: Path, tmp_dir: str | None, copy_to_target: b
         # Do not create the directory here; shutil.copytree needs the destination to not exist.
         workdir = user_tmp
     else:
-        workdir = Path(tempfile.mkdtemp(prefix='jstall-minimal-'))
+        # mkdtemp() creates the directory, but copytree() requires the destination to NOT exist.
+        # So we create an isolated parent dir and copy into a fresh child.
+        parent = Path(tempfile.mkdtemp(prefix='jstall-minimal-'))
+        workdir = parent / 'work'
 
     print(f"→ Creating minimal build workspace at: {workdir}")
 
@@ -207,7 +210,8 @@ def build_minimal_cmd(project_root: Path, tmp_dir: str | None, copy_to_target: b
 
     finally:
         if user_tmp is None:
-            shutil.rmtree(workdir, ignore_errors=True)
+            # workdir is a subdirectory of the mkdtemp-created parent
+            shutil.rmtree(workdir.parent, ignore_errors=True)
         else:
             print(f"(tmp workspace kept at {user_tmp})")
 
@@ -229,7 +233,8 @@ def deploy_minimal_cmd(project_root: Path, tmp_dir: str | None):
             shutil.rmtree(user_tmp)
         workdir = user_tmp
     else:
-        workdir = Path(tempfile.mkdtemp(prefix='jstall-minimal-deploy-'))
+        parent = Path(tempfile.mkdtemp(prefix='jstall-minimal-deploy-'))
+        workdir = parent / 'work'
 
     print(f"→ Creating minimal deploy workspace at: {workdir}")
 
@@ -252,7 +257,7 @@ def deploy_minimal_cmd(project_root: Path, tmp_dir: str | None):
 
     finally:
         if user_tmp is None:
-            shutil.rmtree(workdir, ignore_errors=True)
+            shutil.rmtree(workdir.parent, ignore_errors=True)
         else:
             print(f"(tmp workspace kept at {user_tmp})")
 
