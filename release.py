@@ -528,13 +528,35 @@ class VersionBumper:
             print("⚠ Could not check GitHub CLI auth status")
             return
 
+        # Ensure assets exist (especially important on CI automation):
+        # If minimal artifacts are missing, generate them now so we never create a release
+        # that claims to ship them but doesn't attach them.
+        jar_path = self.project_root / 'target' / 'jstall.jar'
+        script_path = self.project_root / 'target' / 'jstall'
+        minimal_jar_path = self.project_root / 'target' / 'jstall-minimal.jar'
+        minimal_script_path = self.project_root / 'target' / 'jstall-minimal'
+
+        if not minimal_jar_path.exists() or not minimal_script_path.exists():
+            print("→ jstall-minimal assets missing, building minimal variant for release assets ...")
+            build_minimal_cmd(self.project_root, tmp_dir=None, copy_to_target=True, run_tests=False)
+
+        # Re-check after build attempt
+        missing = [p for p in (jar_path, script_path, minimal_jar_path, minimal_script_path) if not p.exists()]
+        if missing:
+            missing_str = "\n".join(f"  - {p}" for p in missing)
+            raise RuntimeError(
+                "Missing release assets after build attempt:\n"
+                + missing_str
+                + "\n\nRefusing to create a GitHub release without these assets."
+            )
+
         # Get changelog entry for this specific version (after it's been released in CHANGELOG.md)
         changelog_entry = self.get_version_changelog_entry(version)
         if not changelog_entry:
             changelog_entry = f"Release {version}\n\nSee [CHANGELOG.md](https://github.com/parttimenerd/jstall/blob/main/CHANGELOG.md) for details."
 
         # Format release notes
-        release_notes = f"""# Release {version}
+        release_notes = f"""
 
 {changelog_entry}
 
@@ -577,48 +599,19 @@ java -jar jstall.jar <pid>
         notes_file.write_text(release_notes)
 
         try:
-            # Build asset paths
-            jar_path = self.project_root / 'target' / 'jstall.jar'
-            script_path = self.project_root / 'target' / 'jstall'
-            minimal_jar_path = self.project_root / 'target' / 'jstall-minimal.jar'
-            minimal_script_path = self.project_root / 'target' / 'jstall-minimal'
+            assets = [
+                str(jar_path) + '#jstall.jar',
+                str(script_path) + '#jstall',
+                str(minimal_jar_path) + '#jstall-minimal.jar',
+                str(minimal_script_path) + '#jstall-minimal',
+            ]
 
-            assets = []
-            if jar_path.exists():
-                assets.append(str(jar_path) + '#jstall.jar')
-            else:
-                print(f"⚠ JAR not found at {jar_path}")
-
-            if script_path.exists():
-                assets.append(str(script_path) + '#jstall')
-            else:
-                print(f"⚠ jstall script not found at {script_path}")
-
-            if minimal_jar_path.exists():
-                assets.append(str(minimal_jar_path) + '#jstall-minimal.jar')
-            else:
-                print(f"⚠ Minimal JAR not found at {minimal_jar_path}")
-
-            if minimal_script_path.exists():
-                assets.append(str(minimal_script_path) + '#jstall-minimal')
-            else:
-                print(f"⚠ jstall-minimal script not found at {minimal_script_path}")
-
-            if not assets:
-                print("⚠ No assets found, creating release without assets")
-                self.run_command(
-                    ['gh', 'release', 'create', tag,
-                     '--title', f'Release {version}',
-                     '--notes-file', str(notes_file)],
-                    f"Creating GitHub release {tag}"
-                )
-            else:
-                self.run_command(
-                    ['gh', 'release', 'create', tag,
-                     '--title', f'Release {version}',
-                     '--notes-file', str(notes_file)] + assets,
-                    f"Creating GitHub release {tag} with {len(assets)} asset(s)"
-                )
+            self.run_command(
+                ['gh', 'release', 'create', tag,
+                 '--title', f'Release {version}',
+                 '--notes-file', str(notes_file)] + assets,
+                f"Creating GitHub release {tag} with {len(assets)} asset(s)"
+            )
         finally:
             # Clean up notes file
             if notes_file.exists():
