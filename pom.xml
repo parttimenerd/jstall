@@ -6,7 +6,7 @@
 
     <groupId>me.bechberger</groupId>
     <artifactId>jstall</artifactId>
-    <version>0.4.3</version>
+    <version>0.4.4</version>
 
 
     <name>jstall</name>
@@ -96,6 +96,7 @@
                         <manifestEntries>
                             <Main-Class>me.bechberger.jstall.Main</Main-Class>
                         </manifestEntries>
+                        <addMavenDescriptor>false</addMavenDescriptor>
                     </archive>
                 </configuration>
                 <executions>
@@ -237,19 +238,14 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>info.picocli</groupId>
-            <artifactId>picocli</artifactId>
-            <version>4.7.7</version>
-        </dependency>
-        <dependency>
             <groupId>me.bechberger</groupId>
             <artifactId>jthreaddump</artifactId>
-            <version>0.4.0</version>
+            <version>0.5.2</version>
         </dependency>
         <dependency>
             <groupId>me.bechberger</groupId>
             <artifactId>ap-loader-all</artifactId>
-            <version>4.2-10</version>
+            <version>4.3-12</version>
         </dependency>
         <dependency>
             <groupId>org.jetbrains</groupId>
@@ -262,16 +258,6 @@
             <artifactId>assertj-core</artifactId>
             <version>3.27.6</version>
             <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.github.ollama4j</groupId>
-            <artifactId>ollama4j</artifactId>
-            <version>1.1.6</version>
-        </dependency>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
-            <version>2.0.17</version>
         </dependency>
     </dependencies>
 

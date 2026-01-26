@@ -14,14 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
-## [0.4.3] - 2026-01-12
+## [0.4.4] - 2026-01-26
 
 ### Added
+- Created a minimal build aploader-minimal
+  - Doesn't include async-profiler binaries, which isn't a problem with SapMachine and when using the `flame` command
+
 ### Changed
-### Deprecated
-### Removed
-### Fixed
-### Security
+- Reduced the size of the JAR by removing picocli
+  - Replaced it with a purpose built CLI library
 
 ## [0.4.2] - 2026-01-12
 

@@ -1,9 +1,9 @@
 package me.bechberger.jstall.util;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import me.bechberger.jstall.util.json.JsonParser;
+import me.bechberger.jstall.util.json.JsonPrinter;
+import me.bechberger.jstall.util.json.JsonValue;
+import me.bechberger.jstall.util.json.JsonValue.*;
 
 import java.io.IOException;
 import java.net.URI;
@@ -14,13 +14,12 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * Client for the answering-machine API.
+ * Client for the Gardener answering-machine API.
  * Handles communication with the LLM service.
  */
 public class AnsweringMachineClient {
 
     private static final String API_URL = "https://models.answering-machine.utility.gardener.cloud.sap/chat/completions";
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final HttpClient httpClient;
 
@@ -103,18 +102,22 @@ public class AnsweringMachineClient {
         }
     }
 
-    private String buildRequestBody(String model, List<Message> messages) throws IOException {
-        ObjectNode root = MAPPER.createObjectNode();
-        root.put("model", model);
-
-        ArrayNode messagesArray = root.putArray("messages");
+    private String buildRequestBody(String model, List<Message> messages) {
+        // Build messages array
+        JsonArray messagesArray = new JsonArray();
         for (Message msg : messages) {
-            ObjectNode messageNode = messagesArray.addObject();
-            messageNode.put("role", msg.role);
-            messageNode.put("content", msg.content);
+            JsonObject messageObj = new JsonObject()
+                .put("role", new JsonString(msg.role))
+                .put("content", new JsonString(msg.content));
+            messagesArray = messagesArray.add(messageObj);
         }
 
-        return MAPPER.writeValueAsString(root);
+        // Build root object
+        JsonObject root = new JsonObject()
+            .put("model", new JsonString(model))
+            .put("messages", messagesArray);
+
+        return JsonPrinter.printCompact(root);
     }
 
     private HttpRequest buildRequest(String apiKey, String requestBody) {
@@ -135,21 +138,13 @@ public class AnsweringMachineClient {
         }
 
         // Parse response and extract content
-        JsonNode root = MAPPER.readTree(response.body());
-        JsonNode choices = root.get("choices");
-
-        if (choices != null && choices.isArray() && choices.size() > 0) {
-            JsonNode message = choices.get(0).get("message");
-            if (message != null) {
-                JsonNode content = message.get("content");
-                if (content != null) {
-                    outputHandler.accept(content.asText());
-                    return;
-                }
-            }
+        try {
+            JsonValue root = JsonParser.parse(response.body());
+            String content = extractContentFromResponse(root);
+            outputHandler.accept(content);
+        } catch (JsonParser.JsonParseException e) {
+            throw new IOException("Failed to parse API response", e);
         }
-
-        throw new IOException("Unexpected API response format");
     }
 
     private ApiException createApiException(HttpResponse<String> response) {
@@ -157,19 +152,7 @@ public class AnsweringMachineClient {
         String body = response.body();
 
         // Try to extract error message from JSON
-        String errorMessage = null;
-        try {
-            JsonNode root = MAPPER.readTree(body);
-            JsonNode error = root.get("error");
-            if (error != null) {
-                JsonNode message = error.get("message");
-                if (message != null) {
-                    errorMessage = message.asText();
-                }
-            }
-        } catch (Exception e) {
-            // Use raw body if JSON parsing fails
-        }
+        String errorMessage = extractErrorMessage(body);
 
         if (errorMessage == null) {
             errorMessage = body.length() > 200 ? body.substring(0, 200) + "..." : body;
@@ -186,6 +169,52 @@ public class AnsweringMachineClient {
         // This method exists to remind us to sanitize in error messages
         return apiKey;
     }
+
+    // Helper methods for JSON extraction
+
+    /**
+     * Extracts content string from API response JSON.
+     * Expected structure: { "choices": [{ "message": { "content": "..." } }] }
+     */
+    private String extractContentFromResponse(JsonValue root) throws IOException {
+        try {
+            JsonObject obj = root.asObject();
+            JsonArray choices = obj.get("choices").asArray();
+
+            if (choices.isEmpty()) {
+                throw new IOException("Unexpected API response format: empty choices array");
+            }
+
+            JsonObject firstChoice = choices.get(0).asObject();
+            JsonObject message = firstChoice.get("message").asObject();
+            return message.get("content").asString();
+        } catch (IllegalStateException e) {
+            throw new IOException("Unexpected API response format: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Extracts error message from error response JSON.
+     * Expected structure: { "error": { "message": "..." } }
+     */
+    private String extractErrorMessage(String body) {
+        try {
+            JsonValue root = JsonParser.parse(body);
+            if (root.isObject()) {
+                JsonObject obj = root.asObject();
+                if (obj.has("error") && obj.get("error").isObject()) {
+                    JsonObject error = obj.get("error").asObject();
+                    if (error.has("message") && error.get("message").isString()) {
+                        return error.get("message").asString();
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Return null if parsing fails
+        }
+        return null;
+    }
+
 
     /**
      * Exception thrown when API returns an error.
@@ -204,14 +233,6 @@ public class AnsweringMachineClient {
 
         public boolean isAuthError() {
             return statusCode == 401;
-        }
-
-        @Override
-        public String getMessage() {
-            // Ensure API key is never in the message
-            String msg = super.getMessage();
-            // Additional sanitization could go here
-            return msg;
         }
     }
 }

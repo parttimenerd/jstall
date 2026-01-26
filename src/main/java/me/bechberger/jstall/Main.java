@@ -1,10 +1,9 @@
 package me.bechberger.jstall;
 
 import me.bechberger.jstall.cli.*;
+import me.bechberger.jstall.minicli.Command;
+import me.bechberger.jstall.minicli.MiniCli;
 import me.bechberger.jstall.util.JVMDiscovery;
-import org.slf4j.simple.SimpleLogger;
-import picocli.CommandLine;
-import picocli.CommandLine.Command;
 
 /**
  * Main entry point for JStall.
@@ -12,8 +11,7 @@ import picocli.CommandLine.Command;
 @Command(
     name = "jstall",
     description = "One-shot JVM inspection tool",
-    mixinStandardHelpOptions = true,
-    version = "0.4.3",
+    version = "0.4.4",
     subcommands = {
         StatusCommand.class,
         DeadLockCommand.class,
@@ -25,12 +23,12 @@ import picocli.CommandLine.Command;
         AiCommand.class,
         ListCommand.class,
         SystemProcessCommand.class
-    }
+    },
+    mixinStandardHelpOptions = true
 )
 public class Main implements Runnable {
 
     public static void main(String[] args) {
-        System.setProperty(SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "Warn");
         // If no subcommand is specified, default to "status"
         if (args.length > 0 && !args[0].startsWith("-") && isNumericOrFile(args[0])) {
             // First arg is PID or file, prepend "status"
@@ -40,8 +38,10 @@ public class Main implements Runnable {
             args = newArgs;
         }
 
-        int exitCode = new CommandLine(new Main()).execute(args);
-        System.exit(exitCode);
+        int exitCode = MiniCli.run(new Main(), System.out, System.err, args);
+        if (exitCode != 0) {
+            System.exit(exitCode);
+        }
     }
 
     @Override
