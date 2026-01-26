@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
-## [0.4.4] - 2026-01-26
+## [0.4.4] - 2026-01-27
 
 ### Added
 - Created a minimal build aploader-minimal
@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Reduced the size of the JAR by removing picocli
-  - Replaced it with a purpose built CLI library
+  - Replaced it with a purpose built CLI library ([minicli](https://github.com/parttimenerd/minicli) with 30K vs >400K)
 
 ## [0.4.2] - 2026-01-12
 
