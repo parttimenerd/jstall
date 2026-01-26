@@ -1,8 +1,8 @@
 package me.bechberger.jstall;
 
 import me.bechberger.jstall.cli.*;
-import me.bechberger.jstall.minicli.Command;
-import me.bechberger.jstall.minicli.MiniCli;
+import me.bechberger.minicli.MiniCli;
+import me.bechberger.minicli.annotations.Command;
 import me.bechberger.jstall.util.JVMDiscovery;
 
 /**
@@ -23,8 +23,7 @@ import me.bechberger.jstall.util.JVMDiscovery;
         AiCommand.class,
         ListCommand.class,
         SystemProcessCommand.class
-    },
-    mixinStandardHelpOptions = true
+    }
 )
 public class Main implements Runnable {
 
@@ -37,8 +36,14 @@ public class Main implements Runnable {
             System.arraycopy(args, 0, newArgs, 1, args.length);
             args = newArgs;
         }
-
-        int exitCode = MiniCli.run(new Main(), System.out, System.err, args);
+        int exitCode = MiniCli.builder()
+            .commandConfig(cfg -> {
+                cfg.version = "0.4.4";
+                cfg.mixinStandardHelpOptions = true;
+                cfg.defaultValueHelpTemplate = ", default is ${DEFAULT-VALUE}";
+                cfg.defaultValueOnNewLine = false;
+            })
+            .run(new Main(), args);
         if (exitCode != 0) {
             System.exit(exitCode);
         }
