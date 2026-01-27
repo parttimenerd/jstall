@@ -14,14 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
+## [0.4.8] - 2026-01-27
+
+### Fixed
+- Threaddump timestamp parsing
+
 ## [0.4.7] - 2026-01-27
 
-### Added
-### Changed
-### Deprecated
-### Removed
-### Fixed
-### Security
 
 ## [0.4.6] - 2026-01-27
 
