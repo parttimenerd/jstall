@@ -4,20 +4,10 @@ import me.bechberger.jstall.Main;
 import me.bechberger.minicli.MiniCli;
 import org.junit.jupiter.api.Test;
 
+import static me.bechberger.jstall.cli.Util.run;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class HelpTest {
-
-    private String run(String... args) {
-        return MiniCli.builder()
-                .commandConfig(cfg -> {
-                    cfg.version = "0.4.5";
-                    cfg.mixinStandardHelpOptions = true;
-                    cfg.defaultValueHelpTemplate = ", default is ${DEFAULT-VALUE}";
-                    cfg.defaultValueOnNewLine = false;
-                })
-                .runCaptured(new Main(), args).out();
-    }
 
     @Test
     public void testMainHelp() {
@@ -38,7 +28,7 @@ public class HelpTest {
                   jstall ai full           Analyze all JVMs on the system with AI
                   jstall list              List running JVM processes (excluding this tool)
                   jstall processes         Detect other processes running on the system that consume high CPU time
-                """, run("--help"));
+                """, run("--help").out());
     }
 
     @Test
@@ -56,6 +46,6 @@ public class HelpTest {
                                            Interval between dumps, default is 5s
                       --keep               Persist dumps to disk
                   -V, --version            Print version information and exit.
-                """, run("deadlock", "--help"));
+                """, run("deadlock", "--help").out());
     }
 }

@@ -257,9 +257,9 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>me.bechberger.jfr</groupId>
+            <groupId>me.bechberger.util</groupId>
             <artifactId>minicli</artifactId>
-            <version>0.1.2</version>
+            <version>0.1.6</version>
         </dependency>
     </dependencies>
 

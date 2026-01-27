@@ -3,11 +3,10 @@ package me.bechberger.jstall.cli;
 import me.bechberger.jstall.testframework.TestAppLauncher;
 import org.junit.jupiter.api.Test;
 
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -16,25 +15,25 @@ import static org.junit.jupiter.api.Assertions.*;
 class FlameCommandTest {
 
     @Test
-    void testFlameCommandWithoutTarget() throws Exception {
-        FlameCommand cmd = new FlameCommand();
-
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        System.setOut(new PrintStream(out));
-
-        try {
-            int exitCode = cmd.call();
-
-            // Should fail without target
-            assertEquals(1, exitCode);
-
-            String output = out.toString();
-            // Should show usage and available JVMs
-            assertTrue(output.contains("Usage") || output.contains("JVM"));
-
-        } finally {
-            System.setOut(System.out);
-        }
+    void testFlameCommandWithoutTarget() {
+        assertThat(Util.run("flame").out()).startsWith("""
+                Usage: jstall flame [-hV] [--output=<outputFile>] [--duration=<duration>]
+                                    [--event=<event>] [--interval=<interval>] [--open] [<target>]
+                Generate a flamegraph of the application using async-profiler
+                      [<target>]               PID or filter (filters JVMs by main class name)
+                  -d, --duration=<duration>    Profiling duration (default: 10s), default is 10s
+                  -e, --event=<event>          Profiling event (default: cpu). Options: cpu,
+                                               alloc, lock, wall, itimer
+                  -h, --help                   Show this help message and exit.
+                  -i, --interval=<interval>    Sampling interval (default: 10ms), default is
+                                               10ms
+                  -o, --output=<outputFile>    Output HTML file (default: flame.html)
+                      --open                   Automatically open the generated HTML file in
+                                               browser
+                  -V, --version                Print version information and exit.
+                
+                Available JVMs:
+                """);
     }
 
     @Test
@@ -47,27 +46,15 @@ class FlameCommandTest {
 
             long pid = launcher.getPid();
 
-            // Use filter that should match only this JVM
-            FlameCommand cmd = new FlameCommand();
-            cmd.target = "DeadlockTestApp";
-            cmd.duration = Duration.of(1, ChronoUnit.SECONDS);
+            var result = Util.run(
+                    "flame",
+                    "--duration=1s",
+                    "DeadlockTestApp"
+            );
 
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            System.setOut(new PrintStream(out));
-
-            try {
-                int exitCode = cmd.call();
-
-                String output = out.toString();
-
-                // Should resolve to the single matching JVM
-                assertTrue(output.contains(String.valueOf(pid)) ||
-                          output.contains("DeadlockTestApp"),
+            // Should resolve to the single matching JVM
+            assertTrue(result.out().contains(String.valueOf(pid)) || result.out().contains("DeadlockTestApp"),
                     "Should mention the resolved PID or class name");
-
-            } finally {
-                System.setOut(System.out);
-            }
 
         } finally {
             launcher.stop();
@@ -90,33 +77,20 @@ class FlameCommandTest {
             long pid1 = launcher1.getPid();
             long pid2 = launcher2.getPid();
 
-            // Use filter that matches both
-            FlameCommand cmd = new FlameCommand();
-            cmd.target = "DeadlockTestApp";
+            var result = Util.run("flame", "DeadlockTestApp");
 
-            ByteArrayOutputStream err = new ByteArrayOutputStream();
-            System.setErr(new PrintStream(err));
+            // Should fail
+            assertNotEquals(0, result.exitCode());
 
-            try {
-                int exitCode = cmd.call();
+            String errorOutput = result.err();
 
-                // Should fail
-                assertEquals(1, exitCode);
-
-                String errorOutput = err.toString();
-
-                // Should indicate multiple matches
-                assertTrue(errorOutput.contains("does not support multiple targets") ||
-                          errorOutput.contains("matched"),
+            // Should indicate multiple matches
+            assertTrue(errorOutput.contains("does not support multiple targets") || errorOutput.contains("matched"),
                     "Should reject multiple matches");
 
-                // Should list both PIDs
-                assertTrue(errorOutput.contains(String.valueOf(pid1)));
-                assertTrue(errorOutput.contains(String.valueOf(pid2)));
-
-            } finally {
-                System.setErr(System.err);
-            }
+            // Should list both PIDs
+            assertTrue(errorOutput.contains(String.valueOf(pid1)));
+            assertTrue(errorOutput.contains(String.valueOf(pid2)));
 
         } finally {
             launcher1.stop();
@@ -132,28 +106,15 @@ class FlameCommandTest {
             launcher.launch("me.bechberger.jstall.testapp.DeadlockTestApp", "normal");
             launcher.waitUntilReady(5000);
 
-            // Use filter that won't match
-            FlameCommand cmd = new FlameCommand();
-            cmd.target = "NonExistentApp";
+            var result = Util.run("flame", "NonExistentApp");
 
-            ByteArrayOutputStream err = new ByteArrayOutputStream();
-            System.setErr(new PrintStream(err));
+            // Should fail
+            assertNotEquals(0, result.exitCode());
 
-            try {
-                int exitCode = cmd.call();
+            String errorOutput = result.err();
 
-                // Should fail
-                assertEquals(1, exitCode);
-
-                String errorOutput = err.toString();
-
-                // Should indicate no JVMs found
-                assertTrue(errorOutput.contains("No JVMs") ||
-                          errorOutput.contains("NonExistentApp"));
-
-            } finally {
-                System.setErr(System.err);
-            }
+            // Should indicate no JVMs found
+            assertTrue(errorOutput.contains("No JVMs") || errorOutput.contains("NonExistentApp"));
 
         } finally {
             launcher.stop();

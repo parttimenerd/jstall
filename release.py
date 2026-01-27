@@ -49,6 +49,9 @@ def _patch_pom_for_minimal(pom_path: Path):
     # 3) dependency: ap-loader-all -> ap-loader-none
     content = content.replace('<artifactId>ap-loader-all</artifactId>', '<artifactId>ap-loader-none</artifactId>')
 
+    # 3.5) dependency: minicli -> minicli-minimal
+    content = content.replace('<artifactId>minicli</artifactId>', '<artifactId>minicli-minimal</artifactId>')
+
     # 4) remove JetBrains annotations dependency block
     # (pom uses groupId "org.jetbrains" and artifactId "annotations")
     content = re.sub(
@@ -129,7 +132,7 @@ def _strip_nullable_annotations(root: Path):
             file.write_text(new_text)
 
 
-def build_minimal_cmd(project_root: Path, tmp_dir: str | None, copy_to_target: bool = False, run_tests: bool = False):
+def build_minimal_cmd(project_root: Path, tmp_dir: str | None, copy_to_target: bool = False, run_tests: bool = False, keep_tmp: bool = False):
     import tempfile
     import shutil
 
@@ -217,18 +220,21 @@ def build_minimal_cmd(project_root: Path, tmp_dir: str | None, copy_to_target: b
 
     finally:
         if user_tmp is None:
-            # workdir is a subdirectory of the mkdtemp-created parent
-            shutil.rmtree(workdir.parent, ignore_errors=True)
+            if keep_tmp:
+                print(f"(tmp workspace kept at {workdir.parent})")
+            else:
+                # workdir is a subdirectory of the mkdtemp-created parent
+                shutil.rmtree(workdir.parent, ignore_errors=True)
         else:
             print(f"(tmp workspace kept at {user_tmp})")
 
 
-def test_minimal_cmd(project_root: Path, tmp_dir: str | None):
+def test_minimal_cmd(project_root: Path, tmp_dir: str | None, keep_tmp: bool = False):
     """Build and run tests for the minimal variant and copy its artifacts into target/."""
-    build_minimal_cmd(project_root, tmp_dir=tmp_dir, copy_to_target=True, run_tests=True)
+    build_minimal_cmd(project_root, tmp_dir=tmp_dir, copy_to_target=True, run_tests=True, keep_tmp=keep_tmp)
 
 
-def deploy_minimal_cmd(project_root: Path, tmp_dir: str | None):
+def deploy_minimal_cmd(project_root: Path, tmp_dir: str | None, keep_tmp: bool = False):
     """Build and deploy the minimal variant to Maven Central."""
     import tempfile
     import shutil
@@ -264,7 +270,10 @@ def deploy_minimal_cmd(project_root: Path, tmp_dir: str | None):
 
     finally:
         if user_tmp is None:
-            shutil.rmtree(workdir.parent, ignore_errors=True)
+            if keep_tmp:
+                print(f"(tmp workspace kept at {workdir.parent})")
+            else:
+                shutil.rmtree(workdir.parent, ignore_errors=True)
         else:
             print(f"(tmp workspace kept at {user_tmp})")
 
@@ -823,14 +832,17 @@ def main():
     # build-minimal
     p_min = subparsers.add_parser('build-minimal', help='Build minimal jstall-minimal variant')
     p_min.add_argument('--tmp', help='Use this directory as a temporary workspace (it will be deleted and recreated)')
+    p_min.add_argument('--keep-tmp', action='store_true', help='Keep the temporary workspace directory for debugging')
 
     # test-minimal
     p_test_min = subparsers.add_parser('test-minimal', help='Build + run tests for minimal jstall-minimal variant')
     p_test_min.add_argument('--tmp', help='Use this directory as a temporary workspace (it will be deleted and recreated)')
+    p_test_min.add_argument('--keep-tmp', action='store_true', help='Keep the temporary workspace directory for debugging')
 
     # deploy-minimal
     p_deploy_min = subparsers.add_parser('deploy-minimal', help='Deploy jstall-minimal to Maven Central')
     p_deploy_min.add_argument('--tmp', help='Use this directory as a temporary workspace (it will be deleted and recreated)')
+    p_deploy_min.add_argument('--keep-tmp', action='store_true', help='Keep the temporary workspace directory for debugging')
 
     # Default release options (no subcommand)
     parser.add_argument('--major', action='store_true', help='Bump major version (x.0.0)')
@@ -849,15 +861,15 @@ def main():
     project_root = script_path.parent
 
     if args.command == 'build-minimal':
-        build_minimal_cmd(project_root, args.tmp, copy_to_target=True)
+        build_minimal_cmd(project_root, args.tmp, copy_to_target=True, keep_tmp=args.keep_tmp)
         return
 
     if args.command == 'test-minimal':
-        test_minimal_cmd(project_root, args.tmp)
+        test_minimal_cmd(project_root, args.tmp, keep_tmp=args.keep_tmp)
         return
 
     if args.command == 'deploy-minimal':
-        deploy_minimal_cmd(project_root, args.tmp)
+        deploy_minimal_cmd(project_root, args.tmp, keep_tmp=args.keep_tmp)
         return
 
     # ---- existing release flow ----

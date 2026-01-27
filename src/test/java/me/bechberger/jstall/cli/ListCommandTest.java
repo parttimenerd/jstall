@@ -3,8 +3,7 @@ package me.bechberger.jstall.cli;
 import me.bechberger.jstall.util.JVMDiscovery;
 import org.junit.jupiter.api.Test;
 
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
+import java.io.IOException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -15,24 +14,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class ListCommandTest {
 
     @Test
-    void testListCommandWithoutFilter() throws Exception {
-        ListCommand cmd = new ListCommand();
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        System.setOut(new PrintStream(out));
+    void testListCommandWithoutFilter() {
+        var result = Util.run("list");
 
-        try {
-            int exitCode = cmd.call();
-
-            // Should succeed (exit code 0)
-            assertEquals(0, exitCode);
-
-        } finally {
-            System.setOut(System.out);
-        }
+        // Should succeed (exit code 0)
+        assertEquals(0, result.exitCode());
     }
 
     @Test
-    void testListOutputFormat() throws Exception {
+    void testListOutputFormat() throws IOException {
         // Get actual JVMs to verify output format
         var jvms = JVMDiscovery.listJVMs();
 
@@ -41,18 +31,13 @@ class ListCommandTest {
             return;
         }
 
-        ListCommand cmd = new ListCommand();
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        System.setOut(new PrintStream(out));
+        var result = Util.run("list");
 
-        try {
-            cmd.call();
+        // Should succeed
+        assertEquals(0, result.exitCode());
 
-            String output = out.toString();
-            // Should contain PID numbers and class names
-            assertThat(output).containsPattern("\\d+"); // PID
-        } finally {
-            System.setOut(System.out);
-        }
+        String output = result.out();
+        // Should contain PID numbers and class names
+        assertThat(output).containsPattern("\\d+"); // PID
     }
 }

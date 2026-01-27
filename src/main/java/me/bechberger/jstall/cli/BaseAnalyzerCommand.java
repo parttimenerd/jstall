@@ -4,6 +4,7 @@ import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.minicli.MiniCli;
+import me.bechberger.minicli.Spec;
 import me.bechberger.minicli.annotations.Option;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jstall.provider.JThreadDumpProvider;
@@ -46,6 +47,8 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
     @Option(names = "--intelligent-filter", description = "Use intelligent stack trace filtering (collapses internal frames, focuses on application code)")
     protected Boolean intelligentFilter;
 
+    Spec spec;
+
     /**
      * Returns the analyzer to use for this command.
      */
@@ -69,11 +72,12 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
+        System.out.println("No nativ" + ((ThreadsCommand)this).noNative);
         Analyzer analyzer = getAnalyzer();
 
         // Show help and list JVMs if no targets specified
         if (targets == null || targets.isEmpty()) {
-            MiniCli.usage(this, System.out);
+            spec.usage();
             System.out.println();
             JVMDiscovery.printAvailableJVMs(System.out);
             return 1;

@@ -1,6 +1,7 @@
 package me.bechberger.jstall;
 
 import me.bechberger.jstall.cli.*;
+import me.bechberger.minicli.CommandConfig;
 import me.bechberger.minicli.MiniCli;
 import me.bechberger.minicli.annotations.Command;
 import me.bechberger.jstall.util.JVMDiscovery;
@@ -37,16 +38,18 @@ public class Main implements Runnable {
             args = newArgs;
         }
         int exitCode = MiniCli.builder()
-            .commandConfig(cfg -> {
-                cfg.version = "0.4.5";
-                cfg.mixinStandardHelpOptions = true;
-                cfg.defaultValueHelpTemplate = ", default is ${DEFAULT-VALUE}";
-                cfg.defaultValueOnNewLine = false;
-            })
+            .commandConfig(Main::setMiniCliCommandConfig)
             .run(new Main(), args);
         if (exitCode != 0) {
             System.exit(exitCode);
         }
+    }
+
+    public static void setMiniCliCommandConfig(CommandConfig cfg) {
+        cfg.version = "0.4.5";
+        cfg.mixinStandardHelpOptions = true;
+        cfg.defaultValueHelpTemplate = ", default is ${DEFAULT-VALUE}";
+        cfg.defaultValueOnNewLine = false;
     }
 
     @Override

@@ -1,5 +1,6 @@
 package me.bechberger.jstall.cli;
 
+import me.bechberger.minicli.Spec;
 import me.bechberger.minicli.annotations.Command;
 import me.bechberger.minicli.MiniCli;
 import me.bechberger.minicli.annotations.Option;
@@ -44,11 +45,15 @@ public class FlameCommand implements Callable<Integer> {
     @Option(names = {"--open"}, description = "Automatically open the generated HTML file in browser")
     private final boolean open = false;
 
+    Spec spec;
+
     @Override
     public Integer call() {
+
+        System.err.println("Interval set to: " + interval.toMillis() + " ms");
         // Show help and list JVMs if no target specified
         if (target == null) {
-            MiniCli.usage(this, System.out);
+            spec.usage();
             System.out.println();
             JVMDiscovery.printAvailableJVMs(System.out);
             return 1;

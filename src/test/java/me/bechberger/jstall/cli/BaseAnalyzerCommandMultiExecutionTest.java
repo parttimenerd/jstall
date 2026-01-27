@@ -4,6 +4,7 @@ import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jthreaddump.model.ThreadDump;
+import me.bechberger.minicli.RunResult;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -74,7 +75,6 @@ class BaseAnalyzerCommandMultiExecutionTest {
                 Full thread dump Java HotSpot(TM) 64-Bit Server VM:
                 
                 "main" #1 prio=5 runnable
-                   java.lang.Thread.State: RUNNABLE
                 """;
 
             Files.writeString(file1, dumpContent);
@@ -87,22 +87,20 @@ class BaseAnalyzerCommandMultiExecutionTest {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             PrintStream originalOut = System.out;
             System.setOut(new PrintStream(out));
-
             try {
                 int exitCode = cmd.call();
                 assertEquals(0, exitCode);
-
-                String output = out.toString();
-                // Should contain analysis for both files
-                assertTrue(output.contains(file1.toString()) || output.contains("file:"));
-                assertTrue(output.contains(file2.toString()) || output.contains("file:"));
-
-                // Should contain separator between results
-                assertTrue(output.contains("=".repeat(80)) || output.split("Analysis for").length > 1);
-
             } finally {
                 System.setOut(originalOut);
             }
+
+            String output = out.toString();
+            // Should contain analysis for both files
+            assertTrue(output.contains(file1.toString()) || output.contains("file:"));
+            assertTrue(output.contains(file2.toString()) || output.contains("file:"));
+
+            // Should contain separator between results
+            assertTrue(output.contains("=".repeat(80)) || output.split("Analysis for").length > 1);
 
         } finally {
             Files.deleteIfExists(file1);
@@ -133,17 +131,15 @@ class BaseAnalyzerCommandMultiExecutionTest {
             ByteArrayOutputStream err = new ByteArrayOutputStream();
             PrintStream originalErr = System.err;
             System.setErr(new PrintStream(err));
-
             try {
                 int exitCode = cmd.call();
                 assertEquals(1, exitCode); // Should fail
-
-                String errorOutput = err.toString();
-                assertTrue(errorOutput.contains("does not support multiple targets"));
-
             } finally {
                 System.setErr(originalErr);
             }
+
+            String errorOutput = err.toString();
+            assertTrue(errorOutput.contains("does not support multiple targets"));
 
         } finally {
             Files.deleteIfExists(file1);
@@ -172,19 +168,17 @@ class BaseAnalyzerCommandMultiExecutionTest {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             PrintStream originalOut = System.out;
             System.setOut(new PrintStream(out));
-
             try {
                 int exitCode = cmd.call();
                 assertEquals(0, exitCode);
-
-                String output = out.toString();
-                assertTrue(output.contains("Analysis result"));
-                // Should NOT contain separator for single target
-                assertFalse(output.contains("=".repeat(80)));
-
             } finally {
                 System.setOut(originalOut);
             }
+
+            String output = out.toString();
+            assertTrue(output.contains("Analysis result"));
+            // Should NOT contain separator for single target
+            assertFalse(output.contains("=".repeat(80)));
 
         } finally {
             Files.deleteIfExists(file);
@@ -192,47 +186,10 @@ class BaseAnalyzerCommandMultiExecutionTest {
     }
 
     @Test
-    void testNoTargetsShowsHelp() throws Exception {
-        TestAnalyzer analyzer = new TestAnalyzer("test", true);
-        TestAnalyzerCommand cmd = new TestAnalyzerCommand(analyzer, true);
-        cmd.targets = null; // No targets
-
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        PrintStream originalOut = System.out;
-        System.setOut(new PrintStream(out));
-
-        try {
-            int exitCode = cmd.call();
-            assertEquals(1, exitCode); // Should fail
-
-            String output = out.toString();
-            // Should show available JVMs
-            assertTrue(output.contains("JVM") || output.contains("Usage"));
-
-        } finally {
-            System.setOut(originalOut);
-        }
-    }
-
-    @Test
     void testEmptyTargetsList() throws Exception {
-        TestAnalyzer analyzer = new TestAnalyzer("test", true);
-        TestAnalyzerCommand cmd = new TestAnalyzerCommand(analyzer, true);
-        cmd.targets = List.of(); // Empty list
-
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        PrintStream originalOut = System.out;
-        System.setOut(new PrintStream(out));
-
-        try {
-            int exitCode = cmd.call();
-            assertEquals(1, exitCode); // Should fail
-
-            String output = out.toString();
-            assertTrue(output.contains("JVM") || output.contains("Usage"));
-
-        } finally {
-            System.setOut(originalOut);
-        }
+        RunResult res = Util.run("status");
+        assertEquals(1, res.exitCode());
+        System.err.println(res);
+        assertTrue(res.out().contains("Available JVMs"));
     }
 }
