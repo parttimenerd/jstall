@@ -7,8 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.4.7] - 2026-01-27
+
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.4.6] - 2026-01-27
+
 ### Fixed
 - Fixed duration parsing
+- Fixed minimal build issues
+- Fixed flame command issues
+- Fixed threaddump command issues
 
 ## [0.4.5] - 2026-01-27
 

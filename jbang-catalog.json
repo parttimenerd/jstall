@@ -2,7 +2,7 @@
   "catalogs": {},
   "aliases": {
     "jstall": {
-      "script-ref": "https://github.com/parttimenerd/jstall/releases/download/v0.4.5/jstall.jar"
+      "script-ref": "https://github.com/parttimenerd/jstall/releases/download/v0.4.7/jstall.jar"
     }
   },
   "templates": {}

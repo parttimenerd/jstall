@@ -12,7 +12,7 @@ import me.bechberger.jstall.util.JVMDiscovery;
 @Command(
     name = "jstall",
     description = "One-shot JVM inspection tool",
-    version = "0.4.5",
+    version = "0.4.7",
     subcommands = {
         StatusCommand.class,
         DeadLockCommand.class,
@@ -46,7 +46,7 @@ public class Main implements Runnable {
     }
 
     public static void setMiniCliCommandConfig(CommandConfig cfg) {
-        cfg.version = "0.4.5";
+        cfg.version = "0.4.7";
         cfg.mixinStandardHelpOptions = true;
         cfg.defaultValueHelpTemplate = ", default is ${DEFAULT-VALUE}";
         cfg.defaultValueOnNewLine = false;

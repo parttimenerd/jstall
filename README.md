@@ -86,7 +86,7 @@ Add the following dependency to your `pom.xml`:
 <dependency>
     <groupId>me.bechberger</groupId>
     <artifactId>jstall</artifactId>
-    <version>0.4.5</version>
+    <version>0.4.7</version>
 </dependency>
 ```
 
@@ -144,7 +144,7 @@ Run multiple analyzers over thread dumps (default command)
       --intelligent-filter Use intelligent stack trace filtering (collapses
                            internal frames, focuses on application code)
       --interval=<interval>
-                           Interval between dumps, default is none
+                           Interval between dumps, default is 5s
       --keep               Persist dumps to disk
       --no-native          Ignore threads without stack traces (typically
                            native/system threads)
@@ -172,7 +172,7 @@ Identify threads doing the most work across dumps
   -h, --help                    Show this help message and exit.
       --intelligent-filter      Use intelligent stack trace filtering (collapses
                                 internal frames, focuses on application code)
-      --interval=<interval>     Interval between dumps, default is none
+      --interval=<interval>     Interval between dumps, default is 5s
       --keep                    Persist dumps to disk
       --no-native               Ignore threads without stack traces (typically
                                 native/system threads)
@@ -201,7 +201,7 @@ Detect JVM-reported thread deadlocks
       --intelligent-filter Use intelligent stack trace filtering (collapses
                            internal frames, focuses on application code)
       --interval=<interval>
-                           Interval between dumps, default is none
+                           Interval between dumps, default is 5s
       --keep               Persist dumps to disk
   -V, --version            Print version information and exit.
 ```
@@ -226,7 +226,7 @@ List all threads sorted by CPU time
       --intelligent-filter Use intelligent stack trace filtering (collapses
                            internal frames, focuses on application code)
       --interval=<interval>
-                           Interval between dumps, default is none
+                           Interval between dumps, default is 5s
       --keep               Persist dumps to disk
       --no-native          Ignore threads without stack traces (typically
                            native/system threads)
@@ -253,7 +253,7 @@ Identify threads waiting without progress (potentially starving)
   -h, --help                    Show this help message and exit.
       --intelligent-filter      Use intelligent stack trace filtering (collapses
                                 internal frames, focuses on application code)
-      --interval=<interval>     Interval between dumps, default is none
+      --interval=<interval>     Interval between dumps, default is 5s
       --keep                    Persist dumps to disk
       --no-native               Ignore threads without stack traces (typically
                                 native/system threads)
@@ -626,11 +626,12 @@ Usage: jstall flame [-hV] [--output=<outputFile>] [--duration=<duration>]
                     [--event=<event>] [--interval=<interval>] [--open] [<target>]
 Generate a flamegraph of the application using async-profiler
       [<target>]               PID or filter (filters JVMs by main class name)
-  -d, --duration=<duration>    Profiling duration (default: 10s)
+  -d, --duration=<duration>    Profiling duration (default: 10s), default is 10s
   -e, --event=<event>          Profiling event (default: cpu). Options: cpu,
                                alloc, lock, wall, itimer
   -h, --help                   Show this help message and exit.
-  -i, --interval=<interval>    Sampling interval (default: 10ms)
+  -i, --interval=<interval>    Sampling interval (default: 10ms), default is
+                               10ms
   -o, --output=<outputFile>    Output HTML file (default: flame.html)
       --open                   Automatically open the generated HTML file in
                                browser
