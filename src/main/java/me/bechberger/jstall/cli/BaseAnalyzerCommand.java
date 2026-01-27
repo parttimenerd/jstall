@@ -72,7 +72,6 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
-        System.out.println("No nativ" + ((ThreadsCommand)this).noNative);
         Analyzer analyzer = getAnalyzer();
 
         // Show help and list JVMs if no targets specified
