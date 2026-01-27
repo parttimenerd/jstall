@@ -82,9 +82,34 @@ public class DependencyGraphAnalyzer extends BaseAnalyzer {
         }
         if (locksList.size() == 1) {
             return Optional.of(locksList.getFirst());
-        } else {
-            throw new IllegalStateException("Multiple locks found with blocking status for thread: " + thread.name());
         }
+        return Optional.of(pickTopBlockingLock(locksList));
+    }
+
+    /**
+     * Some thread dumps (notably JVM service threads like {@code Finalizer}) can report multiple blocking locks.
+     * For status reporting we pick a deterministic "top" lock instead of failing.
+     */
+    private LockInfo pickTopBlockingLock(List<LockInfo> blockingLocks) {
+        return blockingLocks.stream()
+            .min(Comparator
+                // Prefer a real monitor-enter block over other kinds of blocking.
+                .comparingInt((LockInfo l) -> blockingLockPriority(l.operation()))
+                // Then tie-break deterministically.
+                .thenComparing(LockInfo::lockId, Comparator.nullsLast(String::compareTo))
+                .thenComparing(LockInfo::className, Comparator.nullsLast(String::compareTo)))
+            .orElseThrow();
+    }
+
+    private int blockingLockPriority(LockInfo.LockOperation op) {
+        if (op == null) {
+            return 10;
+        }
+        return switch (op) {
+            case WAITING_TO_LOCK -> 0;
+            case PARKING, WAITING_ON -> 1;
+            default -> 5;
+        };
     }
 
     private String formatDependencyGraph(Map<ThreadInfo, Set<ThreadInfo>> dependencies,

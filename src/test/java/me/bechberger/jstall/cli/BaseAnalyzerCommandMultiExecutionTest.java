@@ -95,12 +95,10 @@ class BaseAnalyzerCommandMultiExecutionTest {
             }
 
             String output = out.toString();
-            // Should contain analysis for both files
-            assertTrue(output.contains(file1.toString()) || output.contains("file:"));
-            assertTrue(output.contains(file2.toString()) || output.contains("file:"));
-
-            // Should contain separator between results
-            assertTrue(output.contains("=".repeat(80)) || output.split("Analysis for").length > 1);
+            // Multiple file arguments are treated as multiple dumps for a *single* analysis,
+            // so we only expect one analysis output.
+            assertTrue(output.contains("Analysis result for test"));
+            assertFalse(output.contains("=".repeat(80)));
 
         } finally {
             Files.deleteIfExists(file1);
@@ -128,18 +126,19 @@ class BaseAnalyzerCommandMultiExecutionTest {
             TestAnalyzerCommand cmd = new TestAnalyzerCommand(analyzer, false); // Does NOT support multiple
             cmd.targets = List.of(file1.toString(), file2.toString());
 
-            ByteArrayOutputStream err = new ByteArrayOutputStream();
-            PrintStream originalErr = System.err;
-            System.setErr(new PrintStream(err));
+            // Multiple file arguments are treated as multiple dumps for a single analysis,
+            // so supportsMultipleTargets() is not relevant here and it should succeed.
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            PrintStream originalOut = System.out;
+            System.setOut(new PrintStream(out));
             try {
                 int exitCode = cmd.call();
-                assertEquals(1, exitCode); // Should fail
+                assertEquals(0, exitCode);
             } finally {
-                System.setErr(originalErr);
+                System.setOut(originalOut);
             }
 
-            String errorOutput = err.toString();
-            assertTrue(errorOutput.contains("does not support multiple targets"));
+            assertTrue(out.toString().contains("Analysis result for test"));
 
         } finally {
             Files.deleteIfExists(file1);

@@ -531,4 +531,33 @@ class DependencyGraphAnalyzerTest {
         assertTrue(output.contains("[I/O Write] io-thread"), "Should show categorized waiter");
         assertTrue(output.contains("[Database] db-thread"), "Should show categorized owner");
     }
+
+    @Test
+    void testMultipleBlockingLocksPicksTopLock() {
+        DependencyGraphAnalyzer analyzer = new DependencyGraphAnalyzer();
+
+        ThreadInfo thread = new ThreadInfo(
+            "multi-blocking",
+            1L,
+            null,
+            5,
+            false,
+            Thread.State.BLOCKED,
+            0.0,
+            0.0,
+            List.of(new StackFrame("com.example.MyApp", "method", "MyApp.java", 1)),
+            List.of(
+                // Lower priority
+                new LockInfo("0xB", "java.lang.Object", LockInfo.LockOperation.PARKING),
+                // Top priority
+                new LockInfo("0xA", "java.lang.Object", LockInfo.LockOperation.WAITING_TO_LOCK)
+            ),
+            null,
+            null
+        );
+
+        LockInfo picked = analyzer.getWaitedOnLock(thread).orElseThrow();
+        assertEquals("0xA", picked.lockId());
+        assertEquals(LockInfo.LockOperation.WAITING_TO_LOCK, picked.operation());
+    }
 }

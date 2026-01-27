@@ -3,7 +3,6 @@ package me.bechberger.jstall.cli;
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
-import me.bechberger.minicli.MiniCli;
 import me.bechberger.minicli.Spec;
 import me.bechberger.minicli.annotations.Option;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
@@ -96,6 +95,14 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
 
         List<TargetResolver.ResolvedTarget> resolvedTargets = resolution.targets();
 
+        // If the user passed multiple files, interpret them as multiple dumps for a single analysis.
+        // This is important for analyzers with DumpRequirement.MANY (e.g. status/most-work),
+        // where multiple dumps are expected.
+        boolean allFiles = resolvedTargets.stream().allMatch(t -> t instanceof TargetResolver.ResolvedTarget.File);
+        if (allFiles && resolvedTargets.size() > 1) {
+            return processMultipleDumpFiles(resolvedTargets, analyzer);
+        }
+
         // Check if multiple targets are supported
         if (resolvedTargets.size() > 1 && !supportsMultipleTargets()) {
             System.err.println("Error: " + analyzer.name() + " does not support multiple targets");
@@ -116,6 +123,30 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
         } else {
             return processMultipleTargets(resolvedTargets, analyzer);
         }
+    }
+
+    private Integer processMultipleDumpFiles(List<TargetResolver.ResolvedTarget> targets, Analyzer analyzer) throws Exception {
+        // All targets are files (validated by caller)
+        List<Path> paths = targets.stream()
+                .map(t -> (TargetResolver.ResolvedTarget.File) t)
+                .map(TargetResolver.ResolvedTarget.File::path)
+                .toList();
+
+        ThreadDumpProvider provider = new JThreadDumpProvider();
+        List<ThreadDumpSnapshot> threadDumps = provider.loadFromFiles(paths);
+
+        int dumpCount = dumps != null ? dumps : analyzer.defaultDumpCount();
+        long intervalMs = interval != null ? interval.toMillis() : analyzer.defaultIntervalMs();
+
+        if (analyzer.dumpRequirement() == DumpRequirement.MANY && threadDumps.size() < 2) {
+            System.err.println("Error: " + analyzer.name() + " requires at least 2 dumps, got " + threadDumps.size());
+            return 1;
+        }
+
+        Map<String, Object> options = buildOptions(dumpCount, intervalMs);
+        AnalyzerResult result = analyzer.analyze(threadDumps, options);
+        System.out.println(result.output());
+        return result.exitCode();
     }
 
     private Integer processSingleTarget(TargetResolver.ResolvedTarget target, Analyzer analyzer) throws Exception {
@@ -151,10 +182,10 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
         return result.exitCode();
     }
 
-    private Integer processMultipleTargets(List<TargetResolver.ResolvedTarget> targets, Analyzer analyzer) throws Exception {
-        int dumpCount = dumps != null ? dumps : analyzer.defaultDumpCount();
-        long intervalMs = interval != null ? interval.toMillis() : analyzer.defaultIntervalMs();
-        Map<String, Object> options = buildOptions(dumpCount, intervalMs);
+    private Integer processMultipleTargets(List<TargetResolver.ResolvedTarget> targets, Analyzer analyzer) {
+         int dumpCount = dumps != null ? dumps : analyzer.defaultDumpCount();
+         long intervalMs = interval != null ? interval.toMillis() : analyzer.defaultIntervalMs();
+         Map<String, Object> options = buildOptions(dumpCount, intervalMs);
 
         // Result holder for each target
         record TargetResult(TargetResolver.ResolvedTarget target, AnalyzerResult result, Exception error) {}

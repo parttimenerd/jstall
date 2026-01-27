@@ -49,3 +49,4 @@ config-schema.json
 .thread-dump-cache/
 
 .gaw
+.jstall-ai-config

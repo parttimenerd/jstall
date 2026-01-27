@@ -8,20 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-### Changed
-### Deprecated
-### Removed
-### Fixed
-### Security
+- Basic support for SAP JVM thread dumps
 
 ## [0.4.9] - 2026-01-27
-
-### Added
-### Changed
-### Deprecated
-### Removed
-### Fixed
-### Security
 
 ## [0.4.8] - 2026-01-27
 
