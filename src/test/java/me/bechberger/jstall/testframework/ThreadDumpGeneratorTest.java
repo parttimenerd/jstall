@@ -12,7 +12,7 @@ import java.util.List;
  * Run this test to generate sample thread dumps for use in other tests.
  * The dumps are saved to src/test/resources/thread-dumps/
  */
-public class ThreadDumpGenerator {
+public class ThreadDumpGeneratorTest {
 
     private static final Path TEST_RESOURCES = Paths.get("src/test/resources/thread-dumps");
 

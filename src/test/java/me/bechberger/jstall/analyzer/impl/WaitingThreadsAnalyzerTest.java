@@ -109,7 +109,7 @@ class WaitingThreadsAnalyzerTest {
         List<ThreadDump> dumps = new ArrayList<>();
 
         for (int i = 0; i < count; i++) {
-            long timestamp = 1735477200000L + (i * 5000); // 5 second intervals
+            long timestamp = 1735477200000L + (i * 5000L); // 5 second intervals
 
             // Create a thread dump with:
             // 1. A holder thread that holds the lock (RUNNABLE or TIMED_WAITING)
@@ -166,7 +166,7 @@ class WaitingThreadsAnalyzerTest {
         List<ThreadDump> dumps = new ArrayList<>();
 
         for (int i = 0; i < count; i++) {
-            long timestamp = 1735477200000L + (i * 5000);
+            long timestamp = 1735477200000L + (i * 5000L);
 
             String dumpContent = String.format("""
                 %d

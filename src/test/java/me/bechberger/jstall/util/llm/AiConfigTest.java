@@ -19,7 +19,7 @@ class AiConfigTest {
         p.setProperty("ollama.think", "medium");
 
         AiConfig cfg = fromProperties(p);
-        assertThat(cfg.getOllamaThinkMode()).isEqualTo(AiConfig.OllamaThinkMode.MEDIUM);
+        assertThat(cfg.ollamaThinkMode()).isEqualTo(AiConfig.OllamaThinkMode.MEDIUM);
         assertThat(cfg.getEffectiveOllamaThinkMode()).isEqualTo(AiConfig.OllamaThinkMode.MEDIUM);
     }
 
@@ -30,7 +30,7 @@ class AiConfigTest {
         p.setProperty("model", "gpt-oss:latest");
 
         AiConfig cfg = fromProperties(p);
-        assertThat(cfg.getOllamaThinkMode()).isEqualTo(AiConfig.OllamaThinkMode.HIGH);
+        assertThat(cfg.ollamaThinkMode()).isEqualTo(AiConfig.OllamaThinkMode.HIGH);
         assertThat(cfg.getEffectiveOllamaThinkMode()).isEqualTo(AiConfig.OllamaThinkMode.HIGH);
     }
 
@@ -41,7 +41,7 @@ class AiConfigTest {
         p.setProperty("model", "qwen3:30b");
 
         AiConfig cfg = fromProperties(p);
-        assertThat(cfg.getOllamaThinkMode()).isEqualTo(AiConfig.OllamaThinkMode.HIGH);
+        assertThat(cfg.ollamaThinkMode()).isEqualTo(AiConfig.OllamaThinkMode.HIGH);
         assertThat(cfg.getEffectiveOllamaThinkMode()).isEqualTo(AiConfig.OllamaThinkMode.HIGH);
     }
 

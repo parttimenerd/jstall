@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -48,7 +50,7 @@ class FlameCommandTest {
             // Use filter that should match only this JVM
             FlameCommand cmd = new FlameCommand();
             cmd.target = "DeadlockTestApp";
-            cmd.duration = "1s";
+            cmd.duration = Duration.of(1, ChronoUnit.SECONDS);
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             System.setOut(new PrintStream(out));

@@ -1,7 +1,6 @@
 package me.bechberger.jstall.util;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -171,21 +170,9 @@ public class TablePrinter {
         LEFT, RIGHT, CENTER
     }
 
-    private static class Column {
-        final String header;
-        final Alignment alignment;
-
-        Column(String header, Alignment alignment) {
-            this.header = header;
-            this.alignment = alignment;
-        }
+    private record Column(String header, Alignment alignment) {
     }
 
-    private static class Row {
-        final String[] cells;
-
-        Row(String[] cells) {
-            this.cells = cells;
-        }
+    private record Row(String[] cells) {
     }
 }

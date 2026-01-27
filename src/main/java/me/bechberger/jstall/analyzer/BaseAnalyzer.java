@@ -145,8 +145,8 @@ public abstract class BaseAnalyzer implements Analyzer {
         if (dumps.size() < 2) {
             return 0.0;
         }
-        long firstTimestamp = dumps.get(0).timestamp().toEpochMilli();
-        long lastTimestamp = dumps.get(dumps.size() - 1).timestamp().toEpochMilli();
+        long firstTimestamp = dumps.getFirst().timestamp().toEpochMilli();
+        long lastTimestamp = dumps.getLast().timestamp().toEpochMilli();
         return (lastTimestamp - firstTimestamp) / 1000.0;
     }
 
@@ -180,11 +180,11 @@ public abstract class BaseAnalyzer implements Analyzer {
             int linesToShow = maxDepth > 0 ? Math.min(lines.length, maxDepth) : lines.length;
 
             for (int i = 0; i < linesToShow; i++) {
-                sb.append(indent + "  ").append(lines[i]).append("\n");
+                sb.append(indent).append("  ").append(lines[i]).append("\n");
             }
 
             if (maxDepth > 0 && lines.length > maxDepth) {
-                sb.append(indent + "  ").append("... (").append(lines.length - maxDepth).append(" more lines)\n");
+                sb.append(indent).append("  ").append("... (").append(lines.length - maxDepth).append(" more lines)\n");
             }
         }
 
@@ -222,10 +222,10 @@ public abstract class BaseAnalyzer implements Analyzer {
             // Simple depth-based filtering
             int linesToShow = maxDepth > 0 ? Math.min(frames.size(), maxDepth) : frames.size();
             for (int i = 0; i < linesToShow; i++) {
-                sb.append(indent + "  ").append(frames.get(i).toString()).append("\n");
+                sb.append(indent).append("  ").append(frames.get(i).toString()).append("\n");
             }
             if (maxDepth > 0 && frames.size() > maxDepth) {
-                sb.append(indent + "  ").append("... (").append(frames.size() - maxDepth).append(" more frames)\n");
+                sb.append(indent).append("  ").append("... (").append(frames.size() - maxDepth).append(" more frames)\n");
             }
         }
 

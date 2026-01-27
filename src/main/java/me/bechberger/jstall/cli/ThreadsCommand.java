@@ -18,7 +18,7 @@ import java.util.Map;
 public class ThreadsCommand extends BaseAnalyzerCommand {
 
     @Option(names = "--no-native", description = "Ignore threads without stack traces (typically native/system threads)")
-    private boolean noNative = false;
+    private final boolean noNative = false;
 
     @Override
     protected Analyzer getAnalyzer() {

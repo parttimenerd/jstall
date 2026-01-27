@@ -146,7 +146,7 @@ public class IntelligentStackFilter {
         for (FilteredFrame filtered : filteredFrames) {
             if (filtered.frame != null) {
                 // Regular frame
-                sb.append(indent).append(filtered.frame.toString()).append("\n");
+                sb.append(indent).append(filtered.frame).append("\n");
             } else if (filtered.isCollapsed) {
                 // Collapsed internal frames
                 sb.append(indent).append("... (")

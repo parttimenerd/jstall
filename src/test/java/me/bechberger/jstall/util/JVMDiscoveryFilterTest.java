@@ -35,7 +35,7 @@ class JVMDiscoveryFilterTest {
         }
 
         // Pick a known part of a JVM's main class
-        String filterTerm = allJVMs.get(0).mainClass().split("\\.")[0]; // Get first package name
+        String filterTerm = allJVMs.getFirst().mainClass().split("\\.")[0]; // Get first package name
 
         List<JVMDiscovery.JVMProcess> filtered = JVMDiscovery.listJVMs(filterTerm);
 
@@ -86,7 +86,7 @@ class JVMDiscoveryFilterTest {
         }
 
         // Get a term from an actual JVM
-        String mainClass = allJVMs.get(0).mainClass();
+        String mainClass = allJVMs.getFirst().mainClass();
         if (mainClass.length() < 3) {
             return; // Skip if too short
         }

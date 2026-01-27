@@ -99,41 +99,20 @@ class AnalyzerRunnerTest {
     }
 
     // Helper test analyzer
-    private static class TestAnalyzer implements Analyzer {
-        private final String name;
-        private final Set<String> supportedOptions;
-        private final DumpRequirement requirement;
-        private final int exitCode;
-
-        TestAnalyzer(String name, Set<String> supportedOptions, DumpRequirement requirement) {
-            this(name, supportedOptions, requirement, 0);
-        }
-
-        TestAnalyzer(String name, Set<String> supportedOptions, DumpRequirement requirement, int exitCode) {
-            this.name = name;
-            this.supportedOptions = supportedOptions;
-            this.requirement = requirement;
-            this.exitCode = exitCode;
-        }
+        private record TestAnalyzer(String name, Set<String> supportedOptions, DumpRequirement requirement,
+                                    int exitCode) implements Analyzer {
+            TestAnalyzer(String name, Set<String> supportedOptions, DumpRequirement requirement) {
+                this(name, supportedOptions, requirement, 0);
+            }
 
         @Override
-        public String name() {
-            return name;
-        }
+            public DumpRequirement dumpRequirement() {
+                return requirement;
+            }
 
-        @Override
-        public Set<String> supportedOptions() {
-            return supportedOptions;
+            @Override
+            public AnalyzerResult analyzeThreadDumps(List<ThreadDump> dumps, Map<String, Object> options) {
+                return AnalyzerResult.withExitCode("Output from " + name, exitCode);
+            }
         }
-
-        @Override
-        public DumpRequirement dumpRequirement() {
-            return requirement;
-        }
-
-        @Override
-        public AnalyzerResult analyzeThreadDumps(List<ThreadDump> dumps, Map<String, Object> options) {
-            return AnalyzerResult.withExitCode("Output from " + name, exitCode);
-        }
-    }
 }

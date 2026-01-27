@@ -118,10 +118,6 @@ public class ThreadActivityCategorizer {
         CategoryGroup(String displayName) {
             this.displayName = displayName;
         }
-
-        public String getDisplayName() {
-            return displayName;
-        }
     }
 
     /**
@@ -538,14 +534,5 @@ public class ThreadActivityCategorizer {
         }
 
         return sb.toString();
-    }
-
-    /**
-     * A rule for matching stack frames to categories
-     */
-    private record CategoryRule(Category category, Predicate<StackFrame> predicate) {
-        boolean matches(StackFrame frame) {
-            return predicate.test(frame);
-        }
     }
 }

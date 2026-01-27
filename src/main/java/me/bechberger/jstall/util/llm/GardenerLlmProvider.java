@@ -24,7 +24,7 @@ public class GardenerLlmProvider implements LlmProvider {
             throws IOException, LlmProvider.LlmException {
 
         // Gardener doesn't support streamed "thinking" tokens separately.
-        var responseHandler = handlers != null ? handlers.responseHandler : null;
+        var responseHandler = handlers != null ? handlers.responseHandler() : null;
 
         List<AnsweringMachineClient.Message> clientMessages = convertMessages(messages);
         StringBuilder response = new StringBuilder();
@@ -57,7 +57,7 @@ public class GardenerLlmProvider implements LlmProvider {
     private List<AnsweringMachineClient.Message> convertMessages(List<LlmProvider.Message> messages) {
         List<AnsweringMachineClient.Message> clientMessages = new ArrayList<>();
         for (LlmProvider.Message msg : messages) {
-            clientMessages.add(new AnsweringMachineClient.Message(msg.role, msg.content));
+            clientMessages.add(new AnsweringMachineClient.Message(msg.role(), msg.content()));
         }
         return clientMessages;
     }

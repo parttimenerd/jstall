@@ -70,9 +70,7 @@ class ApiKeyResolverTest {
             System.setProperty("user.home", "/nonexistent");
 
             ApiKeyResolver.ApiKeyNotFoundException exception =
-                assertThrows(ApiKeyResolver.ApiKeyNotFoundException.class, () -> {
-                    ApiKeyResolver.resolve();
-                });
+                assertThrows(ApiKeyResolver.ApiKeyNotFoundException.class, ApiKeyResolver::resolve);
 
             assertTrue(exception.getMessage().contains(".gaw"));
             assertFalse(exception.getMessage().contains("test-api-key"),

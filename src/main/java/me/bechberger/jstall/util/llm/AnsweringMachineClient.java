@@ -30,16 +30,9 @@ public class AnsweringMachineClient {
     }
 
     /**
-     * Represents a chat message.
-     */
-    public static class Message {
-        public final String role;
-        public final String content;
-
-        public Message(String role, String content) {
-            this.role = role;
-            this.content = content;
-        }
+         * Represents a chat message.
+         */
+        public record Message(String role, String content) {
     }
 
     /**
@@ -229,10 +222,6 @@ public class AnsweringMachineClient {
 
         public int getStatusCode() {
             return statusCode;
-        }
-
-        public boolean isAuthError() {
-            return statusCode == 401;
         }
     }
 }

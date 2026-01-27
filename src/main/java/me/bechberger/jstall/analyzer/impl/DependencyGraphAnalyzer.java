@@ -35,7 +35,7 @@ public class DependencyGraphAnalyzer extends BaseAnalyzer {
     @Override
     public AnalyzerResult analyzeThreadDumps(List<ThreadDump> dumps, Map<String, Object> options) {
         // Use the latest dump for dependency analysis
-        ThreadDump latestDump = dumps.get(dumps.size() - 1);
+        ThreadDump latestDump = dumps.getLast();
 
         // Build lock ownership map
         Map<String, ThreadInfo> lockOwners = new HashMap<>();
@@ -52,9 +52,7 @@ public class DependencyGraphAnalyzer extends BaseAnalyzer {
             }
 
             // Track what lock this thread is waiting on
-            getWaitedOnLock(thread).ifPresent(lock -> {
-                threadWaitingOn.put(thread, lock.lockId());
-            });
+            getWaitedOnLock(thread).ifPresent(lock -> threadWaitingOn.put(thread, lock.lockId()));
         }
 
         // Build dependency graph
@@ -83,7 +81,7 @@ public class DependencyGraphAnalyzer extends BaseAnalyzer {
             return Optional.empty();
         }
         if (locksList.size() == 1) {
-            return Optional.of(locksList.get(0));
+            return Optional.of(locksList.getFirst());
         } else {
             throw new IllegalStateException("Multiple locks found with blocking status for thread: " + thread.name());
         }
@@ -102,7 +100,7 @@ public class DependencyGraphAnalyzer extends BaseAnalyzer {
         // Sort by thread name for consistent output
         List<Map.Entry<ThreadInfo, Set<ThreadInfo>>> sortedDeps = dependencies.entrySet().stream()
             .sorted(Comparator.comparing(e -> e.getKey().name()))
-            .collect(Collectors.toList());
+            .toList();
 
         for (Map.Entry<ThreadInfo, Set<ThreadInfo>> entry : sortedDeps) {
             ThreadInfo waiter = entry.getKey();

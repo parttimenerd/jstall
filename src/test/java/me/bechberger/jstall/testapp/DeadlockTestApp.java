@@ -80,24 +80,22 @@ public class DeadlockTestApp {
 
         // Create worker threads that do actual computation
         for (int i = 0; i < 3; i++) {
-            final int threadNum = i;
             Thread worker = new Thread(() -> {
                 while (true) {
                     doWork();
                     sleep(10); // Small pause
                 }
-            }, "BusyWorker-" + threadNum);
+            }, "BusyWorker-" + i);
             worker.start();
         }
 
         // Create some idle threads
         for (int i = 0; i < 2; i++) {
-            final int threadNum = i;
             Thread idle = new Thread(() -> {
                 while (true) {
                     sleep(1000);
                 }
-            }, "IdleThread-" + threadNum);
+            }, "IdleThread-" + i);
             idle.start();
         }
 

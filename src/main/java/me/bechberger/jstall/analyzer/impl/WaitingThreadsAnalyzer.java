@@ -3,7 +3,6 @@ package me.bechberger.jstall.analyzer.impl;
 import me.bechberger.jstall.analyzer.BaseAnalyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
-import me.bechberger.jthreaddump.model.LockInfo;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.model.ThreadInfo;
 
@@ -65,10 +64,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
         List<WaitingThreadActivity> waitingThreads = threadActivities.values().stream()
             .filter(activity -> !IGNORED_THREAD_NAMES.contains(activity.getThreadName()))
             .filter(activity -> isWaitingWithoutProgress(activity, totalDumps))
-            .sorted((a, b) -> {
-                // Sort by thread name
-                return a.getThreadName().compareTo(b.getThreadName());
-            })
+            .sorted(Comparator.comparing(ThreadActivityBase::getThreadName))
             .collect(Collectors.toList());
 
         if (waitingThreads.isEmpty()) {
@@ -271,23 +267,6 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
 
             // Thread must be waiting in ALL dumps (100% consistency)
             return waitingCount == occurrenceCount;
-        }
-
-        String getTopStackFrame() {
-            if (topStackFrames.isEmpty()) {
-                return "";
-            }
-
-            // Find the most common top frame
-            Map<String, Integer> frameCounts = new HashMap<>();
-            for (String frame : topStackFrames) {
-                frameCounts.put(frame, frameCounts.getOrDefault(frame, 0) + 1);
-            }
-
-            return frameCounts.entrySet().stream()
-                .max(Map.Entry.comparingByValue())
-                .map(Map.Entry::getKey)
-                .orElse("");
         }
 
         /**

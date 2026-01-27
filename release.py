@@ -101,14 +101,19 @@ def _patch_pom_for_minimal(pom_path: Path):
 
 
 def _strip_nullable_annotations(root: Path):
-    """Remove org.jetbrains.annotations.Nullable import + all @Nullable annotations."""
+    """Remove org.jetbrains.annotations.{Nullable,NotNull} imports + all @Nullable/@NotNull annotations.
+
+    Minimal builds remove the JetBrains annotations dependency from the POM, so any remaining
+    usages would break compilation.
+    """
     java_files = list(root.glob('src/**/*.java'))
     for file in java_files:
         text = file.read_text()
         new_text = text
 
-        # Remove JetBrains Nullable import
+        # Remove JetBrains Nullable/NotNull import
         new_text = re.sub(r'^\s*import\s+org\.jetbrains\.annotations\.Nullable;\s*\n', '', new_text, flags=re.MULTILINE)
+        new_text = re.sub(r'^\s*import\s+org\.jetbrains\.annotations\.NotNull;\s*\n', '', new_text, flags=re.MULTILINE)
 
         # Remove any local Nullable import used only for annotation
         # (in this repo it appears as me.bechberger.jstall.util.Nullable)
@@ -117,6 +122,8 @@ def _strip_nullable_annotations(root: Path):
         # Remove annotation occurrences (simple token delete)
         new_text = new_text.replace('@Nullable ', '')
         new_text = new_text.replace('@Nullable', '')
+        new_text = new_text.replace('@NotNull ', '')
+        new_text = new_text.replace('@NotNull', '')
 
         if new_text != text:
             file.write_text(new_text)

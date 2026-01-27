@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -29,19 +30,19 @@ public class FlameCommand implements Callable<Integer> {
     String target;
 
     @Option(names = {"-o", "--output"}, description = "Output HTML file (default: flame.html)")
-    private String outputFile = "flame.html";
+    private final String outputFile = "flame.html";
 
-    @Option(names = {"-d", "--duration"}, description = "Profiling duration (default: 10s)")
-    String duration = "10s";
+    @Option(names = {"-d", "--duration"}, defaultValue = "10s", description = "Profiling duration (default: 10s)")
+    Duration duration;
 
     @Option(names = {"-e", "--event"}, description = "Profiling event (default: cpu). Options: cpu, alloc, lock, wall, itimer")
-    private String event = "cpu";
+    private final String event = "cpu";
 
-    @Option(names = {"-i", "--interval"}, description = "Sampling interval (default: 10ms)")
-    private String interval = "10ms";
+    @Option(names = {"-i", "--interval"}, defaultValue = "10ms", description = "Sampling interval (default: 10ms)")
+    private Duration interval;
 
     @Option(names = {"--open"}, description = "Automatically open the generated HTML file in browser")
-    private boolean open = false;
+    private final boolean open = false;
 
     @Override
     public Integer call() {
@@ -102,8 +103,8 @@ public class FlameCommand implements Callable<Integer> {
 
         try {
             // Parse duration and interval
-            long durationSeconds = parseDurationToSeconds(duration);
-            long intervalNanos = parseIntervalToNanos(interval);
+            long durationSeconds = duration.getSeconds();
+            long intervalNanos = interval.toNanos();
 
             // Determine format from file extension
             String format = determineFormat(outputFile);
@@ -113,7 +114,7 @@ public class FlameCommand implements Callable<Integer> {
 
             // Start profiling
             args.add("-d");
-            args.add(String.valueOf(durationSeconds));
+            args.add(duration.toMillis() / 1000.0 + "s");
             args.add("-e");
             args.add(event);
             args.add("-i");
@@ -172,15 +173,6 @@ public class FlameCommand implements Callable<Integer> {
     }
 
     /**
-     * Parses a duration string to seconds.
-     * Supports: 30s, 2m, 500ms, 60 (bare numbers treated as seconds)
-     */
-    private long parseDurationToSeconds(String duration) {
-        long millis = CommandHelper.parseDuration(duration);
-        return millis / 1000;
-    }
-
-    /**
      * Determines the output format from the file extension.
      * @param filename The output filename
      * @return The format string for async-profiler (html, jfr, collapsed, etc.)
@@ -193,25 +185,6 @@ public class FlameCommand implements Callable<Integer> {
         } else {
             // Default to HTML for .html or any other extension
             return "html";
-        }
-    }
-
-    /**
-     * Parses an interval string to nanoseconds.
-     * Supports: 10ms, 1s, 1000000ns, 1000 (bare numbers treated as nanoseconds)
-     */
-    private long parseIntervalToNanos(String interval) {
-        if (interval.endsWith("ns")) {
-            return Long.parseLong(interval.substring(0, interval.length() - 2));
-        } else if (interval.endsWith("us") || interval.endsWith("μs")) {
-            return Long.parseLong(interval.substring(0, interval.length() - 2)) * 1_000L;
-        } else if (interval.endsWith("ms")) {
-            return Long.parseLong(interval.substring(0, interval.length() - 2)) * 1_000_000L;
-        } else if (interval.endsWith("s")) {
-            return Long.parseLong(interval.substring(0, interval.length() - 1)) * 1_000_000_000L;
-        } else {
-            // Assume nanoseconds for bare numbers
-            return Long.parseLong(interval);
         }
     }
 

@@ -13,6 +13,7 @@ import me.bechberger.jstall.util.TargetResolver;
 import me.bechberger.minicli.annotations.Parameters;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -20,8 +21,6 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-
-import static me.bechberger.jstall.cli.CommandHelper.parseDuration;
 
 /**
  * Base class for analyzer-based commands.
@@ -38,8 +37,8 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
     @Option(names = "--dumps", description = "Number of dumps to collect, default is ${DEFAULT-VALUE}")
     protected Integer dumps;
 
-    @Option(names = "--interval", description = "Interval between dumps, default is ${DEFAULT-VALUE}")
-    protected String interval;
+    @Option(names = "--interval", defaultValue = "5s", description = "Interval between dumps, default is ${DEFAULT-VALUE}")
+    protected Duration interval;
 
     @Option(names = "--keep", description = "Persist dumps to disk")
     protected boolean keep = false;
@@ -99,10 +98,10 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             System.err.println("Error: " + analyzer.name() + " does not support multiple targets");
             System.err.println("Found " + resolvedTargets.size() + " targets:");
             for (TargetResolver.ResolvedTarget target : resolvedTargets) {
-                if (target instanceof TargetResolver.ResolvedTarget.Pid pid) {
-                    System.err.println("  PID " + pid.pid() + ": " + pid.mainClass());
-                } else if (target instanceof TargetResolver.ResolvedTarget.File file) {
-                    System.err.println("  File: " + file.path());
+                if (target instanceof TargetResolver.ResolvedTarget.Pid(long pid, String mainClass)) {
+                    System.err.println("  PID " + pid + ": " + mainClass);
+                } else if (target instanceof TargetResolver.ResolvedTarget.File(Path path)) {
+                    System.err.println("  File: " + path);
                 }
             }
             return 1;
@@ -110,7 +109,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
 
         // Process single or multiple targets
         if (resolvedTargets.size() == 1) {
-            return processSingleTarget(resolvedTargets.get(0), analyzer);
+            return processSingleTarget(resolvedTargets.getFirst(), analyzer);
         } else {
             return processMultipleTargets(resolvedTargets, analyzer);
         }
@@ -119,7 +118,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
     private Integer processSingleTarget(TargetResolver.ResolvedTarget target, Analyzer analyzer) throws Exception {
         ThreadDumpProvider provider = new JThreadDumpProvider();
         int dumpCount = dumps != null ? dumps : analyzer.defaultDumpCount();
-        long intervalMs = interval != null ? parseDuration(interval) : analyzer.defaultIntervalMs();
+        long intervalMs = interval != null ? interval.toMillis() : analyzer.defaultIntervalMs();
 
         List<ThreadDumpSnapshot> threadDumps;
 
@@ -127,9 +126,9 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             // Collect from running JVM
             Path persistPath = keep ? Path.of("dumps") : null;
             threadDumps = provider.collectFromJVM(pid.pid(), dumpCount, intervalMs, persistPath);
-        } else if (target instanceof TargetResolver.ResolvedTarget.File file) {
+        } else if (target instanceof TargetResolver.ResolvedTarget.File(Path path)) {
             // Load from file
-            threadDumps = provider.loadFromFiles(List.of(file.path()));
+            threadDumps = provider.loadFromFiles(List.of(path));
 
             // Validate dump count for MANY requirement
             if (analyzer.dumpRequirement() == DumpRequirement.MANY && threadDumps.size() < 2) {
@@ -151,7 +150,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
 
     private Integer processMultipleTargets(List<TargetResolver.ResolvedTarget> targets, Analyzer analyzer) throws Exception {
         int dumpCount = dumps != null ? dumps : analyzer.defaultDumpCount();
-        long intervalMs = interval != null ? parseDuration(interval) : analyzer.defaultIntervalMs();
+        long intervalMs = interval != null ? interval.toMillis() : analyzer.defaultIntervalMs();
         Map<String, Object> options = buildOptions(dumpCount, intervalMs);
 
         // Result holder for each target
@@ -169,8 +168,8 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
                     if (target instanceof TargetResolver.ResolvedTarget.Pid pid) {
                         Path persistPath = keep ? Path.of("dumps") : null;
                         threadDumps = provider.collectFromJVM(pid.pid(), dumpCount, intervalMs, persistPath);
-                    } else if (target instanceof TargetResolver.ResolvedTarget.File file) {
-                        threadDumps = provider.loadFromFiles(List.of(file.path()));
+                    } else if (target instanceof TargetResolver.ResolvedTarget.File(Path path)) {
+                        threadDumps = provider.loadFromFiles(List.of(path));
                     } else {
                         throw new IllegalStateException("Unknown target type: " + target);
                     }
@@ -236,10 +235,10 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             first = false;
 
             // Print header
-            if (targetResult.target instanceof TargetResolver.ResolvedTarget.Pid pid) {
-                System.out.println("Analysis for PID " + pid.pid() + " (" + pid.mainClass() + "):");
-            } else if (targetResult.target instanceof TargetResolver.ResolvedTarget.File file) {
-                System.out.println("Analysis for file: " + file.path());
+            if (targetResult.target instanceof TargetResolver.ResolvedTarget.Pid(long pid, String mainClass)) {
+                System.out.println("Analysis for PID " + pid + " (" + mainClass + "):");
+            } else if (targetResult.target instanceof TargetResolver.ResolvedTarget.File(Path path)) {
+                System.out.println("Analysis for file: " + path);
             }
             System.out.println();
 

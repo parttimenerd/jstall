@@ -70,12 +70,9 @@ public class SystemAnalyzer {
             return Collections.emptyList();
         }
 
-        // Create thread pool for parallel analysis
-        ExecutorService executor = Executors.newFixedThreadPool(
-            Math.min(jvms.size(), Runtime.getRuntime().availableProcessors())
-        );
-
-        try {
+        try (var executor = Executors.newFixedThreadPool(
+                Math.min(jvms.size(), Runtime.getRuntime().availableProcessors())
+        )){
             // Submit all JVM analysis tasks in parallel
             List<CompletableFuture<JVMAnalysis>> futures = jvms.stream()
                 .map(jvm -> CompletableFuture.supplyAsync(() -> {
@@ -88,7 +85,7 @@ public class SystemAnalyzer {
                         return null;
                     }
                 }, executor))
-                .collect(Collectors.toList());
+                .toList();
 
             // Wait for all analyses to complete
             CompletableFuture<Void> allOf = CompletableFuture.allOf(
@@ -98,17 +95,14 @@ public class SystemAnalyzer {
             allOf.join(); // Wait for completion
 
             // Collect results, filter nulls and apply CPU threshold
-            List<JVMAnalysis> analyses = futures.stream()
+
+            return futures.stream()
                 .map(CompletableFuture::join)
                 .filter(Objects::nonNull)
                 .filter(analysis -> analysis.cpuPercentage >= cpuThresholdPercent)
                 .sorted((a, b) -> Double.compare(b.cpuPercentage, a.cpuPercentage))
                 .collect(Collectors.toList());
 
-            return analyses;
-
-        } finally {
-            executor.shutdown();
         }
     }
 

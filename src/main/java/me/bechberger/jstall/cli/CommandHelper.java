@@ -30,7 +30,7 @@ public class CommandHelper {
             boolean keep) throws IOException {
 
         ThreadDumpProvider provider = new JThreadDumpProvider();
-        String firstTarget = targets.get(0);
+        String firstTarget = targets.getFirst();
 
         if (firstTarget.matches("\\d+")) {
             // PID - collect dumps from running JVM
@@ -41,26 +41,6 @@ public class CommandHelper {
             // Files - load dumps from disk
             List<Path> files = targets.stream().map(Path::of).toList();
             return provider.loadFromFiles(files);
-        }
-    }
-
-    /**
-     * Parses a duration string like "5s", "100ms" into milliseconds.
-     *
-     * @param duration Duration string (e.g., "5s", "100ms", "2m")
-     * @return Duration in milliseconds
-     * @throws IllegalArgumentException if format is invalid
-     */
-    public static long parseDuration(String duration) {
-        if (duration.endsWith("ms")) {
-            return Long.parseLong(duration.substring(0, duration.length() - 2));
-        } else if (duration.endsWith("s")) {
-            return Long.parseLong(duration.substring(0, duration.length() - 1)) * 1000;
-        } else if (duration.endsWith("m")) {
-            return Long.parseLong(duration.substring(0, duration.length() - 1)) * 60 * 1000;
-        } else {
-            // Assume seconds
-            return Long.parseLong(duration) * 1000;
         }
     }
 }

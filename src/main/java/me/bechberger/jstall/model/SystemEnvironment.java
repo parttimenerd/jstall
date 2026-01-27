@@ -79,7 +79,7 @@ public record SystemEnvironment(List<Process> processes) {
         String[] hms = timeStr.split(":");
         String hourPart = "0";
         String minutePart = "0";
-        String secondPart = "0";
+        String secondPart;
         if (hms.length == 3) {
             hourPart = hms[0];
             minutePart = hms[1];
@@ -95,6 +95,6 @@ public record SystemEnvironment(List<Process> processes) {
         long hours = Long.parseLong(hourPart);
         long minutes = Long.parseLong(minutePart);
         double seconds = Double.parseDouble(secondPart);
-        return Duration.ofMinutes(minutes).plusSeconds((long)seconds).plusMillis((long)((seconds - (long)seconds) * 1000));
+        return Duration.ofHours(hours).plusMinutes(minutes).plusSeconds((long)seconds).plusMillis((long)((seconds - (long)seconds) * 1000));
     }
 }

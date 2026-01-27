@@ -48,14 +48,14 @@ public final class LlmProviderFactory {
 
         LlmProvider provider;
         if (useOllama) {
-            String host = (config != null && config.getOllamaHost() != null)
-                ? config.getOllamaHost()
+            String host = (config != null && config.ollamaHost() != null)
+                ? config.ollamaHost()
                 : "http://127.0.0.1:11434";
             AiConfig.OllamaThinkMode thinkMode = (config != null) ? config.getEffectiveOllamaThinkMode() : null;
             provider = new OllamaLlmProvider(host, thinkMode);
         } else {
             // Gardener needs API key (config -> env)
-            String key = (config != null) ? config.getApiKey() : null;
+            String key = (config != null) ? config.apiKey() : null;
             if (key == null) {
                 key = System.getenv("ANSWERING_MACHINE_APIKEY");
             }
@@ -69,8 +69,8 @@ public final class LlmProviderFactory {
         if (model == null) {
             if (forceLocal || forceRemote) {
                 model = useOllama ? "qwen3:30b" : "gpt-50-nano";
-            } else if (config.getModel() != null) {
-                model = config.getModel();
+            } else if (config.model() != null) {
+                model = config.model();
             } else {
                 model = useOllama ? "qwen3:30b" : "gpt-50-nano";
             }

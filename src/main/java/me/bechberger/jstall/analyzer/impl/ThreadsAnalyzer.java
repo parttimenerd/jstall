@@ -155,10 +155,6 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
             stackTraces.add(frames);
         }
 
-        double getMaxElapsedTimeSec() {
-            return maxElapsedTimeSec;
-        }
-
         String getStateDistribution() {
             if (stateCounts.isEmpty()) {
                 return "";
@@ -203,7 +199,7 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
             Map<String, Integer> frameCounts = new HashMap<>();
             for (List<String> trace : stackTraces) {
                 if (!trace.isEmpty()) {
-                    String topFrame = trace.get(0);
+                    String topFrame = trace.getFirst();
                     frameCounts.put(topFrame, frameCounts.getOrDefault(topFrame, 0) + 1);
                 }
             }

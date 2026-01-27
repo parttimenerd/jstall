@@ -8,7 +8,6 @@ import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.model.ThreadInfo;
 
 import java.util.*;
-import java.util.Locale;
 
 /**
  * Identifies threads doing the most work across multiple dumps.
@@ -176,15 +175,6 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
             stackTraces.add(stack.toString());
         }
 
-        double getMaxElapsedTimeSec() {
-            return maxElapsedTimeSec;
-        }
-
-
-        boolean hasElapsedTime() {
-            return hasElapsedTimeData;
-        }
-
         String getStateDistribution() {
             if (stateCounts.isEmpty()) {
                 return "";
@@ -221,11 +211,11 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
             }
 
             if (stackTraces.size() == 1) {
-                return stackTraces.get(0);
+                return stackTraces.getFirst();
             }
 
             // Find common prefix across all stack traces
-            String[] firstLines = stackTraces.get(0).split("\n");
+            String[] firstLines = stackTraces.getFirst().split("\n");
             List<String> commonLines = new ArrayList<>();
 
             for (int i = 0; i < firstLines.length; i++) {
@@ -248,7 +238,7 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
             }
 
             if (commonLines.isEmpty()) {
-                return stackTraces.get(0);
+                return stackTraces.getFirst();
             }
 
             return String.join("\n", commonLines);

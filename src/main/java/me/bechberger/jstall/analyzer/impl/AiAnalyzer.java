@@ -6,6 +6,7 @@ import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jstall.util.llm.LlmProvider;
 import me.bechberger.jstall.util.SystemAnalyzer;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -96,15 +97,14 @@ public class AiAnalyzer extends BaseAnalyzer {
 
         // Dry-run mode: just print the prompt without calling the API
         if (dryRun) {
-            StringBuilder output = new StringBuilder();
-            output.append("=== DRY RUN MODE ===\n\n");
-            output.append("Model: ").append(model).append("\n\n");
-            output.append("System Prompt:\n");
-            output.append(SYSTEM_PROMPT).append("\n\n");
-            output.append("User Prompt:\n");
-            output.append(userPrompt).append("\n");
-            output.append("\n=== END DRY RUN ===\n");
-            return AnalyzerResult.ok(output.toString());
+            String output = "=== DRY RUN MODE ===\n\n" +
+                            "Model: " + model + "\n\n" +
+                            "System Prompt:\n" +
+                            SYSTEM_PROMPT + "\n\n" +
+                            "User Prompt:\n" +
+                            userPrompt + "\n" +
+                            "\n=== END DRY RUN ===\n";
+            return AnalyzerResult.ok(output);
         }
 
         // Call LLM API
@@ -216,15 +216,14 @@ public class AiAnalyzer extends BaseAnalyzer {
 
         // Dry-run mode: just print the prompt without calling the API
         if (dryRun) {
-            StringBuilder output = new StringBuilder();
-            output.append("=== DRY RUN MODE (FULL SYSTEM) ===\n\n");
-            output.append("Model: ").append(model).append("\n\n");
-            output.append("System Prompt:\n");
-            output.append(SYSTEM_PROMPT).append("\n\n");
-            output.append("User Prompt:\n");
-            output.append(userPrompt).append("\n");
-            output.append("\n=== END DRY RUN ===\n");
-            return AnalyzerResult.ok(output.toString());
+            String output = "=== DRY RUN MODE (FULL SYSTEM) ===\n\n" +
+                            "Model: " + model + "\n\n" +
+                            "System Prompt:\n" +
+                            SYSTEM_PROMPT + "\n\n" +
+                            "User Prompt:\n" +
+                            userPrompt + "\n" +
+                            "\n=== END DRY RUN ===\n";
+            return AnalyzerResult.ok(output);
         }
 
         // Call LLM API
@@ -369,18 +368,7 @@ public class AiAnalyzer extends BaseAnalyzer {
 
         System.err.println("\n--- Creating short summary ---\n");
 
-        String summaryPrompt;
-        if (isSystemMode) {
-            summaryPrompt = "Analyze the following system-wide analysis and provide a succinct summary of the current state of the system.\n" +
-                    "Focus on the most important findings and issues. Be specific and data-driven.\n" +
-                    "Keep it to 3-5 key points maximum. Don't give any advice, just state the state. Don't repeat yourself.\n\n" +
-                    "Full Analysis:\n---\n" + fullAnalysis + "\n---";
-        } else {
-            summaryPrompt = "Analyze the following application analysis and provide a succinct summary of the current state of the application.\n" +
-                    "Focus on the most important findings and issues. Be specific and data-driven.\n" +
-                    "Keep it to 3-5 key points maximum. Don't give any advice, just state the state. Don't repeat yourself.\n\n" +
-                    "Full Analysis:\n---\n" + fullAnalysis + "\n---";
-        }
+        String summaryPrompt = getSummaryPrompt(fullAnalysis, isSystemMode);
 
         List<LlmProvider.Message> messages = new ArrayList<>();
         messages.add(new LlmProvider.Message("system", SYSTEM_PROMPT));
@@ -404,5 +392,21 @@ public class AiAnalyzer extends BaseAnalyzer {
         System.out.println(); // Final newline
 
         return summary.toString();
+    }
+
+    private static @NotNull String getSummaryPrompt(String fullAnalysis, boolean isSystemMode) {
+        String summaryPrompt;
+        if (isSystemMode) {
+            summaryPrompt = "Analyze the following system-wide analysis and provide a succinct summary of the current state of the system.\n" +
+                            "Focus on the most important findings and issues. Be specific and data-driven.\n" +
+                            "Keep it to 3-5 key points maximum. Don't give any advice, just state the state. Don't repeat yourself.\n\n" +
+                            "Full Analysis:\n---\n" + fullAnalysis + "\n---";
+        } else {
+            summaryPrompt = "Analyze the following application analysis and provide a succinct summary of the current state of the application.\n" +
+                            "Focus on the most important findings and issues. Be specific and data-driven.\n" +
+                            "Keep it to 3-5 key points maximum. Don't give any advice, just state the state. Don't repeat yourself.\n\n" +
+                            "Full Analysis:\n---\n" + fullAnalysis + "\n---";
+        }
+        return summaryPrompt;
     }
 }

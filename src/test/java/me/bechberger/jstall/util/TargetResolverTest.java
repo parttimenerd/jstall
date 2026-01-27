@@ -25,10 +25,10 @@ class TargetResolverTest {
 
             assertTrue(result.isSuccess());
             assertEquals(1, result.targets().size());
-            assertTrue(result.targets().get(0) instanceof TargetResolver.ResolvedTarget.File);
+            assertInstanceOf(TargetResolver.ResolvedTarget.File.class, result.targets().getFirst());
 
             TargetResolver.ResolvedTarget.File file =
-                (TargetResolver.ResolvedTarget.File) result.targets().get(0);
+                (TargetResolver.ResolvedTarget.File) result.targets().getFirst();
             assertEquals(tempFile, file.path());
 
         } finally {
@@ -94,8 +94,8 @@ class TargetResolverTest {
 
             assertTrue(result.isSuccess());
             assertEquals(2, result.targets().size());
-            assertTrue(result.targets().get(0) instanceof TargetResolver.ResolvedTarget.File);
-            assertTrue(result.targets().get(1) instanceof TargetResolver.ResolvedTarget.File);
+            assertInstanceOf(TargetResolver.ResolvedTarget.File.class, result.targets().get(0));
+            assertInstanceOf(TargetResolver.ResolvedTarget.File.class, result.targets().get(1));
 
         } finally {
             Files.deleteIfExists(file1);

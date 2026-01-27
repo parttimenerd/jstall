@@ -59,7 +59,7 @@ public class JsonParser {
             if (peek() != '"') {
                 throw new JsonParseException("Expected string key");
             }
-            String key = ((JsonString) parseString()).value();
+            String key = parseString().value();
             skipWhitespace();
             expect(':');
             JsonValue value = parseValue();

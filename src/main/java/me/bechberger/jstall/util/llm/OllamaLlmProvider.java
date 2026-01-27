@@ -96,12 +96,12 @@ public class OllamaLlmProvider implements LlmProvider {
                     if (token != null && !token.isEmpty()) {
                         // Best-effort separation of think / response. Ollama emits text inside <think>...</think>
                         // For simplicity: if a thinkingHandler is present and we see a <think> tag, route tokens to thinking.
-                        if (handlers.thinkingHandler != null) {
+                        if (handlers.thinkingHandler() != null) {
                             routeTokenWithThinkSupport(token, handlers, fullResponse);
                         } else {
                             fullResponse.append(token);
-                            if (handlers.responseHandler != null) {
-                                handlers.responseHandler.accept(token);
+                            if (handlers.responseHandler() != null) {
+                                handlers.responseHandler().accept(token);
                             }
                         }
                     }
@@ -146,7 +146,7 @@ public class OllamaLlmProvider implements LlmProvider {
 
     private AiConfig.OllamaThinkMode resolveThinkMode(String model, StreamHandlers handlers) {
         // If caller wants thinking tokens, thinking must be enabled.
-        boolean wantsThinking = handlers != null && handlers.thinkingHandler != null;
+        boolean wantsThinking = handlers != null && handlers.thinkingHandler() != null;
 
         AiConfig.OllamaThinkMode configured = defaultThinkMode;
         if (configured == null) {
@@ -176,8 +176,8 @@ public class OllamaLlmProvider implements LlmProvider {
         JsonArray msgs = new JsonArray();
         for (LlmProvider.Message m : messages) {
             msgs = msgs.add(new JsonObject()
-                .put("role", new JsonString(m.role))
-                .put("content", new JsonString(m.content)));
+                .put("role", new JsonString(m.role()))
+                .put("content", new JsonString(m.content())));
         }
 
         JsonObject root = new JsonObject()
@@ -221,21 +221,21 @@ public class OllamaLlmProvider implements LlmProvider {
         // We do not keep state across chunks here; this means tokens may be mis-routed if tags split.
         // But this matches "keep it simple".
         if (token.contains("<think>") || token.contains("</think>")) {
-            if (handlers.thinkingHandler != null) {
-                handlers.thinkingHandler.accept(token);
+            if (handlers.thinkingHandler() != null) {
+                handlers.thinkingHandler().accept(token);
             }
             return;
         }
 
         // If it looks like thinking output and handler is present, send it there. Otherwise treat it as response.
-        if (handlers.thinkingHandler != null && token.startsWith("[THINK]") ) {
-            handlers.thinkingHandler.accept(token);
+        if (handlers.thinkingHandler() != null && token.startsWith("[THINK]") ) {
+            handlers.thinkingHandler().accept(token);
             return;
         }
 
         fullResponse.append(token);
-        if (handlers.responseHandler != null) {
-            handlers.responseHandler.accept(token);
+        if (handlers.responseHandler() != null) {
+            handlers.responseHandler().accept(token);
         }
     }
 

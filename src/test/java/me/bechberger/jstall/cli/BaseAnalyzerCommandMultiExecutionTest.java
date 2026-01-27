@@ -3,6 +3,7 @@ package me.bechberger.jstall.cli;
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
+import me.bechberger.jthreaddump.model.ThreadDump;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -21,36 +22,24 @@ import static org.junit.jupiter.api.Assertions.*;
 class BaseAnalyzerCommandMultiExecutionTest {
 
     // Simple test analyzer
-    private static class TestAnalyzer implements Analyzer {
-        private final String name;
-        private final boolean supportsMultiple;
-
-        TestAnalyzer(String name, boolean supportsMultiple) {
-            this.name = name;
-            this.supportsMultiple = supportsMultiple;
-        }
+        private record TestAnalyzer(String name, boolean supportsMultiple) implements Analyzer {
 
         @Override
-        public String name() {
-            return name;
-        }
+            public Set<String> supportedOptions() {
+                return Set.of("dumps", "interval", "keep");
+            }
 
-        @Override
-        public Set<String> supportedOptions() {
-            return Set.of("dumps", "interval", "keep");
-        }
+            @Override
+            public DumpRequirement dumpRequirement() {
+                return DumpRequirement.ANY;
+            }
 
-        @Override
-        public DumpRequirement dumpRequirement() {
-            return DumpRequirement.ANY;
+            @Override
+            public AnalyzerResult analyzeThreadDumps(List<ThreadDump> dumps,
+                                                     Map<String, Object> options) {
+                return AnalyzerResult.ok("Analysis result for " + name);
+            }
         }
-
-        @Override
-        public AnalyzerResult analyzeThreadDumps(List<me.bechberger.jthreaddump.model.ThreadDump> dumps,
-                                                   Map<String, Object> options) {
-            return AnalyzerResult.ok("Analysis result for " + name);
-        }
-    }
 
     // Test command implementation
     private static class TestAnalyzerCommand extends BaseAnalyzerCommand {

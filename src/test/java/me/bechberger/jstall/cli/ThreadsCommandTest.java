@@ -23,7 +23,7 @@ class ThreadsCommandTest {
     @Test
     void testGetAnalyzer() {
         ThreadsCommand command = new ThreadsCommand();
-        assertTrue(command.getAnalyzer() instanceof ThreadsAnalyzer);
+        assertInstanceOf(ThreadsAnalyzer.class, command.getAnalyzer());
     }
 
     @Test

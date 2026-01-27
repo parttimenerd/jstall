@@ -10,34 +10,20 @@ import java.util.function.Consumer;
 public interface LlmProvider {
 
     /**
-     * Represents a chat message with role and content.
-     */
-    class Message {
-        public final String role;
-        public final String content;
-
-        public Message(String role, String content) {
-            this.role = role;
-            this.content = content;
-        }
+         * Represents a chat message with role and content.
+         */
+        record Message(String role, String content) {
     }
 
     /**
-     * Handlers for streaming responses.
-     */
-    class StreamHandlers {
-        public final Consumer<String> responseHandler;
-        public final Consumer<String> thinkingHandler;
-
-        public StreamHandlers(Consumer<String> responseHandler, Consumer<String> thinkingHandler) {
-            this.responseHandler = responseHandler;
-            this.thinkingHandler = thinkingHandler;
-        }
+         * Handlers for streaming responses.
+         */
+        record StreamHandlers(Consumer<String> responseHandler, Consumer<String> thinkingHandler) {
 
         public StreamHandlers(Consumer<String> responseHandler) {
-            this(responseHandler, null);
+                this(responseHandler, null);
+            }
         }
-    }
 
     /**
      * Indicates whether this provider supports true token-by-token streaming.

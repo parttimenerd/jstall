@@ -85,7 +85,7 @@ class AiAnalyzerTest {
         List<LlmProvider.Message> messages = mockProvider.getLastMessages();
         assertNotNull(messages);
         assertTrue(messages.stream()
-            .anyMatch(m -> m.content.contains("What is causing the deadlock?")));
+            .anyMatch(m -> m.content().contains("What is causing the deadlock?")));
     }
 
     @Test
@@ -160,7 +160,7 @@ class AiAnalyzerTest {
         List<LlmProvider.Message> messages = mockProvider.getLastMessages();
         assertNotNull(messages);
         assertTrue(messages.stream()
-            .anyMatch(m -> m.role.equals("system") && m.content.contains("thread dump analyzer")));
+            .anyMatch(m -> m.role().equals("system") && m.content().contains("thread dump analyzer")));
     }
 
     // Helper method to create test thread dumps
@@ -275,8 +275,8 @@ class AiAnalyzerTest {
                 throw new LlmProvider.LlmException(apiErrorMessage, apiErrorCode);
             }
 
-            if (response != null && handlers != null && handlers.responseHandler != null) {
-                handlers.responseHandler.accept(response);
+            if (response != null && handlers != null && handlers.responseHandler() != null) {
+                handlers.responseHandler().accept(response);
             }
 
             return response != null ? response : "";

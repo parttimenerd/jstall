@@ -74,7 +74,7 @@ public class AnalyzerRunner {
      */
     private List<ThreadDumpSnapshot> filterDumps(Analyzer analyzer, List<ThreadDumpSnapshot> dumps) {
         return switch (analyzer.dumpRequirement()) {
-            case ONE -> dumps.isEmpty() ? List.of() : List.of(dumps.get(0));
+            case ONE -> dumps.isEmpty() ? List.of() : List.of(dumps.getFirst());
             case MANY -> {
                 if (dumps.size() < 2) {
                     throw new IllegalArgumentException(

@@ -37,26 +37,26 @@ public class AiFullCommand implements Callable<Integer> {
     private String question;
 
     @Option(names = "--raw", description = "Output raw JSON response")
-    private boolean raw = false;
+    private final boolean raw = false;
 
     @Option(names = "--cpu-threshold", description = "CPU threshold percentage (default: ${DEFAULT-VALUE}%)")
-    private double cpuThreshold = 1.0;
+    private final double cpuThreshold = 1.0;
 
     @Option(names = {"-n", "--dumps"}, description = "Number of dumps per JVM (default: ${DEFAULT-VALUE})")
-    private int dumps = 2;
+    private final int dumps = 2;
 
     @Option(names = {"-i", "--interval"}, description = "Interval between dumps in seconds (default: ${DEFAULT-VALUE})")
-    private double interval = 1.0;
+    private final double interval = 1.0;
 
     // Status options
     @Option(names = "--top", description = "Number of top threads per JVM (default: ${DEFAULT-VALUE})")
-    private int top = 3;
+    private final int top = 3;
 
     @Option(names = "--no-native", description = "Ignore threads without stack traces")
-    private boolean noNative = false;
+    private final boolean noNative = false;
 
     @Option(names = "--stack-depth", description = "Stack trace depth (default: ${DEFAULT-VALUE}, 0=all)")
-    private int stackDepth = 10;
+    private final int stackDepth = 10;
 
     @Option(names = "--dry-run", description = "Perform a dry run without calling the AI API")
     private boolean dryRun;

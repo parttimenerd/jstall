@@ -25,8 +25,4 @@ public record ThreadDumpSnapshot(ThreadDump parsed, String raw, @Nullable System
             throw new IllegalArgumentException("Raw dump string cannot be null");
         }
     }
-
-    public boolean hasEnvironment() {
-        return environment != null;
-    }
 }

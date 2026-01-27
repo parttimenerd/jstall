@@ -1,5 +1,7 @@
 package me.bechberger.jstall.testframework;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -40,6 +42,13 @@ public class TestAppLauncher {
         pid = process.pid();
 
         // Start reading output in background
+        Thread outputReader = getOutputReader();
+        outputReader.start();
+
+        return this;
+    }
+
+    private @NotNull Thread getOutputReader() {
         Thread outputReader = new Thread(() -> {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 String line;
@@ -54,9 +63,7 @@ public class TestAppLauncher {
             }
         });
         outputReader.setDaemon(true);
-        outputReader.start();
-
-        return this;
+        return outputReader;
     }
 
     /**
