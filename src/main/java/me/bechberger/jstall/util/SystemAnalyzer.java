@@ -70,9 +70,10 @@ public class SystemAnalyzer {
             return Collections.emptyList();
         }
 
-        try (var executor = Executors.newFixedThreadPool(
+        var executor = Executors.newFixedThreadPool(
                 Math.min(jvms.size(), Runtime.getRuntime().availableProcessors())
-        )){
+        );
+        try {
             // Submit all JVM analysis tasks in parallel
             List<CompletableFuture<JVMAnalysis>> futures = jvms.stream()
                 .map(jvm -> CompletableFuture.supplyAsync(() -> {
@@ -103,6 +104,8 @@ public class SystemAnalyzer {
                 .sorted((a, b) -> Double.compare(b.cpuPercentage, a.cpuPercentage))
                 .collect(Collectors.toList());
 
+        } finally {
+            executor.shutdown();
         }
     }
 
@@ -151,8 +154,8 @@ public class SystemAnalyzer {
             return 0.0;
         }
 
-        ThreadDump first = dumps.getFirst().parsed();
-        ThreadDump last = dumps.getLast().parsed();
+        ThreadDump first = dumps.get(0).parsed();
+        ThreadDump last = dumps.get(dumps.size() - 1).parsed();
 
         if (first.timestamp() == null || last.timestamp() == null) {
             return 0.0;

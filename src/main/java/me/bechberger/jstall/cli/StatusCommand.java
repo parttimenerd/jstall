@@ -17,10 +17,10 @@ import java.util.Map;
 public class StatusCommand extends BaseAnalyzerCommand {
 
     @Option(names = "--top", description = "Number of top threads (default: 3)")
-    private final int top = 3;
+    private int top = 3;
 
     @Option(names = "--no-native", description = "Ignore threads without stack traces (typically native/system threads)")
-    private final boolean noNative = false;
+    private boolean noNative = false;
 
     @Override
     protected Analyzer getAnalyzer() {

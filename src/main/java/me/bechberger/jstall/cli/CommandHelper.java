@@ -30,7 +30,7 @@ public class CommandHelper {
             boolean keep) throws IOException {
 
         ThreadDumpProvider provider = new JThreadDumpProvider();
-        String firstTarget = targets.getFirst();
+        String firstTarget = targets.get(0);
 
         if (firstTarget.matches("\\d+")) {
             // PID - collect dumps from running JVM

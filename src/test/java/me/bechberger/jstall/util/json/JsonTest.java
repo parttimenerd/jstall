@@ -71,7 +71,7 @@ class JsonTest {
         JsonArray users = (JsonArray) obj.fields().get("users");
         assertThat(users.elements()).hasSize(2);
 
-        JsonObject firstUser = (JsonObject) users.elements().getFirst();
+        JsonObject firstUser = (JsonObject) users.elements().get(0);
         assertThat(firstUser.fields().get("name")).isEqualTo(new JsonString("Alice"));
     }
 

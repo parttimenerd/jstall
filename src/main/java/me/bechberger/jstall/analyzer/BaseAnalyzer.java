@@ -146,8 +146,8 @@ public abstract class BaseAnalyzer implements Analyzer {
             return 0.0;
         }
         // make more robust by using the timestamps from the dumps directly
-        long firstTimestamp = dumps.getFirst().timestamp().toEpochMilli();
-        long lastTimestamp = dumps.getLast().timestamp().toEpochMilli();
+        long firstTimestamp = dumps.get(0).timestamp().toEpochMilli();
+        long lastTimestamp = dumps.get(dumps.size() - 1).timestamp().toEpochMilli();
         return (lastTimestamp - firstTimestamp) / 1000.0;
     }
 

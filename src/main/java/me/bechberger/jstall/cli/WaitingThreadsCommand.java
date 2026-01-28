@@ -18,10 +18,10 @@ import java.util.Map;
 public class WaitingThreadsCommand extends BaseAnalyzerCommand {
 
     @Option(names = "--no-native", description = "Ignore threads without stack traces (typically native/system threads)")
-    private final boolean noNative = false;
+    private boolean noNative = false;
 
     @Option(names = "--stack-depth", description = "Stack trace depth to show (1=inline, 0=all, default: 1, in intelligent mode: max relevant frames)")
-    private final int stackDepth = 1;
+    private int stackDepth = 1;
 
     @Override
     protected Analyzer getAnalyzer() {

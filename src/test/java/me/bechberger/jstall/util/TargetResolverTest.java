@@ -25,10 +25,10 @@ class TargetResolverTest {
 
             assertTrue(result.isSuccess());
             assertEquals(1, result.targets().size());
-            assertInstanceOf(TargetResolver.ResolvedTarget.File.class, result.targets().getFirst());
+            assertInstanceOf(TargetResolver.ResolvedTarget.File.class, result.targets().get(0));
 
             TargetResolver.ResolvedTarget.File file =
-                (TargetResolver.ResolvedTarget.File) result.targets().getFirst();
+                (TargetResolver.ResolvedTarget.File) result.targets().get(0);
             assertEquals(tempFile, file.path());
 
         } finally {

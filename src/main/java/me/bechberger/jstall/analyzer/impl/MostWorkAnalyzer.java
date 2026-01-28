@@ -211,11 +211,11 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
             }
 
             if (stackTraces.size() == 1) {
-                return stackTraces.getFirst();
+                return stackTraces.get(0);
             }
 
             // Find common prefix across all stack traces
-            String[] firstLines = stackTraces.getFirst().split("\n");
+            String[] firstLines = stackTraces.get(0).split("\n");
             List<String> commonLines = new ArrayList<>();
 
             for (int i = 0; i < firstLines.length; i++) {
@@ -238,7 +238,7 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
             }
 
             if (commonLines.isEmpty()) {
-                return stackTraces.getFirst();
+                return stackTraces.get(0);
             }
 
             return String.join("\n", commonLines);

@@ -199,7 +199,7 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
             Map<String, Integer> frameCounts = new HashMap<>();
             for (List<String> trace : stackTraces) {
                 if (!trace.isEmpty()) {
-                    String topFrame = trace.getFirst();
+                    String topFrame = trace.get(0);
                     frameCounts.put(topFrame, frameCounts.getOrDefault(topFrame, 0) + 1);
                 }
             }

@@ -33,13 +33,18 @@ public class JsonPrinter {
     }
 
     public JsonPrinter printValue(JsonValue value) {
-        switch (value) {
-            case JsonObject obj -> printObject(obj);
-            case JsonArray arr -> printArray(arr);
-            case JsonString str -> printString(str);
-            case JsonNumber num -> printNumber(num);
-            case JsonBoolean bool -> printBoolean(bool);
-            case JsonNull ignored -> sb.append("null");
+        if (value instanceof JsonObject obj) {
+            printObject(obj);
+        } else if (value instanceof JsonArray arr) {
+            printArray(arr);
+        } else if (value instanceof JsonString str) {
+            printString(str);
+        } else if (value instanceof JsonNumber num) {
+            printNumber(num);
+        } else if (value instanceof JsonBoolean bool) {
+            printBoolean(bool);
+        } else if (value instanceof JsonNull) {
+            sb.append("null");
         }
         return this;
     }

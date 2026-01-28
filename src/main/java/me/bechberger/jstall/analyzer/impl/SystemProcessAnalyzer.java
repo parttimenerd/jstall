@@ -46,8 +46,8 @@ public class SystemProcessAnalyzer implements Analyzer {
 
     /** ... sorts them by CPU usage descendingly */
     private List<ProcessCpuUsage> processSystemProcessesIgnoreOwn(List<ThreadDumpSnapshot> dumps) {
-        SystemEnvironment firstEnv = dumps.getFirst().environment();
-        SystemEnvironment lastEnv = dumps.getLast().environment();
+        SystemEnvironment firstEnv = dumps.get(0).environment();
+        SystemEnvironment lastEnv = dumps.get(dumps.size() - 1).environment();
         if (firstEnv == null || lastEnv == null) {
             return List.of();
         }
@@ -77,7 +77,7 @@ public class SystemProcessAnalyzer implements Analyzer {
         double totalCpuUsage = processUsages.stream().mapToDouble(ProcessCpuUsage::cpuUsageSeconds).sum();
         double availableCpuCores = Runtime.getRuntime().availableProcessors();
         double availableCpuTime = availableCpuCores *
-                                  Duration.between(dumpsWithRaw.getFirst().parsed().timestamp(), dumpsWithRaw.getLast().parsed().timestamp()).toNanos() / 1_000_000_000.0;
+                                  Duration.between(dumpsWithRaw.get(0).parsed().timestamp(), dumpsWithRaw.get(dumpsWithRaw.size() - 1).parsed().timestamp()).toNanos() / 1_000_000_000.0;
         boolean totalCPUUsageOk = totalCpuUsage / availableCpuTime < ALL_PROCESSES_CPU_USAGE_THRESHOLD;
         boolean singleProcessUsageOk = processUsages.stream()
                 .allMatch(usage -> (usage.cpuUsageSeconds() / availableCpuTime) < PROCESS_CPU_USAGE_THRESHOLD);

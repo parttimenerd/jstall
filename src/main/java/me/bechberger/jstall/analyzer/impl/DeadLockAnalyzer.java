@@ -38,7 +38,7 @@ public class DeadLockAnalyzer extends BaseAnalyzer {
             return AnalyzerResult.ok("No thread dump available");
         }
 
-        ThreadDumpSnapshot dumpWithRaw = dumpsWithRaw.getFirst();
+        ThreadDumpSnapshot dumpWithRaw = dumpsWithRaw.get(0);
 
         // Check if there's a deadlock section in the raw dump
         String deadlockInfo = extractDeadlockInfo(dumpWithRaw.raw());

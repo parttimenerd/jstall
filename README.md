@@ -17,8 +17,10 @@ Features:
 * **Flamegraph generation**: Short profiling runs with [async-profiler](https://github.com/async-profiler/async-profiler)
 * **Smart filtering**: Target JVMs by name/class instead of PID
 * **Multi-execution**: Analyze multiple JVMs in parallel for faster results
-* **Supports Java 11+**: Works with all modern Java versions as a target
+* **Supports Java 11+**: Works with all modern Java versions as a target, but might requires Java 17+ to run
 * **AI-powered analysis**: Get intelligent insights from thread dumps using LLMs (supports local models via Ollama)
+
+Requires Java 17+ to run.
 
 ## Quick Start
 

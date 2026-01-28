@@ -180,7 +180,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
 
             // Show stack trace with optional intelligent filtering
             if (!activity.threadInfos.isEmpty()) {
-                ThreadInfo firstThread = activity.threadInfos.getFirst();
+                ThreadInfo firstThread = activity.threadInfos.get(0);
                 if (firstThread.stackTrace() != null && !firstThread.stackTrace().isEmpty()) {
                     String formatted = formatStackTraceFromFrames(
                         firstThread.stackTrace(),
@@ -239,7 +239,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
 
             // Track top stack frame for waiting location
             if (thread.stackTrace() != null && !thread.stackTrace().isEmpty()) {
-                var topFrame = thread.stackTrace().getFirst();
+                var topFrame = thread.stackTrace().get(0);
                 topStackFrames.add(topFrame.className() + "." + topFrame.methodName());
 
                 // Build full stack trace string
@@ -278,7 +278,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
             if (lockIds.isEmpty()) {
                 return null;
             }
-            return lockIds.getFirst();
+            return lockIds.get(0);
         }
 
         /**
@@ -300,7 +300,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
             }
 
             // Check if all lock IDs are the same
-            String firstLockId = lockIds.getFirst();
+            String firstLockId = lockIds.get(0);
             for (String lockId : lockIds) {
                 if (!firstLockId.equals(lockId)) {
                     return false; // Different locks detected

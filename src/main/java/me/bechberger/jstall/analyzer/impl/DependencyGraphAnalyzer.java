@@ -35,7 +35,7 @@ public class DependencyGraphAnalyzer extends BaseAnalyzer {
     @Override
     public AnalyzerResult analyzeThreadDumps(List<ThreadDump> dumps, Map<String, Object> options) {
         // Use the latest dump for dependency analysis
-        ThreadDump latestDump = dumps.getLast();
+        ThreadDump latestDump = dumps.get(dumps.size() - 1);
 
         // Build lock ownership map
         Map<String, ThreadInfo> lockOwners = new HashMap<>();
@@ -81,7 +81,7 @@ public class DependencyGraphAnalyzer extends BaseAnalyzer {
             return Optional.empty();
         }
         if (locksList.size() == 1) {
-            return Optional.of(locksList.getFirst());
+            return Optional.of(locksList.get(0));
         }
         return Optional.of(pickTopBlockingLock(locksList));
     }

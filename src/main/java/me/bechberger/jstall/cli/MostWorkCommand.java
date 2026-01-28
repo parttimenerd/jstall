@@ -18,13 +18,13 @@ import java.util.Map;
 public class MostWorkCommand extends BaseAnalyzerCommand {
 
     @Option(names = "--top", description = "Number of top threads to show (default: 3)")
-    private final int top = 3;
+    private int top = 3;
 
     @Option(names = "--no-native", description = "Ignore threads without stack traces (typically native/system threads)")
-    private final boolean noNative = false;
+    private boolean noNative = false;
 
     @Option(names = "--stack-depth", description = "Stack trace depth to show (default: 10, 0=all, in intelligent mode: max relevant frames)")
-    private final int stackDepth = 10;
+    private int stackDepth = 10;
 
     @Override
     protected Analyzer getAnalyzer() {

@@ -63,13 +63,12 @@
 
     <build>
         <plugins>
-            <!-- Maven Compiler Plugin - Configure Java 21 with release flag -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
                 <configuration>
-                    <release>21</release>
+                    <release>17</release>
                 </configuration>
             </plugin>
             <plugin>
@@ -138,7 +137,7 @@
                 <configuration>
                     <doclint>none</doclint>
                     <quiet>true</quiet>
-                    <release>21</release>
+                    <release>17</release>
                     <additionalJOptions>
                         <additionalJOption>--add-modules</additionalJOption>
                         <additionalJOption>jdk.jfr,java.management,jdk.attach,java.net.http</additionalJOption>
@@ -176,6 +175,7 @@
                 </executions>
                 <configuration>
                     <jarFile>target/jstall.jar</jarFile>
+                    <minJavaVersion>17</minJavaVersion>
                 </configuration>
             </plugin>
 
@@ -237,7 +237,7 @@
         <dependency>
             <groupId>me.bechberger</groupId>
             <artifactId>jthreaddump</artifactId>
-            <version>0.5.6</version>
+            <version>0.5.8</version>
         </dependency>
         <dependency>
             <groupId>me.bechberger</groupId>
@@ -259,7 +259,7 @@
         <dependency>
             <groupId>me.bechberger.util</groupId>
             <artifactId>minicli</artifactId>
-            <version>0.1.6</version>
+            <version>0.1.7</version>
         </dependency>
     </dependencies>
 

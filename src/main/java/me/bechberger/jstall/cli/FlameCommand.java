@@ -31,19 +31,19 @@ public class FlameCommand implements Callable<Integer> {
     String target;
 
     @Option(names = {"-o", "--output"}, description = "Output HTML file (default: flame.html)")
-    private final String outputFile = "flame.html";
+    private String outputFile = "flame.html";
 
     @Option(names = {"-d", "--duration"}, defaultValue = "10s", description = "Profiling duration (default: 10s)")
     Duration duration;
 
     @Option(names = {"-e", "--event"}, description = "Profiling event (default: cpu). Options: cpu, alloc, lock, wall, itimer")
-    private final String event = "cpu";
+    private String event = "cpu";
 
     @Option(names = {"-i", "--interval"}, defaultValue = "10ms", description = "Sampling interval (default: 10ms)")
     private Duration interval;
 
     @Option(names = {"--open"}, description = "Automatically open the generated HTML file in browser")
-    private final boolean open = false;
+    private boolean open = false;
 
     Spec spec;
 
@@ -76,23 +76,23 @@ public class FlameCommand implements Callable<Integer> {
             System.err.println("Error: flame command does not support multiple targets");
             System.err.println("Filter matched " + resolution.targets().size() + " JVMs:");
             for (TargetResolver.ResolvedTarget resolvedTarget : resolution.targets()) {
-                if (resolvedTarget instanceof TargetResolver.ResolvedTarget.Pid(long pid, String mainClass)) {
-                    System.err.println("  PID " + pid + ": " + mainClass);
+                if (resolvedTarget instanceof TargetResolver.ResolvedTarget.Pid pid) {
+                    System.err.println("  PID " + pid.pid() + ": " + pid.mainClass());
                 }
             }
             System.err.println("\nPlease specify a more specific filter or use an exact PID.");
             return 1;
         }
 
-        TargetResolver.ResolvedTarget resolvedTarget = resolution.targets().getFirst();
+        TargetResolver.ResolvedTarget resolvedTarget = resolution.targets().get(0);
 
         // Flame command only works with PIDs, not files
-        if (!(resolvedTarget instanceof TargetResolver.ResolvedTarget.Pid(long pid, String mainClass))) {
+        if (!(resolvedTarget instanceof TargetResolver.ResolvedTarget.Pid pid)) {
             System.err.println("Error: flame command only works with running JVMs, not thread dump files");
             return 1;
         }
 
-        System.out.println("Starting flamegraph generation for PID " + pid + " (" + mainClass + ")...");
+        System.out.println("Starting flamegraph generation for PID " + pid.pid() + " (" + pid.mainClass() + ")...");
         System.out.println("Event: " + event);
         System.out.println("Duration: " + duration);
         System.out.println("Interval: " + interval);

@@ -108,10 +108,10 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             System.err.println("Error: " + analyzer.name() + " does not support multiple targets");
             System.err.println("Found " + resolvedTargets.size() + " targets:");
             for (TargetResolver.ResolvedTarget target : resolvedTargets) {
-                if (target instanceof TargetResolver.ResolvedTarget.Pid(long pid, String mainClass)) {
-                    System.err.println("  PID " + pid + ": " + mainClass);
-                } else if (target instanceof TargetResolver.ResolvedTarget.File(Path path)) {
-                    System.err.println("  File: " + path);
+                if (target instanceof TargetResolver.ResolvedTarget.Pid pid) {
+                    System.err.println("  PID " + pid.pid() + ": " + pid.mainClass());
+                } else if (target instanceof TargetResolver.ResolvedTarget.File file) {
+                    System.err.println("  File: " + file.path());
                 }
             }
             return 1;
@@ -119,7 +119,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
 
         // Process single or multiple targets
         if (resolvedTargets.size() == 1) {
-            return processSingleTarget(resolvedTargets.getFirst(), analyzer);
+            return processSingleTarget(resolvedTargets.get(0), analyzer);
         } else {
             return processMultipleTargets(resolvedTargets, analyzer);
         }
@@ -160,9 +160,9 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             // Collect from running JVM
             Path persistPath = keep ? Path.of("dumps") : null;
             threadDumps = provider.collectFromJVM(pid.pid(), dumpCount, intervalMs, persistPath);
-        } else if (target instanceof TargetResolver.ResolvedTarget.File(Path path)) {
+        } else if (target instanceof TargetResolver.ResolvedTarget.File file) {
             // Load from file
-            threadDumps = provider.loadFromFiles(List.of(path));
+            threadDumps = provider.loadFromFiles(List.of(file.path()));
 
             // Validate dump count for MANY requirement
             if (analyzer.dumpRequirement() == DumpRequirement.MANY && threadDumps.size() < 2) {
@@ -202,8 +202,8 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
                     if (target instanceof TargetResolver.ResolvedTarget.Pid pid) {
                         Path persistPath = keep ? Path.of("dumps") : null;
                         threadDumps = provider.collectFromJVM(pid.pid(), dumpCount, intervalMs, persistPath);
-                    } else if (target instanceof TargetResolver.ResolvedTarget.File(Path path)) {
-                        threadDumps = provider.loadFromFiles(List.of(path));
+                    } else if (target instanceof TargetResolver.ResolvedTarget.File file) {
+                        threadDumps = provider.loadFromFiles(List.of(file.path()));
                     } else {
                         throw new IllegalStateException("Unknown target type: " + target);
                     }
@@ -269,10 +269,10 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             first = false;
 
             // Print header
-            if (targetResult.target instanceof TargetResolver.ResolvedTarget.Pid(long pid, String mainClass)) {
-                System.out.println("Analysis for PID " + pid + " (" + mainClass + "):");
-            } else if (targetResult.target instanceof TargetResolver.ResolvedTarget.File(Path path)) {
-                System.out.println("Analysis for file: " + path);
+            if (targetResult.target instanceof TargetResolver.ResolvedTarget.Pid pid) {
+                System.out.println("Analysis for PID " + pid.pid() + " (" + pid.mainClass() + "):");
+            } else if (targetResult.target instanceof TargetResolver.ResolvedTarget.File file) {
+                System.out.println("Analysis for file: " + file.path());
             }
             System.out.println();
 
