@@ -88,7 +88,7 @@ Add the following dependency to your `pom.xml`:
 <dependency>
     <groupId>me.bechberger</groupId>
     <artifactId>jstall</artifactId>
-    <version>0.4.10</version>
+    <version>0.4.11</version>
 </dependency>
 ```
 
