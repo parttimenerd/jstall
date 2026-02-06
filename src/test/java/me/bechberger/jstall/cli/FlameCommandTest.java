@@ -32,6 +32,12 @@ class FlameCommandTest {
                                                browser
                   -V, --version                Print version information and exit.
                 
+                Examples:
+                  jstall flame 12345 --output flame.html --duration 15s
+                  # Allocation flamegraph for a JVM running MyAppMainClass with a 20s duration
+                  # open flamegraph automatically after generation
+                  jstall flame MyAppMainClass --event alloc --duration 20s --open
+                
                 Available JVMs:
                 """);
     }

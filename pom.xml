@@ -253,13 +253,13 @@
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
-            <version>3.27.6</version>
+            <version>3.27.7</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>me.bechberger.util</groupId>
             <artifactId>minicli</artifactId>
-            <version>0.1.7</version>
+            <version>0.1.8</version>
         </dependency>
     </dependencies>
 

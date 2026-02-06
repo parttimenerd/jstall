@@ -23,7 +23,14 @@ import java.util.concurrent.Callable;
  */
 @Command(
     name = "flame",
-    description = "Generate a flamegraph of the application using async-profiler"
+    description = "Generate a flamegraph of the application using async-profiler",
+    footer = """
+            Examples:
+              jstall flame 12345 --output flame.html --duration 15s
+              # Allocation flamegraph for a JVM running MyAppMainClass with a 20s duration
+              # open flamegraph automatically after generation
+              jstall flame MyAppMainClass --event alloc --duration 20s --open
+            """
 )
 public class FlameCommand implements Callable<Integer> {
 
