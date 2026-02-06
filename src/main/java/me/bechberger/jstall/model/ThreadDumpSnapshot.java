@@ -9,7 +9,10 @@ import org.jetbrains.annotations.Nullable;
  * content which may contain sections not preserved in the parsed model
  * (e.g., JVM-reported deadlock information).
  */
-public record ThreadDumpSnapshot(ThreadDump parsed, String raw, @Nullable SystemEnvironment environment) {
+public record ThreadDumpSnapshot(ThreadDump parsed,
+                                String raw,
+                                @Nullable SystemEnvironment environment,
+                                @Nullable String classHistogramRaw) {
 
     /**
      * Creates a wrapper from a parsed dump and its raw string.
@@ -24,5 +27,10 @@ public record ThreadDumpSnapshot(ThreadDump parsed, String raw, @Nullable System
         if (raw == null) {
             throw new IllegalArgumentException("Raw dump string cannot be null");
         }
+    }
+
+    /** Backward-compatible constructor used throughout the codebase. */
+    public ThreadDumpSnapshot(ThreadDump parsed, String raw, @Nullable SystemEnvironment environment) {
+        this(parsed, raw, environment, null);
     }
 }

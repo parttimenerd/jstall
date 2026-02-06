@@ -24,6 +24,7 @@ public class StatusAnalyzer extends BaseAnalyzer {
         new MostWorkAnalyzer(),
         new ThreadsAnalyzer(),
         new DependencyGraphAnalyzer(),
+        new ClassHistogramDiffAnalyzer(),
         new SystemProcessAnalyzer()
     );
 

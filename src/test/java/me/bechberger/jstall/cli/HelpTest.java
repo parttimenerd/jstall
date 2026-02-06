@@ -28,6 +28,7 @@ public class HelpTest {
                   jstall ai full           Analyze all JVMs on the system with AI
                   jstall list              List running JVM processes (excluding this tool)
                   jstall processes         Detect other processes running on the system that consume high CPU time
+                  jstall histogram         Parse and analyze a jmap/jcmd class histogram
                 """, run("--help").out());
     }
 

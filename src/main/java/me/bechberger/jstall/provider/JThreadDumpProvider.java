@@ -46,7 +46,15 @@ public class JThreadDumpProvider implements ThreadDumpProvider {
 
             String dumpContent = obtainDumpFromJVM(pid);
             ThreadDump dump = ThreadDumpParser.parse(dumpContent);
-            dumps.add(new ThreadDumpSnapshot(dump, dumpContent, SystemEnvironment.createCurrent()));
+
+            String histogram = null;
+            try {
+                histogram = JMXDiagnosticHelper.executeCommand(pid, "gcClassHistogram", "GC.class_histogram");
+            } catch (Exception e) {
+                // best-effort: don't fail thread dump collection if histogram isn't available
+            }
+
+            dumps.add(new ThreadDumpSnapshot(dump, dumpContent, SystemEnvironment.createCurrent(), histogram));
 
             if (persistTo != null) {
                 persistDump(dumpContent, persistTo, i);

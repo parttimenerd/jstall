@@ -23,7 +23,8 @@ import me.bechberger.jstall.util.JVMDiscovery;
         DependencyGraphCommand.class,
         AiCommand.class,
         ListCommand.class,
-        SystemProcessCommand.class
+        SystemProcessCommand.class,
+        HistogramCommand.class
     }
 )
 public class Main implements Runnable {
@@ -66,6 +67,7 @@ public class Main implements Runnable {
         System.out.println("  threads           - List all threads");
         System.out.println("  waiting-threads   - Identify threads waiting without progress");
         System.out.println("  dependency-graph  - Show thread dependencies (lock wait relationships)");
+        System.out.println("  histogram         - Parse and analyze a class histogram (jmap/jcmd)");
         System.out.println("  ai                - AI-powered analysis using LLM");
         System.out.println("  ai full           - AI-powered analysis of all JVMs on the system");
         System.out.println();
