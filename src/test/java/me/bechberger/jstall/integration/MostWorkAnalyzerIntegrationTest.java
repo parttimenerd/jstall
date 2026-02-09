@@ -36,7 +36,7 @@ public class MostWorkAnalyzerIntegrationTest {
             List<ThreadDumpSnapshot> dumps = new ArrayList<>();
             for (String content : dumpContents) {
                 ThreadDump parsed = ThreadDumpParser.parse(content);
-                dumps.add(new ThreadDumpSnapshot(parsed, content, null));
+                dumps.add(new ThreadDumpSnapshot(parsed, content, null, null));
             }
             // Analyze
             MostWorkAnalyzer analyzer = new MostWorkAnalyzer();
@@ -68,7 +68,7 @@ public class MostWorkAnalyzerIntegrationTest {
             List<ThreadDumpSnapshot> dumps = new ArrayList<>();
             for (String content : dumpContents) {
                 ThreadDump parsed = ThreadDumpParser.parse(content);
-                dumps.add(new ThreadDumpSnapshot(parsed, content, null));
+                dumps.add(new ThreadDumpSnapshot(parsed, content, null, null));
             }
             // Test with top=2
             MostWorkAnalyzer analyzer = new MostWorkAnalyzer();

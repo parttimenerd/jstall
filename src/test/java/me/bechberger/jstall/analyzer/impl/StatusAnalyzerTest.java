@@ -30,8 +30,8 @@ class StatusAnalyzerTest {
 
         ThreadDump parsed = ThreadDumpParser.parse(dumpContent);
         return List.of(
-            new ThreadDumpSnapshot(parsed, dumpContent, null),
-            new ThreadDumpSnapshot(parsed, dumpContent, null)
+            new ThreadDumpSnapshot(parsed, dumpContent, null, null),
+            new ThreadDumpSnapshot(parsed, dumpContent, null, null)
         ).subList(0, Math.min(count, 2));
     }
 

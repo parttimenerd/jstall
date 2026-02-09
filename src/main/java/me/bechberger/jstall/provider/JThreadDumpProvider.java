@@ -3,6 +3,7 @@ package me.bechberger.jstall.provider;
 import me.bechberger.jstall.model.SystemEnvironment;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jstall.util.JMXDiagnosticHelper;
+import me.bechberger.jstall.util.JcmdOutputParsers;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.parser.ThreadDumpParser;
 
@@ -14,6 +15,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Implementation of ThreadDumpProvider using jthreaddump library.
@@ -46,7 +48,16 @@ public class JThreadDumpProvider implements ThreadDumpProvider {
 
             String dumpContent = obtainDumpFromJVM(pid);
             ThreadDump dump = ThreadDumpParser.parse(dumpContent);
-            dumps.add(new ThreadDumpSnapshot(dump, dumpContent, SystemEnvironment.createCurrent()));
+
+            Map<String, String> systemProperties = null;
+            try {
+                String propsOutput = JMXDiagnosticHelper.getSystemProperties(pid);
+                systemProperties = JcmdOutputParsers.parseVmSystemProperties(propsOutput);
+            } catch (Exception ignored) {
+                // Best-effort: thread dump collection should still succeed even if properties retrieval fails.
+            }
+
+            dumps.add(new ThreadDumpSnapshot(dump, dumpContent, SystemEnvironment.createCurrent(), systemProperties));
 
             if (persistTo != null) {
                 persistDump(dumpContent, persistTo, i);
@@ -63,7 +74,7 @@ public class JThreadDumpProvider implements ThreadDumpProvider {
         for (Path file : dumpFiles) {
             String content = Files.readString(file);
             ThreadDump dump = ThreadDumpParser.parse(content);
-            dumps.add(new ThreadDumpSnapshot(dump, content, null));
+            dumps.add(new ThreadDumpSnapshot(dump, content, null, null));
         }
 
         dumps.sort(Comparator.comparing(d -> d.parsed().timestamp()));

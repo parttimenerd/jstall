@@ -190,7 +190,7 @@ class AiAnalyzerTest {
         );
 
         String rawDump = "Test thread dump content";
-        ThreadDumpSnapshot dumpWithRaw = new ThreadDumpSnapshot(dump, rawDump, null);
+        ThreadDumpSnapshot dumpWithRaw = new ThreadDumpSnapshot(dump, rawDump, null, null);
 
         return List.of(dumpWithRaw, dumpWithRaw).subList(0, Math.min(count, 2));
     }

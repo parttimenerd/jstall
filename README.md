@@ -17,6 +17,7 @@ Features:
 * **Flamegraph generation**: Short profiling runs with [async-profiler](https://github.com/async-profiler/async-profiler)
 * **Smart filtering**: Target JVMs by name/class instead of PID
 * **Multi-execution**: Analyze multiple JVMs in parallel for faster results
+* **JVM support checks**: Warn if the target JVM is likely out of support (based on `java.version.date` from `jcmd VM.system_properties`)
 * **Supports Java 11+**: Works with all modern Java versions as a target, but might requires Java 17+ to run
 * **AI-powered analysis**: Get intelligent insights from thread dumps using LLMs (supports local models via Ollama)
 
@@ -52,6 +53,16 @@ jstall dependency-graph 12345
 jstall flame 12345
 ```
 
+### JVM support check (part of `status`)
+
+When analyzing a live JVM (by PID or filter), JStall also collects `jcmd VM.system_properties` and checks `java.version.date`:
+
+- **<= 4 months old**: emit nothing (JVM is considered "young enough")
+- **> 4 months old**: show a hint that you might want to update
+- **> 1 year old**: treat as **totally outdated** and return a non-zero exit code
+
+This is meant as a lightweight guardrail: if your JVM is very old, analysis results and production behavior can be misleading.
+
 ### Installation
 
 Download the latest executable from the [releases page](https://github.com/parttimenerd/jstall/releases).
@@ -68,6 +79,7 @@ One-shot JVM inspection tool
   -V, --version   Print version information and exit.
 Commands:
   status            Run multiple analyzers over thread dumps (default command)
+  jvm-support       Check whether the target JVM is likely still supported (based on java.version.date)
   deadlock          Detect JVM-reported thread deadlocks
   most-work         Identify threads doing the most work across dumps
   flame             Generate a flamegraph of the application using async-profiler
@@ -155,9 +167,29 @@ Run multiple analyzers over thread dumps (default command)
 ```
 <!-- END help_status -->
 
-**Exit codes:** `0` = no issues, `2` = deadlock detected
+**Exit codes:**
+- `0` = no issues
+- `2` = deadlock detected
+- `10` = JVM is totally outdated (> 1 year based on `java.version.date`)
 
 **Note:** Supports multiple targets analyzed in parallel.
+
+---
+
+### `jvm-support`
+
+Checks whether the target JVM is reasonably up-to-date based on `java.version.date` from `jcmd VM.system_properties`.
+
+<!-- BEGIN help_jvm_support -->
+```
+Usage: jstall jvm-support [-hV] [--dumps=<dumps>] [--interval=<interval>] [--keep]
+                          [--intelligent-filter] [<targets>...]
+```
+<!-- END help_jvm_support -->
+
+**Exit codes:**
+- `0` = JVM is supported / only mildly outdated
+- `10` = JVM is totally outdated (> 1 year based on `java.version.date`)
 
 ---
 

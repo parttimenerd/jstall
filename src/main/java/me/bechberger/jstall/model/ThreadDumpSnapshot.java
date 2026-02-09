@@ -3,13 +3,18 @@ package me.bechberger.jstall.model;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Map;
+
 /**
  * Wraps a parsed ThreadDump along with its raw string representation.
  * This is necessary because some analyzers need access to the raw dump
  * content which may contain sections not preserved in the parsed model
  * (e.g., JVM-reported deadlock information).
  */
-public record ThreadDumpSnapshot(ThreadDump parsed, String raw, @Nullable SystemEnvironment environment) {
+public record ThreadDumpSnapshot(ThreadDump parsed,
+                                String raw,
+                                @Nullable SystemEnvironment environment,
+                                @Nullable Map<String, String> systemProperties) {
 
     /**
      * Creates a wrapper from a parsed dump and its raw string.
@@ -23,6 +28,9 @@ public record ThreadDumpSnapshot(ThreadDump parsed, String raw, @Nullable System
         }
         if (raw == null) {
             throw new IllegalArgumentException("Raw dump string cannot be null");
+        }
+        if (systemProperties != null) {
+            systemProperties = Map.copyOf(systemProperties);
         }
     }
 }

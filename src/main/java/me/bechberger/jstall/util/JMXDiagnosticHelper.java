@@ -134,9 +134,23 @@ public class JMXDiagnosticHelper implements AutoCloseable {
         return executeCommand("threadPrint", "Thread.print");
     }
 
+    /**
+     * Gets the output of {@code VM.system_properties} from the target JVM.
+     * Equivalent to executing {@code "VM.system_properties"} via jcmd.
+     */
+    public String getSystemProperties() throws IOException {
+        return executeCommand("vmSystemProperties", "VM.system_properties");
+    }
+
     public static String getThreadDump(long pid) throws IOException {
         try (JMXDiagnosticHelper helper = new JMXDiagnosticHelper(pid)) {
             return helper.getThreadDump();
+        }
+    }
+
+    public static String getSystemProperties(long pid) throws IOException {
+        try (JMXDiagnosticHelper helper = new JMXDiagnosticHelper(pid)) {
+            return helper.getSystemProperties();
         }
     }
 

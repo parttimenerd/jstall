@@ -24,7 +24,8 @@ public class StatusAnalyzer extends BaseAnalyzer {
         new MostWorkAnalyzer(),
         new ThreadsAnalyzer(),
         new DependencyGraphAnalyzer(),
-        new SystemProcessAnalyzer()
+        new SystemProcessAnalyzer(),
+        new JvmSupportAnalyzer()
     );
 
     @Override
