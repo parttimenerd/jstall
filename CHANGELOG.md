@@ -46,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Reduced the size of the JAR by removing picocli
-  - Replaced it with a purpose built CLI library ([minicli](https://github.com/parttimenerd/minicli) with 30K vs >400K)
+  - Replaced it with a purpose built CLI library ([femtocli](https://github.com/parttimenerd/femtocli) with 30K vs >400K)
 
 ## [0.4.2] - 2026-01-12
 

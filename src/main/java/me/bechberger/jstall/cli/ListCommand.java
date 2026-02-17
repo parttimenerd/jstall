@@ -1,8 +1,8 @@
 package me.bechberger.jstall.cli;
 
-import me.bechberger.minicli.annotations.Command;
+import me.bechberger.femtocli.annotations.Command;
 import me.bechberger.jstall.util.JVMDiscovery;
-import me.bechberger.minicli.annotations.Parameters;
+import me.bechberger.femtocli.annotations.Parameters;
 
 import java.io.IOException;
 import java.util.List;

@@ -3,14 +3,14 @@ package me.bechberger.jstall.cli;
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
-import me.bechberger.minicli.Spec;
-import me.bechberger.minicli.annotations.Option;
+import me.bechberger.femtocli.Spec;
+import me.bechberger.femtocli.annotations.Option;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jstall.provider.JThreadDumpProvider;
 import me.bechberger.jstall.provider.ThreadDumpProvider;
 import me.bechberger.jstall.util.JVMDiscovery;
 import me.bechberger.jstall.util.TargetResolver;
-import me.bechberger.minicli.annotations.Parameters;
+import me.bechberger.femtocli.annotations.Parameters;
 
 import java.nio.file.Path;
 import java.time.Duration;

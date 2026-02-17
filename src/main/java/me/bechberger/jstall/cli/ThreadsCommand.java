@@ -2,8 +2,8 @@ package me.bechberger.jstall.cli;
 
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.impl.ThreadsAnalyzer;
-import me.bechberger.minicli.annotations.Command;
-import me.bechberger.minicli.annotations.Option;
+import me.bechberger.femtocli.annotations.Command;
+import me.bechberger.femtocli.annotations.Option;
 
 import java.util.HashMap;
 import java.util.Map;

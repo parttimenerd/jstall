@@ -4,7 +4,7 @@ import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jthreaddump.model.ThreadDump;
-import me.bechberger.minicli.RunResult;
+import me.bechberger.femtocli.RunResult;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;

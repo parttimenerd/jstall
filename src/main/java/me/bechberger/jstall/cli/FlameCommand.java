@@ -1,12 +1,12 @@
 package me.bechberger.jstall.cli;
 
-import me.bechberger.minicli.Spec;
-import me.bechberger.minicli.annotations.Command;
-import me.bechberger.minicli.MiniCli;
-import me.bechberger.minicli.annotations.Option;
+import me.bechberger.femtocli.Spec;
+import me.bechberger.femtocli.annotations.Command;
+import me.bechberger.femtocli.FemtoCli;
+import me.bechberger.femtocli.annotations.Option;
 import me.bechberger.jstall.util.JVMDiscovery;
 import me.bechberger.jstall.util.TargetResolver;
-import me.bechberger.minicli.annotations.Parameters;
+import me.bechberger.femtocli.annotations.Parameters;
 import one.profiler.AsyncProfilerLoader;
 
 import java.io.IOException;

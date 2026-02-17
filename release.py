@@ -49,8 +49,8 @@ def _patch_pom_for_minimal(pom_path: Path):
     # 3) dependency: ap-loader-all -> ap-loader-none
     content = content.replace('<artifactId>ap-loader-all</artifactId>', '<artifactId>ap-loader-none</artifactId>')
 
-    # 3.5) dependency: minicli -> minicli-minimal
-    content = content.replace('<artifactId>minicli</artifactId>', '<artifactId>minicli-minimal</artifactId>')
+    # 3.5) dependency: femtocli -> femtocli-minimal
+    content = content.replace('<artifactId>femtocli</artifactId>', '<artifactId>femtocli-minimal</artifactId>')
 
     # 4) remove JetBrains annotations dependency block
     # (pom uses groupId "org.jetbrains" and artifactId "annotations")

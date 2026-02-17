@@ -2,8 +2,8 @@ package me.bechberger.jstall.cli;
 
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.impl.AiAnalyzer;
-import me.bechberger.minicli.annotations.Command;
-import me.bechberger.minicli.annotations.Option;
+import me.bechberger.femtocli.annotations.Command;
+import me.bechberger.femtocli.annotations.Option;
 import me.bechberger.jstall.util.llm.AiConfig;
 import me.bechberger.jstall.util.llm.LlmProvider;
 import me.bechberger.jstall.util.llm.LlmProviderFactory;

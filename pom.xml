@@ -258,8 +258,8 @@
         </dependency>
         <dependency>
             <groupId>me.bechberger.util</groupId>
-            <artifactId>minicli</artifactId>
-            <version>0.1.8</version>
+            <artifactId>femtocli</artifactId>
+            <version>0.2.2</version>
         </dependency>
     </dependencies>
 

@@ -1,6 +1,6 @@
 package me.bechberger.jstall.cli;
 
-import me.bechberger.minicli.RunResult;
+import me.bechberger.femtocli.RunResult;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;

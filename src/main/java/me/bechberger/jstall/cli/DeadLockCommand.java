@@ -2,7 +2,7 @@ package me.bechberger.jstall.cli;
 
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.impl.DeadLockAnalyzer;
-import me.bechberger.minicli.annotations.Command;
+import me.bechberger.femtocli.annotations.Command;
 
 /**
  * Detects deadlocks in thread dumps.

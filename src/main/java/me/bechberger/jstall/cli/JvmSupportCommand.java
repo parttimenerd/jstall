@@ -2,7 +2,7 @@ package me.bechberger.jstall.cli;
 
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.impl.JvmSupportAnalyzer;
-import me.bechberger.minicli.annotations.Command;
+import me.bechberger.femtocli.annotations.Command;
 
 /**
  * Checks whether the target JVM is reasonably up-to-date based on java.version.date.

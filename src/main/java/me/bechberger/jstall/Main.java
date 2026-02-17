@@ -1,9 +1,9 @@
 package me.bechberger.jstall;
 
 import me.bechberger.jstall.cli.*;
-import me.bechberger.minicli.CommandConfig;
-import me.bechberger.minicli.MiniCli;
-import me.bechberger.minicli.annotations.Command;
+import me.bechberger.femtocli.CommandConfig;
+import me.bechberger.femtocli.FemtoCli;
+import me.bechberger.femtocli.annotations.Command;
 import me.bechberger.jstall.util.JVMDiscovery;
 
 /**
@@ -38,15 +38,15 @@ public class Main implements Runnable {
             System.arraycopy(args, 0, newArgs, 1, args.length);
             args = newArgs;
         }
-        int exitCode = MiniCli.builder()
-            .commandConfig(Main::setMiniCliCommandConfig)
+        int exitCode = FemtoCli.builder()
+            .commandConfig(Main::setFemtoCliCommandConfig)
             .run(new Main(), args);
         if (exitCode != 0) {
             System.exit(exitCode);
         }
     }
 
-    public static void setMiniCliCommandConfig(CommandConfig cfg) {
+    public static void setFemtoCliCommandConfig(CommandConfig cfg) {
         cfg.version = "0.4.11";
         cfg.mixinStandardHelpOptions = true;
         cfg.defaultValueHelpTemplate = ", default is ${DEFAULT-VALUE}";
