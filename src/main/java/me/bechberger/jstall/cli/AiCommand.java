@@ -39,17 +39,17 @@ public class AiCommand extends BaseAnalyzerCommand {
     private String question;
 
     @Option(names = "--raw", description = "Output raw JSON response")
-    private final boolean raw = false;
+    private boolean raw = false;
 
     // Status options
     @Option(names = "--top", description = "Number of top threads (default: ${DEFAULT-VALUE})")
-    private final int top = 3;
+    private int top = 3;
 
     @Option(names = "--no-native", description = "Ignore threads without stack traces")
-    private final boolean noNative = false;
+    private boolean noNative = false;
 
     @Option(names = "--stack-depth", description = "Stack trace depth (default: ${DEFAULT-VALUE}, 0=all)")
-    private final int stackDepth = 10;
+    private int stackDepth = 10;
 
     @Option(names = "--dry-run", description = "Perform a dry run without calling the AI API")
     private boolean dryRun;

@@ -31,32 +31,32 @@ public class AiFullCommand implements Callable<Integer> {
     private boolean useRemote;
 
     @Option(names = "--model", description = "LLM model to use (default from config or provider default)")
-    private String model;
+    private   String model;
 
     @Option(names = "--question", description = "Custom question to ask (use '-' to read from stdin)")
     private String question;
 
     @Option(names = "--raw", description = "Output raw JSON response")
-    private final boolean raw = false;
+    private boolean raw = false;
 
     @Option(names = "--cpu-threshold", description = "CPU threshold percentage (default: ${DEFAULT-VALUE}%)")
-    private final double cpuThreshold = 1.0;
+    private double cpuThreshold = 1.0;
 
     @Option(names = {"-n", "--dumps"}, description = "Number of dumps per JVM (default: ${DEFAULT-VALUE})")
-    private final int dumps = 2;
+    private int dumps = 2;
 
     @Option(names = {"-i", "--interval"}, description = "Interval between dumps in seconds (default: ${DEFAULT-VALUE})")
-    private final double interval = 1.0;
+    private double interval = 1.0;
 
     // Status options
     @Option(names = "--top", description = "Number of top threads per JVM (default: ${DEFAULT-VALUE})")
-    private final int top = 3;
+    private int top = 3;
 
     @Option(names = "--no-native", description = "Ignore threads without stack traces")
-    private final boolean noNative = false;
+    private boolean noNative = false;
 
     @Option(names = "--stack-depth", description = "Stack trace depth (default: ${DEFAULT-VALUE}, 0=all)")
-    private final int stackDepth = 10;
+    private int stackDepth = 10;
 
     @Option(names = "--dry-run", description = "Perform a dry run without calling the AI API")
     private boolean dryRun;
