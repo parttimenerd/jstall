@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `jvm-support` command to check if a JVM is outdated
 - Add `record` and replay
 
+### Fixed
+- Fixed invalid call to AsyncProf in `flame` command
+- Fixed CLI bug in `ai` commands
+
 ## [0.4.11] - 2026-01-28
 
 ### Added
