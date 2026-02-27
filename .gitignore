@@ -45,6 +45,9 @@ __pycache__
 ### Build files ###
 config-schema.json
 
+### Test artifacts ###
+/src/test/resources/thread-dumps
+
 ### Test cache ###
 .thread-dump-cache/
 
