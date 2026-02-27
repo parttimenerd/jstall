@@ -133,7 +133,7 @@ public class FlameCommand implements Callable<Integer> {
             args.add(String.valueOf(intervalNanos));
             args.add("-f");
             args.add(outputFile);
-            args.add(String.valueOf(pid));
+            args.add(String.valueOf(pid.pid()));
 
             System.out.println("Executing: asprof " + String.join(" ", args));
             System.out.println();

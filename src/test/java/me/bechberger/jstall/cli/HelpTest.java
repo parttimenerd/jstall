@@ -1,11 +1,15 @@
 package me.bechberger.jstall.cli;
 
-import me.bechberger.jstall.Main;
-import me.bechberger.femtocli.FemtoCli;
+import me.bechberger.femtocli.RunResult;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+
+import java.util.Arrays;
 
 import static me.bechberger.jstall.cli.Util.run;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class HelpTest {
 
@@ -48,4 +52,16 @@ public class HelpTest {
                   -V, --version            Print version information and exit.
                 """, run("deadlock", "--help").out());
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"list", "deadlock", "most-work", "flame", "threads", "waiting-threads", "dependency-graph", "jvm-support", "ai", "ai full"})
+    public void smokeTestHelpTest(String cmd) {
+        var args = cmd.split(" ");
+        final var argsWithHelp = Arrays.copyOf(args, args.length + 1);
+        argsWithHelp[args.length] = "--help";
+        RunResult result = run(argsWithHelp);
+        assertEquals(0, result.exitCode(), () -> "Unexpected exit code. Message: " + result.err());
+        assertTrue(result.out().contains("Usage: "));
+    }
+
 }
