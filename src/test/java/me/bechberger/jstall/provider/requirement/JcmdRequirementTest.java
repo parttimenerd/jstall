@@ -12,7 +12,7 @@ class JcmdRequirementTest {
     }
 
     @Test
-    void resolveMBeanCommand_keepsUnknownCommandUnchanged() {
-        assertEquals("Some.custom_command", JcmdRequirement.resolveMBeanCommand("Some.custom_command"));
+    void resolveMBeanCommand_mapsUnknownCommand() {
+        assertEquals("someCustomCommand", JcmdRequirement.resolveMBeanCommand("Some.custom_command"));
     }
 }

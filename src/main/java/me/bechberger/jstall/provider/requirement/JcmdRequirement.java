@@ -24,15 +24,6 @@ public class JcmdRequirement implements DataRequirement {
     private final String[] args;
     private final CollectionSchedule schedule;
     
-    // MBean command name mapping (commonly used commands)
-    private static final java.util.Map<String, String> MBEAN_COMMANDS = java.util.Map.of(
-        "GC.heap_info", "gcHeapInfo",
-        "GC.class_histogram", "gcClassHistogram",
-        "VM.flags", "vmFlags",
-        "VM.system_properties", "vmSystemProperties",
-        "VM.native_memory", "vmNativeMemory",
-        "GC.run", "gcRun"
-    );
     
     public JcmdRequirement(String command, String[] args, CollectionSchedule schedule) {
         this.command = command;
@@ -66,7 +57,44 @@ public class JcmdRequirement implements DataRequirement {
     }
 
     static String resolveMBeanCommand(String command) {
-        return MBEAN_COMMANDS.getOrDefault(command, command);
+        if (command == null || command.isEmpty()) return command;
+        return transformJcmdToMBeanName(command);
+    }
+
+    /**
+     * Transform the original jcmd command name into the JMX operation name
+     * using the same rules as DiagnosticCommandImpl:
+     * - lowercase the entire first segment (before the first '.' or '_')
+     * - remove '.' and '_' and uppercase the character following each separator
+     * Examples:
+     *  "VM.system_properties" -> "vmSystemProperties"
+     *  "GC.heap_dump" -> "gcHeapDump"
+     */
+    static String transformJcmdToMBeanName(String cmd) {
+        StringBuilder out = new StringBuilder();
+        boolean inFirstSegment = true;
+        boolean capitalizeNext = false;
+
+        for (int i = 0; i < cmd.length(); i++) {
+            char c = cmd.charAt(i);
+            if (c == '.' || c == '_') {
+                // separators are removed and next character is capitalized
+                inFirstSegment = false;
+                capitalizeNext = true;
+                continue;
+            }
+
+            if (capitalizeNext) {
+                out.append(Character.toUpperCase(c));
+                capitalizeNext = false;
+            } else if (inFirstSegment) {
+                out.append(Character.toLowerCase(c));
+            } else {
+                out.append(c);
+            }
+        }
+
+        return out.toString();
     }
     
     @Override
