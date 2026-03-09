@@ -95,7 +95,8 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             spec.usage();
             System.out.println();
             if (replayMode) {
-                printReplayTargets();
+                ReplayProvider provider = new ReplayProvider(getReplayFilePath());
+                provider.printReplayTargets(System.out);
             } else {
                 JVMDiscovery.printAvailableJVMs(System.out);
             }
@@ -347,23 +348,6 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             }
         }
         return ResolvedData.fromDumps(threadDumps);
-    }
-
-    private void printReplayTargets() {
-        try {
-            ReplayProvider provider = new ReplayProvider(getReplayFilePath());
-            List<JVMDiscovery.JVMProcess> jvms = provider.listRecordedJvms(null);
-            if (jvms.isEmpty()) {
-                System.out.println("No recorded JVMs found in replay file.");
-                return;
-            }
-            System.out.println("Recorded JVMs:");
-            for (JVMDiscovery.JVMProcess jvm : jvms) {
-                System.out.println("  " + jvm);
-            }
-        } catch (IOException e) {
-            System.out.println("Failed to read replay file: " + e.getMessage());
-        }
     }
 
     private TargetResolver.ResolutionResult resolveTargetsFromReplay(List<String> requestedTargets) {

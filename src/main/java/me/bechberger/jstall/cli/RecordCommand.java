@@ -32,7 +32,7 @@ import java.util.concurrent.Callable;
  */
 @Command(
     name = "record",
-    description = "Record all analyzer data requirements into a replay ZIP"
+    description = "Record all data into a zip for later analysis"
 )
 public class RecordCommand implements Callable<Integer> {
 

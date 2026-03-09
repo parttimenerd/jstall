@@ -5,8 +5,10 @@ import me.bechberger.femtocli.CommandConfig;
 import me.bechberger.femtocli.FemtoCli;
 import me.bechberger.femtocli.annotations.Command;
 import me.bechberger.femtocli.annotations.Option;
+import me.bechberger.jstall.provider.ReplayProvider;
 import me.bechberger.jstall.util.JVMDiscovery;
 
+import java.io.IOException;
 import java.nio.file.Path;
 
 /**
@@ -37,7 +39,7 @@ public class Main implements Runnable {
     public static final String VERSION = "0.4.11";
 
     @Option(names = {"-f", "--file"}, description = "File path for replay mode (replay ZIP file created by record command)")
-    private Path file;
+    private Path replayFile;
 
     public static void main(String[] args) {
         int exitCode = FemtoCli.builder()
@@ -74,10 +76,20 @@ public class Main implements Runnable {
         System.out.println("  ai                - AI-powered analysis using LLM");
         System.out.println("  ai full           - AI-powered analysis of all JVMs on the system");
         System.out.println();
-        JVMDiscovery.printAvailableJVMs(System.out);
+
+        if (replayFile != null) {
+            try {
+                var provider = new ReplayProvider(replayFile);
+                provider.printReplayTargets(System.out);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            JVMDiscovery.printAvailableJVMs(System.out);
+        }
     }
 
     public Path getReplayFile() {
-        return file;
+        return replayFile;
     }
 }

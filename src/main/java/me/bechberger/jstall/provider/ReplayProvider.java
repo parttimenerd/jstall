@@ -14,6 +14,7 @@ import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.parser.ThreadDumpParser;
 
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -261,5 +262,182 @@ public class ReplayProvider implements ThreadDumpProvider {
         }
 
         return new SystemEnvironment(processes);
+    }
+
+    public void printReplayTargets(PrintStream out) {
+        List<JVMDiscovery.JVMProcess> jvms = listRecordedJvms(null);
+        if (jvms.isEmpty()) {
+            out.println("No recorded JVMs found in replay file.");
+            return;
+        }
+        System.out.println("Recorded JVMs:");
+        for (JVMDiscovery.JVMProcess jvm : jvms) {
+            out.println("  " + jvm);
+        }
+    }
+
+    /**
+     * Gets the flamegraph HTML content for the specified PID.
+     * Returns null if no flamegraph is available.
+     * Flamegraph is always at: <pid>/flamegraphs/flame.html
+     */
+    public FlamegraphData getFlamegraph(long pid) throws IOException {
+        String flamePath = rootPath + pid + "/flamegraphs/flame.html";
+        String metaPath = rootPath + pid + "/flamegraphs/flame.meta.json";
+
+        try (ZipFile zipFile = new ZipFile(recordingZip.toFile())) {
+            var flameEntry = zipFile.getEntry(flamePath);
+            if (flameEntry == null) {
+                return null;
+            }
+
+            String html = new String(
+                zipFile.getInputStream(flameEntry).readAllBytes(),
+                StandardCharsets.UTF_8
+            );
+
+            long timestamp = System.currentTimeMillis(); // Timestamp from when extracted
+
+            // Load metadata from .meta.json file
+            Map<String, String> profilingMetadata = new HashMap<>();
+            var metaEntry = zipFile.getEntry(metaPath);
+            if (metaEntry != null) {
+                String metaJson = new String(
+                    zipFile.getInputStream(metaEntry).readAllBytes(),
+                    StandardCharsets.UTF_8
+                );
+                profilingMetadata = parseMetadataJson(metaJson);
+            }
+
+            return new FlamegraphData(html, timestamp, profilingMetadata);
+        }
+    }
+
+    /**
+     * Parses the metadata JSON file.
+     */
+    private Map<String, String> parseMetadataJson(String json) {
+        Map<String, String> metadata = new HashMap<>();
+        if (json == null || json.isBlank()) {
+            return metadata;
+        }
+
+        // Simple JSON parsing for our metadata format: {"key":"value",...}
+        json = json.trim();
+        if (json.startsWith("{") && json.endsWith("}")) {
+            json = json.substring(1, json.length() - 1);
+            String[] pairs = json.split(",");
+            for (String pair : pairs) {
+                String[] kv = pair.split(":", 2);
+                if (kv.length == 2) {
+                    String key = kv[0].trim().replace("\"", "");
+                    String value = kv[1].trim().replace("\"", "");
+                    metadata.put(key, value);
+                }
+            }
+        }
+
+        return metadata;
+    }
+
+    /**
+     * Gets the JFR file content for the specified PID.
+     * Returns null if no JFR file is available.
+     * JFR file is always at: <pid>/jfr/default.jfr
+     */
+    public JfrData getJfrFile(long pid) throws IOException {
+        String jfrPath = rootPath + pid + "/jfr/default.jfr";
+
+        try (ZipFile zipFile = new ZipFile(recordingZip.toFile())) {
+            var jfrEntry = zipFile.getEntry(jfrPath);
+            if (jfrEntry == null) {
+                return null;
+            }
+
+            byte[] jfrBytes = zipFile.getInputStream(jfrEntry).readAllBytes();
+            long timestamp = System.currentTimeMillis(); // Timestamp from when extracted
+
+            return new JfrData(jfrBytes, timestamp);
+        }
+    }
+
+    /**
+     * Data class for flamegraph content and metadata.
+     */
+    public record FlamegraphData(String htmlContent, long timestamp, Map<String, String> metadata) {
+        /**
+         * Writes the flamegraph HTML to the specified file.
+         */
+        public void writeTo(Path outputPath) throws IOException {
+            java.nio.file.Files.writeString(outputPath, htmlContent, StandardCharsets.UTF_8);
+        }
+
+        /**
+         * Gets a metadata value, or null if not present.
+         */
+        public String getMetadata(String key) {
+            return metadata.get(key);
+        }
+
+        /**
+         * Gets the profiling event type (cpu, alloc, lock, wall), or "unknown" if not available.
+         */
+        public String getEvent() {
+            return metadata.getOrDefault("event", "unknown");
+        }
+
+        /**
+         * Gets the profiling duration (windowMs formatted as human-readable string).
+         */
+        public String getDuration() {
+            String windowMs = metadata.get("windowMs");
+            if (windowMs != null) {
+                try {
+                    long ms = Long.parseLong(windowMs);
+                    if (ms >= 1000) {
+                        return (ms / 1000.0) + "s";
+                    } else {
+                        return ms + "ms";
+                    }
+                } catch (NumberFormatException e) {
+                    return windowMs;
+                }
+            }
+            return metadata.get("duration");
+        }
+
+        /**
+         * Gets the sampling interval (intervalNanos formatted as human-readable string).
+         */
+        public String getInterval() {
+            String intervalNanos = metadata.get("intervalNanos");
+            if (intervalNanos != null) {
+                try {
+                    long nanos = Long.parseLong(intervalNanos);
+                    if (nanos >= 1_000_000) {
+                        return (nanos / 1_000_000.0) + "ms";
+                    } else if (nanos >= 1_000) {
+                        return (nanos / 1_000.0) + "µs";
+                    } else {
+                        return nanos + "ns";
+                    }
+                } catch (NumberFormatException e) {
+                    return intervalNanos;
+                }
+            }
+            return metadata.get("interval");
+        }
+    }
+
+    /**
+     * Data class for JFR file content and metadata.
+     */
+    public record JfrData(byte[] content, long timestamp) {
+        /**
+         * Writes the JFR content to the specified file.
+         */
+        public void writeTo(Path outputPath) throws IOException {
+            java.nio.file.Files.write(outputPath, content);
+        }
     }
 }

@@ -148,6 +148,12 @@ public class RecordingTestBuilder {
                 writeZipEntry(zipOut, fileName, samples.get(i));
             }
         }
+
+        // Write flamegraphs (only write the first one as flame.html)
+        if (!jvm.flamegraphs.isEmpty()) {
+            String fileName = String.format("%s%d/flamegraphs/flame.html", rootPath, jvm.pid);
+            writeZipEntry(zipOut, fileName, jvm.flamegraphs.get(0));
+        }
     }
 
     private void writeZipEntry(ZipOutputStream zipOut, String name, String content)
@@ -177,6 +183,8 @@ public class RecordingTestBuilder {
         private final List<Long> envTimestamps = new ArrayList<>();
         private final Map<String, List<String>> otherData = new LinkedHashMap<>();
         private final Map<String, Long> otherDataTimestamps = new LinkedHashMap<>();
+        private final List<String> flamegraphs = new ArrayList<>();
+        private final List<Long> flamegraphTimestamps = new ArrayList<>();
         private long startedAt = System.currentTimeMillis();
         private long finishedAt;
         private boolean successful = true;
@@ -211,6 +219,12 @@ public class RecordingTestBuilder {
             return this;
         }
 
+        public JvmRecordingBuilder withFlamegraph(String htmlContent, long timestamp) {
+            flamegraphs.add(htmlContent);
+            flamegraphTimestamps.add(timestamp);
+            return this;
+        }
+
         public JvmRecordingBuilder finishedAt(long timestamp) {
             this.finishedAt = timestamp;
             return this;
@@ -230,7 +244,8 @@ public class RecordingTestBuilder {
                 threadDumps, threadDumpTimestamps,
                 systemProperties, propTimestamps,
                 systemEnvironments, envTimestamps,
-                otherData, otherDataTimestamps));
+                otherData, otherDataTimestamps,
+                flamegraphs, flamegraphTimestamps));
             return parent;
         }
     }
@@ -249,13 +264,16 @@ public class RecordingTestBuilder {
         final List<Long> envTimestamps;
         final Map<String, List<String>> otherData;
         final Map<String, Long> otherDataTimestamps;
+        final List<String> flamegraphs;
+        final List<Long> flamegraphTimestamps;
 
         JvmRecording(long pid, String mainClass, boolean successful,
                     long startedAt, long finishedAt,
                     List<String> threadDumps, List<Long> threadDumpTimestamps,
                     List<String> systemProperties, List<Long> propTimestamps,
                     List<String> systemEnvironments, List<Long> envTimestamps,
-                    Map<String, List<String>> otherData, Map<String, Long> otherDataTimestamps) {
+                    Map<String, List<String>> otherData, Map<String, Long> otherDataTimestamps,
+                    List<String> flamegraphs, List<Long> flamegraphTimestamps) {
             this.pid = pid;
             this.mainClass = mainClass;
             this.successful = successful;
@@ -269,6 +287,8 @@ public class RecordingTestBuilder {
             this.envTimestamps = envTimestamps;
             this.otherData = otherData;
             this.otherDataTimestamps = otherDataTimestamps;
+            this.flamegraphs = flamegraphs;
+            this.flamegraphTimestamps = flamegraphTimestamps;
         }
     }
 }

@@ -4,6 +4,8 @@ import me.bechberger.femtocli.Spec;
 import me.bechberger.femtocli.annotations.Command;
 import me.bechberger.femtocli.FemtoCli;
 import me.bechberger.femtocli.annotations.Option;
+import me.bechberger.jstall.Main;
+import me.bechberger.jstall.provider.ReplayProvider;
 import me.bechberger.jstall.util.JVMDiscovery;
 import me.bechberger.jstall.util.TargetResolver;
 import me.bechberger.femtocli.annotations.Parameters;
@@ -56,6 +58,11 @@ public class FlameCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
+
+        var replayFile = spec.getParent(Main.class).getReplayFile();
+        if (replayFile != null) {
+            return useReplayFile(replayFile);
+        }
 
         System.err.println("Interval set to: " + interval.toMillis() + " ms");
         // Show help and list JVMs if no target specified
@@ -224,6 +231,105 @@ public class FlameCommand implements Callable<Integer> {
             return true;
         } catch (IOException e) {
             return false;
+        }
+    }
+
+    private int useReplayFile(Path replayFile) {
+        Path outputPath = Paths.get(outputFile).toAbsolutePath();
+
+        try {
+            // Use ReplayProvider to access the flamegraph
+            ReplayProvider replay = new ReplayProvider(replayFile);
+
+            // Get the PID from the replay file
+            List<JVMDiscovery.JVMProcess> jvms = replay.listRecordedJvms(null);
+            if (jvms.isEmpty()) {
+                System.err.println("Error: replay file does not contain any recorded JVMs");
+                return 1;
+            }
+
+            // If target is specified, try to match it
+            long targetPid;
+            if (target != null) {
+                List<JVMDiscovery.JVMProcess> filtered = jvms.stream()
+                    .filter(jvm -> String.valueOf(jvm.pid()).equals(target) ||
+                                   jvm.mainClass().toLowerCase().contains(target.toLowerCase()))
+                    .toList();
+
+                if (filtered.isEmpty()) {
+                    System.err.println("Error: no JVM matching '" + target + "' found in replay file");
+                    System.err.println("Available JVMs:");
+                    jvms.forEach(jvm -> System.err.println("  PID " + jvm.pid() + ": " + jvm.mainClass()));
+                    return 1;
+                }
+
+                if (filtered.size() > 1) {
+                    System.err.println("Error: multiple JVMs match '" + target + "'");
+                    filtered.forEach(jvm -> System.err.println("  PID " + jvm.pid() + ": " + jvm.mainClass()));
+                    return 1;
+                }
+
+                targetPid = filtered.get(0).pid();
+            } else {
+                // Use the first (and typically only) JVM
+                if (jvms.size() > 1) {
+                    System.err.println("Error: replay file contains multiple JVMs, please specify a target");
+                    jvms.forEach(jvm -> System.err.println("  PID " + jvm.pid() + ": " + jvm.mainClass()));
+                    return 1;
+                }
+                targetPid = jvms.get(0).pid();
+            }
+
+            // Get the flamegraph
+            ReplayProvider.FlamegraphData flamegraph = replay.getFlamegraph(targetPid);
+            if (flamegraph == null) {
+                System.err.println("Error: replay file does not contain a flamegraph for PID " + targetPid);
+                return 1;
+            }
+
+            // Ensure parent directory exists
+            if (outputPath.getParent() != null) {
+                Files.createDirectories(outputPath.getParent());
+            }
+
+            // Write flamegraph to output file
+            flamegraph.writeTo(outputPath);
+
+            System.out.println("\n✓ Flamegraph successfully extracted from replay file!");
+            System.out.println("PID: " + targetPid);
+
+            // Print profiling metadata
+            String event = flamegraph.getEvent();
+            if (!event.equals("unknown")) {
+                System.out.println("Event: " + event);
+            }
+
+            String duration = flamegraph.getDuration();
+            if (duration != null) {
+                System.out.println("Duration: " + duration);
+            }
+
+            String interval = flamegraph.getInterval();
+            if (interval != null) {
+                System.out.println("Interval: " + interval);
+            }
+
+            System.out.println("Output file: " + outputPath);
+            System.out.println("File size: " + Files.size(outputPath) + " bytes");
+
+            if (open) {
+                if (openInBrowser(outputPath)) {
+                    System.out.println("\nOpened flamegraph in browser.");
+                } else {
+                    System.out.println("\nCould not automatically open browser. Open manually with:");
+                    System.out.println("  open " + outputPath + " (macOS)");
+                    System.out.println("  xdg-open " + outputPath + " (Linux)");
+                }
+            }
+            return 0;
+        } catch (IOException e) {
+            System.err.println("Error reading replay file: " + e.getMessage());
+            return 1;
         }
     }
 }

@@ -199,55 +199,71 @@ public class AsyncProfilerWindowRequirement implements IntervalWindowRequirement
 
     @Override
     public void persist(ZipOutputStream zipOut, String pidPath, List<CollectedData> samples) throws IOException {
-        int persistedIndex = 0;
+        // Only persist the first valid sample (there should be only one)
         for (CollectedData sample : samples) {
             if (sample.metadata().containsKey("skip") || sample.rawData().isBlank()) {
                 continue;
             }
 
-            String flameEntry = String.format("%s%s%03d-%d.html", pidPath, FLAME_SUBDIR, persistedIndex, sample.timestamp());
+            // Write flamegraph HTML as flame.html
+            String flameEntry = pidPath + FLAME_SUBDIR + "flame.html";
             ZipEntry flameZipEntry = new ZipEntry(flameEntry);
             zipOut.putNextEntry(flameZipEntry);
             zipOut.write(sample.rawData().getBytes(StandardCharsets.UTF_8));
             zipOut.closeEntry();
 
+            // Write metadata JSON as flame.meta.json (event, windowMs, interval)
+            String metaEntry = pidPath + FLAME_SUBDIR + "flame.meta.json";
+            ZipEntry metaZipEntry = new ZipEntry(metaEntry);
+            zipOut.putNextEntry(metaZipEntry);
+
+            StringBuilder metaJson = new StringBuilder("{");
+            boolean first = true;
+            for (Map.Entry<String, String> entry : sample.metadata().entrySet()) {
+                if (!entry.getKey().equals("jfrBase64")) { // Don't include base64 data in metadata
+                    if (!first) metaJson.append(",");
+                    metaJson.append("\"").append(entry.getKey()).append("\":\"").append(entry.getValue()).append("\"");
+                    first = false;
+                }
+            }
+            // Add interval info (PROFILE_SAMPLE_INTERVAL_NANOS)
+            if (!sample.metadata().isEmpty()) {
+                metaJson.append(",\"intervalNanos\":\"").append(PROFILE_SAMPLE_INTERVAL_NANOS).append("\"");
+            }
+            metaJson.append("}");
+
+            zipOut.write(metaJson.toString().getBytes(StandardCharsets.UTF_8));
+            zipOut.closeEntry();
+
+            // Write JFR file as default.jfr if available
             String jfrBase64 = sample.metadata().get("jfrBase64");
             if (jfrBase64 != null && !jfrBase64.isBlank()) {
-                String jfrEntry = String.format("%s%s%03d-%d.jfr", pidPath, JFR_SUBDIR, persistedIndex, sample.timestamp());
+                String jfrEntry = pidPath + JFR_SUBDIR + "default.jfr";
                 ZipEntry jfrZipEntry = new ZipEntry(jfrEntry);
                 zipOut.putNextEntry(jfrZipEntry);
                 zipOut.write(Base64.getDecoder().decode(jfrBase64));
                 zipOut.closeEntry();
             }
-            persistedIndex++;
+
+            // Only persist the first valid sample
+            break;
         }
     }
 
     @Override
     public List<CollectedData> load(ZipFile zipFile, String pidPath) throws IOException {
         List<CollectedData> result = new ArrayList<>();
-        String prefix = pidPath + FLAME_SUBDIR;
+        String flamePath = pidPath + FLAME_SUBDIR + "flame.html";
 
-        zipFile.stream()
-            .filter(entry -> entry.getName().startsWith(prefix) && entry.getName().endsWith(".html"))
-            .sorted((left, right) -> left.getName().compareTo(right.getName()))
-            .forEach(entry -> {
-                try {
-                    String html = new String(zipFile.getInputStream(entry).readAllBytes(), StandardCharsets.UTF_8);
-                    String filename = entry.getName().substring(prefix.length());
-                    long timestamp = 0L;
-                    if (filename.contains("-")) {
-                        int dash = filename.indexOf('-');
-                        int dot = filename.lastIndexOf('.');
-                        if (dash >= 0 && dot > dash) {
-                            timestamp = Long.parseLong(filename.substring(dash + 1, dot));
-                        }
-                    }
-                    result.add(new CollectedData(timestamp, html, Map.of()));
-                } catch (Exception e) {
-                    throw new RuntimeException("Failed to load flamegraph: " + entry.getName(), e);
-                }
-            });
+        var entry = zipFile.getEntry(flamePath);
+        if (entry != null) {
+            try {
+                String html = new String(zipFile.getInputStream(entry).readAllBytes(), StandardCharsets.UTF_8);
+                result.add(new CollectedData(System.currentTimeMillis(), html, Map.of()));
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to load flamegraph: " + flamePath, e);
+            }
+        }
         return result;
     }
 }
