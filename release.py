@@ -72,13 +72,10 @@ def _patch_pom_for_minimal(pom_path: Path):
         flags=re.DOTALL,
     )
 
-    # 5) Remove --add-reads javadoc options (not needed for minimal and causes issues)
-    # Matches the two lines: <additionalJOption>--add-reads</additionalJOption> and the following value line
-    content = re.sub(
-        r'\s*<additionalJOption>--add-reads</additionalJOption>\s*\n\s*<additionalJOption>[^<]*</additionalJOption>',
-        '',
-        content
-    )
+    # 5) Keep --add-reads javadoc options – femtocli-minimal is still a named module
+    # that needs read access to jdk.attach, java.management, java.net.http.
+    # Only update the module name reference if it changed.
+    # (no removal needed)
 
     # 6) Minimal builds: strip debug symbols (-g:none)
     # Add compilerArgs to the existing maven-compiler-plugin configuration (keep <release>21</release> intact).
