@@ -17,7 +17,7 @@ import java.util.Set;
  * Checks whether the JVM is reasonably up-to-date based on {@code java.version.date}
  * from {@code jcmd VM.system_properties}.
  *
- * Emits no output if the JVM is <= 4 months old.
+ * Emits no output if the JVM is &leq; 4 months old.
  * Emits a warning-like message if it's older than 4 months.
  * Returns a non-zero exit code if it's older than 1 year.
  */

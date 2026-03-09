@@ -143,6 +143,9 @@
                         <additionalJOption>jdk.jfr,java.management,jdk.attach,java.net.http</additionalJOption>
                         <additionalJOption>--add-reads</additionalJOption>
                         <additionalJOption>com.fasterxml.jackson.annotation=jdk.jfr,jdk.attach,java.management,java.net.http</additionalJOption>
+                        <!-- Allow the femtocli module (third-party) to read the platform modules used by jstall -->
+                        <additionalJOption>--add-reads</additionalJOption>
+                        <additionalJOption>me.bechberger.util.femtocli=jdk.attach,java.management</additionalJOption>
                     </additionalJOptions>
                 </configuration>
             </plugin>
