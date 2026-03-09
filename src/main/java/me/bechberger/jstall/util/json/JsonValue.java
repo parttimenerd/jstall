@@ -1,9 +1,6 @@
 package me.bechberger.jstall.util.json;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -11,6 +8,20 @@ import java.util.stream.Collectors;
  * Sealed interface representing JSON values
  */
 public sealed interface JsonValue {
+
+    public static JsonValue primitive(Object value) {
+        if (value instanceof String s) {
+            return new JsonString(s);
+        } else if (value instanceof Number n) {
+            return new JsonNumber(n.doubleValue());
+        } else if (value instanceof Boolean b) {
+            return new JsonBoolean(b);
+        } else if (value == null) {
+            return JsonNull.INSTANCE;
+        } else {
+            throw new IllegalArgumentException("Unsupported primitive type: " + value.getClass().getSimpleName());
+        }
+    }
 
     /**
      * Assert that this value is a JsonObject and return it.
@@ -161,6 +172,11 @@ public sealed interface JsonValue {
     }
 
     record JsonObject(Map<String, JsonValue> fields) implements JsonValue {
+
+        public JsonObject {
+            Objects.requireNonNull(fields);
+        }
+
         /**
          * Create an empty JSON object
          */
@@ -244,6 +260,11 @@ public sealed interface JsonValue {
     }
 
     record JsonArray(List<JsonValue> elements) implements JsonValue {
+
+        public JsonArray {
+            Objects.requireNonNull(elements);
+        }
+
         /**
          * Create an empty JSON array
          */
@@ -337,6 +358,11 @@ public sealed interface JsonValue {
     }
 
     record JsonString(String value) implements JsonValue {
+
+        public JsonString {
+            Objects.requireNonNull(value);
+        }
+
         /**
          * Map the string value
          */

@@ -107,7 +107,7 @@ public class RecordingTestBuilder {
             }
             content.append("\n  → See folder: ").append(jvm.pid).append("/\n");
         }
-        writeZipEntry(zipOut, rootPath + "README", content.toString());
+        writeZipEntry(zipOut, rootPath + "README.md", content.toString());
     }
 
     private void writeJvmData(ZipOutputStream zipOut, String rootPath, JvmRecording jvm) throws IOException {

@@ -21,16 +21,23 @@ public class DataCollector {
     private final DataRequirements requirements;
     private final ScheduledExecutorService scheduler;
     private final boolean ownScheduler;
+    private final boolean verbose;
     private static final long BETWEEN_SAMPLE_SAFETY_MARGIN_MS = 200;
     
     public DataCollector(JMXDiagnosticHelper helper, DataRequirements requirements) {
-        this(helper, requirements, null);
+        this(helper, requirements, null, false);
     }
     
     public DataCollector(JMXDiagnosticHelper helper, DataRequirements requirements, 
                         ScheduledExecutorService scheduler) {
+        this(helper, requirements, scheduler, false);
+    }
+
+    public DataCollector(JMXDiagnosticHelper helper, DataRequirements requirements,
+                        ScheduledExecutorService scheduler, boolean verbose) {
         this.helper = helper;
         this.requirements = requirements;
+        this.verbose = verbose;
         if (scheduler == null) {
             this.scheduler = Executors.newScheduledThreadPool(2);
             this.ownScheduler = true;
@@ -61,15 +68,32 @@ public class DataCollector {
                 .filter(e -> e.getKey() > 0)
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             
+            if (verbose) {
+                System.out.println("    Collecting " + oneTime.size() + " one-time requirement(s)");
+            }
+
             // Collect one-time data first (system properties, etc.)
             for (DataRequirement req : oneTime) {
+                if (verbose) {
+                    System.out.println("      " + req.getDescription());
+                }
                 List<CollectedData> samples = new ArrayList<>();
-                samples.add(req.collect(helper, 0));
+                try {
+                    samples.add(req.collect(helper, 0));
+                } catch (IOException e) {
+                    if (verbose) {
+                        System.err.println("      Failed: " + e.getMessage());
+                    }
+                    throw e;
+                }
                 results.put(req, samples);
             }
             
             // Collect interval-based data
             if (!intervals.isEmpty()) {
+                if (verbose) {
+                    System.out.println("    Collecting interval-based requirements");
+                }
                 collectWithIntervals(intervals, results);
             }
             

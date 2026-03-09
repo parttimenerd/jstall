@@ -7,6 +7,7 @@ import me.bechberger.jstall.util.json.JsonValue;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -59,14 +60,20 @@ public class SystemEnvironmentRequirement implements DataRequirement {
             .map(p -> {
                 Map<String, JsonValue> pMap = new java.util.HashMap<>();
                 pMap.put("pid", new JsonValue.JsonNumber(p.pid()));
-                pMap.put("command", new JsonValue.JsonString(p.command()));
+                pMap.put("command", JsonValue.primitive(p.command()));
+                if (p.info().startInstant().isPresent()) {
+                    pMap.put("startTimeMillis", JsonValue.primitive(p.info().startInstant().get().toEpochMilli()));
+                }
+                if (p.info().user().isPresent()) {
+                    pMap.put("user", JsonValue.primitive(p.info().user().get()));
+                }
                 if (p.cpuTime() != null) {
                     pMap.put("cpuTimeNanos", new JsonValue.JsonNumber(p.cpuTime().toNanos()));
                 }
                 return new JsonValue.JsonObject(pMap);
             })
             .collect(Collectors.toList());
-        
+
         Map<String, JsonValue> root = Map.of("processes", new JsonValue.JsonArray(processes));
         return JsonPrinter.print(new JsonValue.JsonObject(root));
     }

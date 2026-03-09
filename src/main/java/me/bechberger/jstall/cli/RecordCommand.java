@@ -32,7 +32,10 @@ import java.util.concurrent.Callable;
  */
 @Command(
     name = "record",
-    description = "Record all analyzer data requirements into a replay ZIP"
+    description = "Record all analyzer data requirements into a replay ZIP",
+    subcommands = {
+        ListContentsCommand.class
+    }
 )
 public class RecordCommand implements Callable<Integer> {
 
@@ -61,6 +64,9 @@ public class RecordCommand implements Callable<Integer> {
     @Option(names = "--no-parallel", description = "Disable parallel recording across JVMs")
     private boolean noParallel;
 
+    @Option(names = {"-v", "--verbose"}, description = "Enable verbose logging")
+    private boolean verbose;
+
     @Override
     public Integer call() throws Exception {
         if (listJcmd) {
@@ -85,9 +91,20 @@ public class RecordCommand implements Callable<Integer> {
             return 1;
         }
 
+        if (verbose) {
+            System.out.println("Recording " + targets.size() + " JVM(s):");
+            for (JVMDiscovery.JVMProcess proc : targets) {
+                System.out.println("  - PID " + proc.pid() + ": " + proc.mainClass());
+            }
+        }
+
         DataRequirements requirements = collectRequirements(count, intervalMs);
 
-        RecordingProvider provider = new RecordingProvider(Main.VERSION);
+        if (verbose) {
+            System.out.println("Data requirements: " + requirements.getRequirements().size() + " requirement(s)");
+        }
+
+        RecordingProvider provider = new RecordingProvider(Main.VERSION, verbose);
         RecordingProvider.RecordingSummary summary = provider.record(targets, requirements, output, !noParallel);
 
         System.out.println("Recorded " + summary.successCount() + "/" + summary.targetCount() +

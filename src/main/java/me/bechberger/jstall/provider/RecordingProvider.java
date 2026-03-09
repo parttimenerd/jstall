@@ -36,9 +36,15 @@ public class RecordingProvider {
     public static final int FORMAT_VERSION = 1;
 
     private final String jstallVersion;
+    private final boolean verbose;
 
     public RecordingProvider(String jstallVersion) {
+        this(jstallVersion, false);
+    }
+
+    public RecordingProvider(String jstallVersion, boolean verbose) {
         this.jstallVersion = jstallVersion;
+        this.verbose = verbose;
     }
 
     /**
@@ -63,10 +69,20 @@ public class RecordingProvider {
             throw new IOException("No JVM targets to record");
         }
 
+        if (verbose) {
+            System.out.println("Starting recording to " + outputFile.toAbsolutePath());
+            System.out.println("Parallel: " + parallel);
+        }
+
         List<JVMDiscovery.JVMProcess> orderedTargets = new ArrayList<>(targets);
         orderedTargets.sort(Comparator.comparingLong(JVMDiscovery.JVMProcess::pid));
 
         List<CollectedJvmData> collected = collectAllTargets(orderedTargets, requirements, parallel);
+
+        if (verbose) {
+            long successCount = collected.stream().filter(CollectedJvmData::successful).count();
+            System.out.println("Collection complete: " + successCount + "/" + collected.size() + " successful");
+        }
 
         Path parent = outputFile.toAbsolutePath().getParent();
         if (parent != null) {
@@ -74,12 +90,29 @@ public class RecordingProvider {
         }
         String recordingRoot = recordingRootFromOutput(outputFile);
 
+        if (verbose) {
+            System.out.println("Writing ZIP file to " + outputFile.toAbsolutePath());
+        }
+
         try (ZipOutputStream zipOut = new ZipOutputStream(Files.newOutputStream(outputFile))) {
+            if (verbose) {
+                System.out.println("  Writing metadata.json");
+            }
             writeMetadata(zipOut, recordingRoot, collected, requirements);
+            if (verbose) {
+                System.out.println("  Writing README.md");
+            }
             writeReadme(zipOut, recordingRoot, collected, requirements);
             for (CollectedJvmData targetData : collected) {
+                if (verbose) {
+                    System.out.println("  Writing data for PID " + targetData.process().pid());
+                }
                 writeJvmData(zipOut, recordingRoot, targetData, requirements);
             }
+        }
+
+        if (verbose) {
+            System.out.println("Recording complete");
         }
 
         long success = collected.stream().filter(CollectedJvmData::successful).count();
@@ -90,6 +123,11 @@ public class RecordingProvider {
     private List<CollectedJvmData> collectAllTargets(List<JVMDiscovery.JVMProcess> targets,
                                                      DataRequirements requirements,
                                                      boolean parallel) {
+        if (verbose) {
+            System.out.println("Collecting data from " + targets.size() + " JVM(s) in " +
+                (parallel && targets.size() > 1 ? "parallel" : "sequential") + " mode");
+        }
+
         if (!parallel || targets.size() == 1) {
             List<CollectedJvmData> results = new ArrayList<>();
             for (JVMDiscovery.JVMProcess process : targets) {
@@ -132,14 +170,33 @@ public class RecordingProvider {
     private CollectedJvmData collectOneTarget(JVMDiscovery.JVMProcess process,
                                               DataRequirements requirements) {
         long startedAt = System.currentTimeMillis();
+        if (verbose) {
+            System.out.println("Recording PID " + process.pid() + " (" + process.mainClass() + ")...");
+        }
         try (JMXDiagnosticHelper helper = new JMXDiagnosticHelper(process.pid())) {
-            DataCollector collector = new DataCollector(helper, requirements);
+            if (verbose) {
+                System.out.println("  Connected to JMX for PID " + process.pid());
+            }
+            DataCollector collector = new DataCollector(helper, requirements, null, verbose);
             Map<DataRequirement, List<CollectedData>> collected = collector.collectAll();
             long finishedAt = System.currentTimeMillis();
+            if (verbose) {
+                System.out.println("  Successfully collected " + collected.size() + " requirement(s) from PID " +
+                    process.pid() + " in " + (finishedAt - startedAt) + "ms");
+            }
             return CollectedJvmData.success(process, collected, startedAt, finishedAt);
         } catch (Exception e) {
             long finishedAt = System.currentTimeMillis();
-            return CollectedJvmData.failure(process, startedAt, finishedAt, e.getMessage());
+            String errorMsg = e.getMessage();
+            // Always print errors to stderr, with full stack trace in verbose mode
+            System.err.println("Error recording PID " + process.pid() + " (" + process.mainClass() + "): " +
+                (errorMsg != null ? errorMsg : e.getClass().getSimpleName()));
+            if (verbose) {
+                System.err.println("  Full stack trace:");
+                e.printStackTrace(System.err);
+            }
+            return CollectedJvmData.failure(process, startedAt, finishedAt,
+                errorMsg != null ? errorMsg : e.getClass().getSimpleName() + ": " + e.toString());
         }
     }
 
@@ -188,9 +245,8 @@ public class RecordingProvider {
                              List<CollectedJvmData> collected,
                              DataRequirements requirements) throws IOException {
         StringBuilder content = new StringBuilder();
-        content.append("JStall Recording Archive\n");
-        content.append("========================\n\n");
-        content.append("Created by jstall record.\n");
+        content.append("# JStall Recording Archive\n\n");
+        content.append("Created by `jstall record`.\n\n");
         content.append("Project: https://github.com/parttimenerd/jstall\n\n");
         
         // Sample configuration
@@ -204,7 +260,7 @@ public class RecordingProvider {
             .findFirst()
             .orElse(0);
         
-        content.append("Recording Configuration:\n");
+        content.append("## Recording Configuration\n\n");
         content.append("- Sample count: ").append(maxCount).append("\n");
         if (intervalMs > 0) {
             content.append("- Sample interval: ").append(intervalMs).append(" ms\n");
@@ -212,32 +268,36 @@ public class RecordingProvider {
         content.append("- Total JVMs: ").append(collected.size()).append("\n\n");
         
         // JVM list
-        content.append("Recorded JVMs:\n");
+        content.append("## Recorded JVMs\n\n");
         for (CollectedJvmData jvm : collected) {
             content.append("- ").append(jvm.process().pid());
             content.append(": ").append(jvm.process().mainClass());
             if (!jvm.successful()) {
                 content.append(" [FAILED]");
             }
-            content.append("\n  → See folder: ").append(jvm.process().pid()).append("/\n");
+            content.append("\n");
+            // Markdown link to the per-pid folder inside the archive (use relative path ./<pid>/)
+            content.append("  → See folder: [").append(jvm.process().pid()).append("/] (./").append(jvm.process().pid()).append("/)\n");
         }
         content.append("\n");
         
         // Archive structure
-        content.append("Archive Structure:\n");
+        content.append("## Archive Structure\n\n");
         content.append(generateArchiveStructure(requirements));
         content.append("\n");
         
         // Usage instructions
-        content.append("Usage:\n");
+        content.append("## Usage\n\n");
         content.append("To replay and analyze this recording, use:\n");
-        content.append("  jstall -f <recording.zip> status <pid>\n");
-        content.append("  jstall -f <recording.zip> threads <pid>\n");
-        content.append("  ... or other analyzers that support the collected data types.\n");
+        content.append("```bash\n");
+        content.append("jstall -f <recording.zip> status\n");
+        content.append("jstall -f <recording.zip> threads\n");
+        content.append("# ... or other analyzers that support the collected data types.\n");
+        content.append("```\n");
         content.append("You can also extract the ZIP and examine individual files manually.\n");
         content.append("Flamegraph HTML files can be opened directly in a web browser.\n");
         
-        writeTextEntry(zipOut, recordingRoot + "README", content.toString());
+        writeTextEntry(zipOut, recordingRoot + "README.md", content.toString());
     }
 
     private void writeJvmData(ZipOutputStream zipOut,

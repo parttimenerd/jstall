@@ -18,8 +18,9 @@ Features:
 * **Smart filtering**: Target JVMs by name/class instead of PID
 * **Multi-execution**: Analyze multiple JVMs in parallel for faster results
 * **JVM support checks**: Warn if the target JVM is likely out of support (based on `java.version.date` from `jcmd VM.system_properties`)
-* **Supports Java 11+**: Works with all modern Java versions as a target, but might requires Java 17+ to run
+* **Supports Java 11+**: Works with all modern Java versions as a target, but requires Java 17+ to run
 * **AI-powered analysis**: Get intelligent insights from thread dumps using LLMs (supports local models via Ollama)
+* **Record & Replay**: Record diagnostic data for later analysis or sharing as a zip file
 
 Requires Java 17+ to run.
 
@@ -557,6 +558,27 @@ jstall ai full -n 5 -i 2
 **Exit codes:** Same as `ai` command
 
 ---
+
+## Recording & Replay
+
+You can record diagnostic data with 
+```bash
+jstall record <all|pid> --output <recording.zip>
+```
+
+and replay it on any machine using the `-f/--file` option. For an example recording in this repository see the folder: [6529/](./6529/)
+
+Replay examples (use your recording ZIP file):
+
+```bash
+# Replay a recording and run the status analyzers
+jstall -f <recording.zip> status
+
+# Replay a recording and list threads
+jstall -f <recording.zip> threads
+```
+
+When replaying, JStall will use the recorded data files instead of querying a live JVM. If a tool needs additional data that wasn't recorded, it will skip that analysis and continue with available information.
 
 ## Thread Activity Categorization
 
