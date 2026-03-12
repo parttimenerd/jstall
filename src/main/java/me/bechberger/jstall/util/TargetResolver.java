@@ -51,6 +51,18 @@ public class TargetResolver {
             return ResolutionResult.error("No target specified", true);
         }
 
+        if (target.equalsIgnoreCase("all")) {
+            try {
+                List<JVMDiscovery.JVMProcess> jvms = JVMDiscovery.listJVMs();
+                if (jvms.isEmpty()) {
+                    return ResolutionResult.error("No JVMs found", true);
+                }
+                return ResolutionResult.success(toResolvedPidTargets(jvms));
+            } catch (IOException e) {
+                return ResolutionResult.error("Failed to list JVMs: " + e.getMessage(), false);
+            }
+        }
+
         // Check if it's an existing file first
         Path filePath = Path.of(target);
         if (Files.exists(filePath) && Files.isRegularFile(filePath)) {
@@ -84,15 +96,19 @@ public class TargetResolver {
                 return ResolutionResult.error("No JVMs found matching filter: " + target, true);
             }
 
-            List<ResolvedTarget> targets = new ArrayList<>();
-            for (JVMDiscovery.JVMProcess jvm : matchingJVMs) {
-                targets.add(new ResolvedTarget.Pid(jvm.pid(), jvm.mainClass()));
-            }
-            return ResolutionResult.success(targets);
+            return ResolutionResult.success(toResolvedPidTargets(matchingJVMs));
 
         } catch (IOException e) {
             return ResolutionResult.error("Failed to list JVMs: " + e.getMessage(), false);
         }
+    }
+
+    private static List<ResolvedTarget> toResolvedPidTargets(List<JVMDiscovery.JVMProcess> jvms) {
+        List<ResolvedTarget> targets = new ArrayList<>();
+        for (JVMDiscovery.JVMProcess jvm : jvms) {
+            targets.add(new ResolvedTarget.Pid(jvm.pid(), jvm.mainClass()));
+        }
+        return targets;
     }
 
     /**

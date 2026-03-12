@@ -80,6 +80,30 @@ class TargetResolverTest {
     }
 
     @Test
+    void testResolveAll() throws IOException {
+        List<JVMDiscovery.JVMProcess> jvms = JVMDiscovery.listJVMs();
+
+        TargetResolver.ResolutionResult result = TargetResolver.resolve("all");
+
+        if (jvms.isEmpty()) {
+            assertFalse(result.isSuccess());
+            assertEquals("No JVMs found", result.errorMessage());
+            assertTrue(result.shouldListJVMs());
+            return;
+        }
+
+        assertTrue(result.isSuccess());
+        assertEquals(jvms.size(), result.targets().size());
+        for (int i = 0; i < jvms.size(); i++) {
+            assertInstanceOf(TargetResolver.ResolvedTarget.Pid.class, result.targets().get(i));
+            TargetResolver.ResolvedTarget.Pid resolved =
+                (TargetResolver.ResolvedTarget.Pid) result.targets().get(i);
+            assertEquals(jvms.get(i).pid(), resolved.pid());
+            assertEquals(jvms.get(i).mainClass(), resolved.mainClass());
+        }
+    }
+
+    @Test
     void testResolveMultipleTargets() throws IOException {
         // Create two temporary files
         Path file1 = Files.createTempFile("test-dump-1", ".txt");

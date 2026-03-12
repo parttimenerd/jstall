@@ -21,6 +21,7 @@ import me.bechberger.femtocli.annotations.Parameters;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -38,7 +39,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
 
     @Parameters(
         index = "0..*",
-        description = "PID, filter or dump files"
+        description = "PID, 'all', filter or dump files (or replay ZIP as first argument)"
     )
     protected List<String> targets;
 
@@ -58,6 +59,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
     protected boolean full = false;
 
     Spec spec;
+    private Path positionalReplayFile;
 
     /**
      * Returns the analyzer to use for this command.
@@ -91,28 +93,44 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
         return main != null ? main.getReplayFile() : null;
     }
 
+    private Path getEffectiveReplayFilePath() {
+        return positionalReplayFile != null ? positionalReplayFile : getReplayFilePath();
+    }
+
     @Override
     public Integer call() throws Exception {
-        Analyzer analyzer = getAnalyzer();
-        boolean replayMode = getReplayFilePath() != null;
-
-        // Show help and list JVMs if no targets specified
-        if (targets == null || targets.isEmpty()) {
-            spec.usage();
-            System.out.println();
-            if (replayMode) {
-                ReplayProvider provider = new ReplayProvider(getReplayFilePath());
-                provider.printReplayTargets(System.out);
-            } else {
-                JVMDiscovery.printAvailableJVMs(System.out);
-            }
-            return 1;
+        positionalReplayFile = null;
+        List<String> effectiveTargets = targets == null ? new ArrayList<>() : new ArrayList<>(targets);
+        if (getReplayFilePath() == null) {
+            positionalReplayFile = extractPositionalReplayFile(effectiveTargets);
         }
 
-        // Resolve all targets
-        TargetResolver.ResolutionResult resolution = replayMode
-            ? resolveTargetsFromReplay(targets)
-            : TargetResolver.resolveMultiple(targets);
+        Analyzer analyzer = getAnalyzer();
+        boolean replayMode = getEffectiveReplayFilePath() != null;
+
+        TargetResolver.ResolutionResult resolution;
+
+        // Show help and list JVMs if no targets specified
+        if (effectiveTargets.isEmpty()) {
+            if (positionalReplayFile != null) {
+                resolution = resolveTargetsFromReplay(List.of());
+            } else {
+                spec.usage();
+                System.out.println();
+                if (replayMode) {
+                    ReplayProvider provider = new ReplayProvider(getEffectiveReplayFilePath());
+                    provider.printReplayTargets(System.out);
+                } else {
+                    JVMDiscovery.printAvailableJVMs(System.out);
+                }
+                return 1;
+            }
+        } else {
+            // Resolve all targets
+            resolution = replayMode
+                ? resolveTargetsFromReplay(effectiveTargets)
+                : TargetResolver.resolveMultiple(effectiveTargets);
+        }
 
         if (!resolution.isSuccess()) {
             System.err.println("Error: " + resolution.errorMessage());
@@ -297,15 +315,15 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
 
         for (TargetResult targetResult : results) {
             if (!first) {
-                System.out.println("\n" + "=".repeat(80) + "\n");
+                System.out.println();
             }
             first = false;
 
             // Print header
             if (targetResult.target instanceof TargetResolver.ResolvedTarget.Pid pid) {
-                System.out.println("Analysis for PID " + pid.pid() + " (" + pid.mainClass() + "):");
+                System.out.println("====== PID " + pid.pid() + " (" + pid.mainClass() + ") ======");
             } else if (targetResult.target instanceof TargetResolver.ResolvedTarget.File file) {
-                System.out.println("Analysis for file: " + file.path());
+                System.out.println("====== FILE " + file.path() + " ======");
             }
             System.out.println();
 
@@ -335,7 +353,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
     }
 
     private ThreadDumpProvider createProvider() throws IOException {
-        Path replayFile = getReplayFilePath();
+        Path replayFile = getEffectiveReplayFilePath();
         if (replayFile != null) {
             return new ReplayProvider(replayFile);
         }
@@ -397,12 +415,35 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
 
     private TargetResolver.ResolutionResult resolveTargetsFromReplay(List<String> requestedTargets) {
         try {
-            ReplayProvider provider = new ReplayProvider(getReplayFilePath());
+            ReplayProvider provider = new ReplayProvider(getEffectiveReplayFilePath());
             List<JVMDiscovery.JVMProcess> recorded = provider.listRecordedJvms(null);
+
+            if (requestedTargets == null || requestedTargets.isEmpty()) {
+                if (recorded.isEmpty()) {
+                    return TargetResolver.ResolutionResult.error("No recorded JVMs found in replay file", false);
+                }
+                List<TargetResolver.ResolvedTarget> allRecorded = recorded.stream()
+                    .map(jvm -> new TargetResolver.ResolvedTarget.Pid(jvm.pid(), jvm.mainClass()))
+                    .map(t -> (TargetResolver.ResolvedTarget) t)
+                    .toList();
+                return TargetResolver.ResolutionResult.success(allRecorded);
+            }
+
             List<TargetResolver.ResolvedTarget> resolved = new ArrayList<>();
 
             for (String target : requestedTargets) {
                 if (target == null || target.isBlank()) {
+                    continue;
+                }
+
+                if (target.equalsIgnoreCase("all")) {
+                    if (recorded.isEmpty()) {
+                        return TargetResolver.ResolutionResult.error("No recorded JVMs found in replay file", false);
+                    }
+                    resolved.addAll(recorded.stream()
+                        .map(jvm -> new TargetResolver.ResolvedTarget.Pid(jvm.pid(), jvm.mainClass()))
+                        .map(t -> (TargetResolver.ResolvedTarget) t)
+                        .toList());
                     continue;
                 }
 
@@ -443,6 +484,33 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             return TargetResolver.ResolutionResult.success(resolved);
         } catch (IOException e) {
             return TargetResolver.ResolutionResult.error("Failed to open replay file: " + e.getMessage(), false);
+        }
+    }
+
+    private Path extractPositionalReplayFile(List<String> effectiveTargets) {
+        if (effectiveTargets == null || effectiveTargets.isEmpty()) {
+            return null;
+        }
+
+        String first = effectiveTargets.get(0);
+        if (first == null || first.isBlank()) {
+            return null;
+        }
+
+        Path candidate = Path.of(first);
+        if (!Files.exists(candidate) || !Files.isRegularFile(candidate)) {
+            return null;
+        }
+        if (!candidate.getFileName().toString().toLowerCase().endsWith(".zip")) {
+            return null;
+        }
+
+        try {
+            new ReplayProvider(candidate);
+            effectiveTargets.remove(0);
+            return candidate;
+        } catch (IOException ignored) {
+            return null;
         }
     }
 }

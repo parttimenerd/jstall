@@ -45,22 +45,23 @@ public class HelpTest {
 
     @Test
     public void testDeadlockHelp() {
-        assertEquals("""
-                Usage: jstall deadlock [-hV] [--dumps=<dumps>] [--interval=<interval>] [--keep]
-                                       [--intelligent-filter] [--full] [<targets>...]
-                Detect JVM-reported thread deadlocks
-                      [<targets>...]       PID, filter or dump files
-                      --dumps=<dumps>      Number of dumps to collect, default is none
-                      --full               Run all analyses including expensive ones (only for
-                                           status command)
-                  -h, --help               Show this help message and exit.
-                      --intelligent-filter Use intelligent stack trace filtering (collapses
-                                           internal frames, focuses on application code)
-                      --interval=<interval>
-                                           Interval between dumps, default is 5s
-                      --keep               Persist dumps to disk
-                  -V, --version            Print version information and exit.
-                """, run("deadlock", "--help").out());
+        assertEquals(
+            "Usage: jstall deadlock [-hV] [--dumps=<dumps>] [--interval=<interval>] [--keep]\n" +
+            "                       [--intelligent-filter] [--full] [<targets>...]\n" +
+            "Detect JVM-reported thread deadlocks\n" +
+            "      [<targets>...]       PID, 'all', filter or dump files (or replay ZIP as\n" +
+            "                           first argument)\n" +
+            "      --dumps=<dumps>      Number of dumps to collect, default is none\n" +
+            "      --full               Run all analyses including expensive ones (only for\n" +
+            "                           status command)\n" +
+            "  -h, --help               Show this help message and exit.\n" +
+            "      --intelligent-filter Use intelligent stack trace filtering (collapses\n" +
+            "                           internal frames, focuses on application code)\n" +
+            "      --interval=<interval>\n" +
+            "                           Interval between dumps, default is 5s\n" +
+            "      --keep               Persist dumps to disk\n" +
+            "  -V, --version            Print version information and exit.\n",
+            run("deadlock", "--help").out());
     }
 
     @ParameterizedTest

@@ -188,6 +188,34 @@ class RecordReplayCommandTest {
     }
 
     @Test
+    void testReplayFileWithAllTarget(@TempDir Path tempDir) throws Exception {
+        Path recordingFile = Files.createTempFile("multi-jvm-all-", ".zip");
+        long baseTime = System.currentTimeMillis();
+        String systemProps = "java.version=21\njava.version.date=2026-01-01\n";
+
+        new RecordingTestBuilder(Main.VERSION)
+            .withJvm(11111, "com.example.App1")
+                .withThreadDump(busyWorkDumps[0], baseTime)
+                .withThreadDump(busyWorkDumps[1], baseTime + 1000)
+                .withSystemProperties(systemProps, baseTime)
+                .build()
+            .withJvm(22222, "com.example.App2")
+                .withThreadDump(normalDumps[0], baseTime)
+                .withThreadDump(normalDumps[0], baseTime + 1000)
+                .withSystemProperties(systemProps, baseTime)
+                .build()
+            .build(recordingFile);
+
+        recordingFile.toFile().deleteOnExit();
+
+        RunResult result = Util.run("-f", recordingFile.toString(), "status", "all");
+
+        assertFalse(result.exitCode() != 0, () ->
+            "Status command should support replay target 'all'. stderr: " + result.err());
+        assertFalse(result.out().isBlank(), "Should produce combined output for all recorded JVMs");
+    }
+
+    @Test
     void testListReplayedJvms(@TempDir Path tempDir) throws Exception {
         Path recordingFile = Files.createTempFile("list-", ".zip");
         long baseTime = System.currentTimeMillis();
