@@ -59,7 +59,7 @@ public class SystemEnvironmentRequirement implements DataRequirement {
             .map(p -> {
                 Map<String, Object> pMap = new java.util.HashMap<>();
                 pMap.put("pid", p.pid());
-                pMap.put("command", p.command());
+                pMap.put("command", p.command() == null ? "<unknown>" : p.command());
                 if (p.info().startInstant().isPresent()) {
                     pMap.put("startTimeMillis", p.info().startInstant().get().toEpochMilli());
                 }

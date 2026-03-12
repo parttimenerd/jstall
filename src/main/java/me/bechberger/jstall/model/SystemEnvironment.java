@@ -26,7 +26,8 @@ public record SystemEnvironment(List<Process> processes) {
                 .map(p -> {
                     var psInfo = psResult.get(p.pid());
                     if (psInfo != null) {
-                        return new Process(p.pid(), p.info(), psInfo.cpuTime, p.command == null ? psInfo.command : p.command);
+                        String command = p.command == null ? psInfo.command : p.command;
+                        return new Process(p.pid(), p.info(), psInfo.cpuTime, command == null ? "<unknown>" : command);
                     }
                     return p;
                 })
