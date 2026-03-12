@@ -130,7 +130,8 @@ public class RecordingProvider {
         }
 
         int threads = Math.max(1, Math.min(targets.size(), Runtime.getRuntime().availableProcessors()));
-        try (ExecutorService executor = Executors.newFixedThreadPool(threads)) {
+        ExecutorService executor = Executors.newFixedThreadPool(threads);
+        try {
             List<CompletableFuture<CollectedJvmData>> futures = targets.stream()
                 .map(target -> CompletableFuture.supplyAsync(() -> collectOneTarget(target, requirements), executor))
                 .toList();

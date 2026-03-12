@@ -70,9 +70,10 @@ public class SystemAnalyzer {
             return Collections.emptyList();
         }
 
-        try (var executor = Executors.newFixedThreadPool(
+        var executor = Executors.newFixedThreadPool(
                 Math.min(jvms.size(), Runtime.getRuntime().availableProcessors())
-        )) {
+        );
+        try {
             // Submit all JVM analysis tasks in parallel
             List<CompletableFuture<JVMAnalysis>> futures = jvms.stream()
                 .map(jvm -> CompletableFuture.supplyAsync(() -> {
