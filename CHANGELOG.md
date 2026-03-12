@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.5.0] - 2026-03-12
+
+### Added
 - Add `jvm-support` command to check if a JVM is outdated
 - Add `compiler-queue`, `gc-heap-info`, `vm-vitals`, ``vm-metaspace`, `processes` commands
 - Add `record` and replay

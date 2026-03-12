@@ -18,7 +18,7 @@ import java.nio.file.Path;
 @Command(
     name = "jstall",
     description = "One-shot JVM inspection tool",
-    version = "0.4.11",
+    version = "0.5.0",
     subcommands = {
         RecordMainCommand.class,
         StatusCommand.class,
