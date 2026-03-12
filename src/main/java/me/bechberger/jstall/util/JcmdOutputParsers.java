@@ -319,7 +319,7 @@ public final class JcmdOutputParsers {
         int startRow = 0;
 
         // Parse headers if present
-        if (config.hasHeaders && !dataLines.isEmpty()) {
+        if (config.hasHeaders) {
             String headerLine = dataLines.get(0);
             headers = splitLine(headerLine, config);
             for (int i = 0; i < headers.size(); i++) {

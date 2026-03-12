@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.*;
 
 public class VmVitalsAnalyzerTest {
 
@@ -72,11 +71,11 @@ public class VmVitalsAnalyzerTest {
         Last 60 minutes:
                               --------------------------------jvm---------------------------------
                               --heap--- ---------meta---------      --jthr--- --cldg-- ----cls----
-                              comm used comm used csc csu gctr code num nd cr num anon num  ld uld 
-        2026-03-09 18:08:17    64m  30m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4780  0   0 
-        2026-03-09 18:09:17    64m  31m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4781  1   0 
-        2026-03-09 18:10:17    64m  32m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4783  2   0 
-        2026-03-09 18:11:17    64m  33m  18m  18m  2m  2m  21m  10m  16  3  1  96   81 4785  2   0 
+                              comm used comm used csc csu gctr code num nd cr num anon num  ld uld
+        2026-03-09 18:08:17    64m  30m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4780  0   0
+        2026-03-09 18:09:17    64m  31m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4781  1   0
+        2026-03-09 18:10:17    64m  32m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4783  2   0
+        2026-03-09 18:11:17    64m  33m  18m  18m  2m  2m  21m  10m  16  3  1  96   81 4785  2   0
         """;
 
     private static ThreadDumpSnapshot createDummySnapshot() {
@@ -169,7 +168,7 @@ public class VmVitalsAnalyzerTest {
         String firstVitals = """
             12345:
             Last 60 minutes:
-            2026-03-09 18:00:00    32m  16m  10m  10m  1m  1m  15m  5m  10  2  0  50   40 2000  0   0 
+            2026-03-09 18:00:00    32m  16m  10m  10m  1m  1m  15m  5m  10  2  0  50   40 2000  0   0
             """;
         
         ResolvedData data = ResolvedData.fromDumpsAndCollectedData(

@@ -5,6 +5,7 @@ import me.bechberger.jstall.analyzer.BaseAnalyzer;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.analyzer.ResolvedData;
 import me.bechberger.jstall.analyzer.ThreadActivityCategorizer;
+import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jthreaddump.model.LockInfo;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.model.ThreadInfo;
@@ -34,7 +35,7 @@ public class DependencyGraphAnalyzer extends BaseAnalyzer {
 
     @Override
     public AnalyzerResult analyze(ResolvedData data, Map<String, Object> options) {
-        List<ThreadDump> dumps = data.dumps().stream().map(dump -> dump.parsed()).toList();
+        List<ThreadDump> dumps = data.dumps().stream().map(ThreadDumpSnapshot::parsed).toList();
         if (dumps.isEmpty()) {
             return AnalyzerResult.nothing();
         }

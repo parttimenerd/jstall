@@ -9,7 +9,7 @@ import java.util.stream.Collectors;
 
 /**
  * Base class for analyzers providing common option handling utilities.
- *
+ * <p>
  * Default values for options should be provided by the command classes (e.g., BaseAnalyzerCommand),
  * but analyzers can also handle missing values gracefully for testing purposes.
  */
@@ -172,7 +172,7 @@ public abstract class BaseAnalyzer implements Analyzer {
 
         StringBuilder sb = new StringBuilder();
 
-        if (maxDepth == 1 && lines.length > 0) {
+        if (maxDepth == 1) {
             // Inline mode: show only first line on same line as label
             sb.append(indent).append(label).append(" ").append(lines[0].trim()).append("\n");
         } else {

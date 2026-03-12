@@ -184,7 +184,7 @@ public class ReplayProvider implements ThreadDumpProvider {
         try (ZipFile zipFile = new ZipFile(recordingZip.toFile())) {
             zipFile.stream()
                 .filter(entry -> !entry.isDirectory())
-                .map(entry -> entry.getName())
+                .map(ZipEntry::getName)
                 .filter(name -> name.startsWith(pidPrefix))
                 .filter(name -> !name.equals(pidPrefix + "manifest.json"))
                 .forEach(name -> {
@@ -214,13 +214,7 @@ public class ReplayProvider implements ThreadDumpProvider {
         Map<String, List<CollectedData>> byType = new HashMap<>();
         for (Map.Entry<String, List<CollectedDataWithName>> entry : grouped.entrySet()) {
             List<CollectedData> sorted = entry.getValue().stream()
-                .sorted((left, right) -> {
-                    int byTimestamp = Long.compare(left.data.timestamp(), right.data.timestamp());
-                    if (byTimestamp != 0) {
-                        return byTimestamp;
-                    }
-                    return left.fileName.compareTo(right.fileName);
-                })
+                .sorted(Comparator.comparingLong((CollectedDataWithName left) -> left.data.timestamp()).thenComparing(left -> left.fileName))
                 .map(CollectedDataWithName::data)
                 .collect(Collectors.toList());
             byType.put(entry.getKey(), sorted);

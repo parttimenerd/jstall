@@ -7,6 +7,7 @@ import me.bechberger.util.json.PrettyPrinter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -96,7 +97,7 @@ public class SystemEnvironmentRequirement implements DataRequirement {
         
         zipFile.stream()
             .filter(entry -> entry.getName().startsWith(prefix) && entry.getName().endsWith(".json"))
-            .sorted((e1, e2) -> e1.getName().compareTo(e2.getName()))
+            .sorted(Comparator.comparing((ZipEntry e) -> e.getName()))
             .forEach(entry -> {
                 try {
                     String content = new String(

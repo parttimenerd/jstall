@@ -148,8 +148,8 @@ class RecordReplayCommandTest {
         RunResult result = Util.run("-f", recordingFile.toString(), "status", "99999");
 
         assertTrue(result.exitCode() != 0, "Should fail for missing PID");
-        assertTrue(result.err().length() > 0 || result.out().contains("not found") || 
-            result.out().contains("No recorded"), () ->
+        assertTrue(!result.err().isEmpty() || result.out().contains("not found") ||
+                   result.out().contains("No recorded"), () ->
             "Should have appropriate error. stderr: " + result.err() + ", stdout: " + result.out());
     }
 

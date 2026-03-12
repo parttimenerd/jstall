@@ -5,6 +5,7 @@ import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.analyzer.ResolvedData;
 import me.bechberger.jstall.analyzer.ThreadActivityCategorizer;
+import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.model.ThreadInfo;
 
@@ -12,7 +13,7 @@ import java.util.*;
 
 /**
  * Identifies threads doing the most work across multiple dumps.
- *
+ * <p>
  * Aggregates CPU time per thread and groups by shared stack traces.
  */
 public class MostWorkAnalyzer extends BaseAnalyzer {
@@ -34,7 +35,7 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
 
     @Override
     public AnalyzerResult analyze(ResolvedData data, Map<String, Object> options) {
-        List<ThreadDump> dumps = data.dumps().stream().map(dump -> dump.parsed()).toList();
+        List<ThreadDump> dumps = data.dumps().stream().map(ThreadDumpSnapshot::parsed).toList();
         int topN = getIntOption(options, "top", 3);
         boolean ignoreEmptyStacks = getNoNativeOption(options);
         int stackDepth = getStackDepthOption(options);

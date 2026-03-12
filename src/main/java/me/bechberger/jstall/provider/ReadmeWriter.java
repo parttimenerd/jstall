@@ -128,8 +128,7 @@ public class ReadmeWriter {
     private void writeTableOfContents(StringBuilder sb) {
         sb.append("## Table of Contents\n\n");
         sb.append("- [Recording Configuration](#recording-configuration)\n");
-        for (int i = 0; i < collected.size(); i++) {
-            RecordingProvider.CollectedJvmData jvm = collected.get(i);
+        for (RecordingProvider.CollectedJvmData jvm : collected) {
             long pid = jvm.process().pid();
             String shortClass = shortMainClass(jvm.process().mainClass());
             sb.append("- [JVM ").append(pid).append(" — ").append(shortClass).append("](#jvm-").append(pid).append(")\n");

@@ -18,7 +18,7 @@ import java.util.Properties;
  * <pre>
  * provider=ollama
  * model=qwen2.5:14b
- * ollama.host=http://127.0.0.1:11434
+ * ollama.host=<a href="http://127.0.0.1:11434">...</a>
  * api.key=your-gardener-api-key
  * </pre>
  */
@@ -206,11 +206,10 @@ public record AiConfig(Provider provider, String model, String apiKey, String ol
         } else {
             thinkMode = switch (thinkStr.trim().toLowerCase()) {
                 case "false", "0" -> isGptOss ? OllamaThinkMode.LOW : OllamaThinkMode.OFF;
-                case "true", "1" -> OllamaThinkMode.HIGH;
+                case "true", "1", "high" -> OllamaThinkMode.HIGH;
                 case "off", "none" -> OllamaThinkMode.OFF;
                 case "low" -> OllamaThinkMode.LOW;
                 case "medium" -> OllamaThinkMode.MEDIUM;
-                case "high" -> OllamaThinkMode.HIGH;
                 default -> throw new IllegalArgumentException("Invalid ollama.think value: " + thinkStr);
             };
         }

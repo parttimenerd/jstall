@@ -13,7 +13,7 @@ import java.util.List;
 /**
  * Parser for class histograms in the format produced by {@code jmap -histo} or
  * {@code jcmd <pid> GC.class_histogram}.
- * 
+ * <p>
  * Uses the generic jcmd table parser for robust parsing.
  */
 public final class ClassHistogramParser {

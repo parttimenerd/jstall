@@ -22,8 +22,7 @@ import java.util.concurrent.Callable;
 public class ListCommand implements Callable<Integer> {
 
     @Parameters(
-        index = "0",
-        arity = "0..1",
+            arity = "0..1",
         description = "Optional filter - only show JVMs whose main class contains this text"
     )
     private String filter;

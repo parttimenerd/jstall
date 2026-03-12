@@ -14,7 +14,7 @@ import java.util.concurrent.Callable;
 )
 public class RecordSummaryCommand implements Callable<Integer> {
 
-    @Parameters(index = "0", description = "Recording ZIP file")
+    @Parameters(description = "Recording ZIP file")
     private Path zipFile;
 
     @Override

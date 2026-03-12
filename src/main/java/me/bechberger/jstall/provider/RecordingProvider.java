@@ -6,19 +6,13 @@ import me.bechberger.jstall.provider.requirement.DataRequirements;
 import me.bechberger.jstall.provider.requirement.JcmdRequirement;
 import me.bechberger.jstall.util.JMXDiagnosticHelper;
 import me.bechberger.jstall.util.JVMDiscovery;
-import me.bechberger.util.json.JSONParser;
 import me.bechberger.util.json.PrettyPrinter;
-import me.bechberger.util.json.Util;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
@@ -136,8 +130,7 @@ public class RecordingProvider {
         }
 
         int threads = Math.max(1, Math.min(targets.size(), Runtime.getRuntime().availableProcessors()));
-        ExecutorService executor = Executors.newFixedThreadPool(threads);
-        try {
+        try (ExecutorService executor = Executors.newFixedThreadPool(threads)) {
             List<CompletableFuture<CollectedJvmData>> futures = targets.stream()
                 .map(target -> CompletableFuture.supplyAsync(() -> collectOneTarget(target, requirements), executor))
                 .toList();
@@ -195,7 +188,7 @@ public class RecordingProvider {
                 e.printStackTrace(System.err);
             }
             return CollectedJvmData.failure(process, startedAt, finishedAt,
-                errorMsg != null ? errorMsg : e.getClass().getSimpleName() + ": " + e.toString());
+                errorMsg != null ? errorMsg : e.getClass().getSimpleName() + ": " + e);
         }
     }
 
@@ -338,9 +331,7 @@ public class RecordingProvider {
                 item.put("command", jcmd.getCommand());
                 List<Object> args = new ArrayList<>();
                 if (jcmd.getArgs() != null) {
-                    for (String arg : jcmd.getArgs()) {
-                        args.add(arg);
-                    }
+                    args.addAll(Arrays.asList(jcmd.getArgs()));
                 }
                 item.put("args", args);
             }

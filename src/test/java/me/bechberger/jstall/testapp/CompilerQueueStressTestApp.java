@@ -75,9 +75,6 @@ public class CompilerQueueStressTestApp {
             String result = processString(sb.toString());
             
             // Force some actual work
-            if (result.length() < 0) {
-                System.out.println(result);
-            }
         }
     }
 

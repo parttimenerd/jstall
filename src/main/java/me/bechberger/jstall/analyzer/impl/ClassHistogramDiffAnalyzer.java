@@ -20,7 +20,7 @@ import java.util.Set;
 
 /**
  * Compares class histograms captured alongside thread dumps and reports the biggest deltas.
- *
+ * <p>
  * Requires at least two histogram captures.
  */
 public class ClassHistogramDiffAnalyzer extends BaseAnalyzer {
@@ -110,7 +110,6 @@ public class ClassHistogramDiffAnalyzer extends BaseAnalyzer {
 
         Comparator<Delta> cmp = switch (sort) {
             case "instances" -> Comparator.comparingLong(Delta::deltaInstances).reversed();
-            case "bytes" -> Comparator.comparingLong(Delta::deltaBytes).reversed();
             default -> Comparator.comparingLong(Delta::deltaBytes).reversed();
         };
 

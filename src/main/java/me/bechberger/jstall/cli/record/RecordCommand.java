@@ -37,8 +37,7 @@ import java.util.concurrent.Callable;
 public class RecordCommand implements Callable<Integer> {
 
     @Parameters(
-        index = "0",
-        arity = "0..1",
+            arity = "0..1",
         description = "Target: all | PID | filter"
     )
     private String target = "all";

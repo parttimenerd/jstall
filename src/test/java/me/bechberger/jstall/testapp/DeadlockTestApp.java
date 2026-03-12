@@ -5,7 +5,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Test application that can create various scenarios for testing thread dump analysis.
- *
+ * <p>
  * Usage:
  * - java DeadlockTestApp deadlock    - Creates a classic deadlock
  * - java DeadlockTestApp busy-work   - Creates threads doing busy work

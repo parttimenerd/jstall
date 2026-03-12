@@ -239,7 +239,7 @@ public final class CompilerQueueParser {
             isBlocking,
             isNative,
             tier,
-            methodName != null ? methodName : "",
+                methodName,
             osrBci,
             bytes,
             isNativeMethod

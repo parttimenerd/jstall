@@ -20,13 +20,13 @@ import java.util.zip.ZipInputStream;
         Example usage:
 
             jstall record extract my-recording.zip extracted-folder
-            
+        
         This will create 'extracted-folder' containing the README, metadata, ... from the recording.
-            """
+        """
 )
 public class RecordExtractCommand implements Callable<Integer> {
 
-    @Parameters(index = "0", description = "Recording ZIP file")
+    @Parameters(description = "Recording ZIP file")
     private Path zipFile;
 
     @Parameters(index = "1", description = "Destination folder of the extracted recording")

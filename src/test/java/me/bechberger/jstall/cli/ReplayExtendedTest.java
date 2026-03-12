@@ -124,7 +124,7 @@ class ReplayExtendedTest {
     @Test
     void testFileEqualsForm() throws Exception {
         Path recording = createStandardRecording();
-        RunResult result = Util.run("--file=" + recording.toString(), "status", "10000");
+        RunResult result = Util.run("--file=" + recording, "status", "10000");
         assertEquals(0, result.exitCode(),
             () -> "--file= form failed. stderr: " + result.err());
     }
@@ -144,7 +144,7 @@ class ReplayExtendedTest {
     @Test
     void testImplicitStatusWithEqualsForm() throws Exception {
         Path recording = createStandardRecording();
-        RunResult result = Util.run("--file=" + recording.toString(), "10000");
+        RunResult result = Util.run("--file=" + recording, "10000");
         assertEquals(0, result.exitCode(),
             () -> "Implicit status with --file=. stderr: " + result.err());
     }

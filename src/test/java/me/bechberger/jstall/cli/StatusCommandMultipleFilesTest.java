@@ -22,7 +22,7 @@ class StatusCommandMultipleFilesTest {
                 2024-12-29 13:00:00
                 Full thread dump Java HotSpot(TM) 64-Bit Server VM (21+35-2513 mixed mode):
 
-                \"main\" #1 prio=5 os_prio=0 tid=0x00007f8b0c00b800 nid=0x1 runnable [0x00007f8b14e5d000]
+                "main" #1 prio=5 os_prio=0 tid=0x00007f8b0c00b800 nid=0x1 runnable [0x00007f8b14e5d000]
                    java.lang.Thread.State: RUNNABLE
                     at java.lang.Object.wait(java.base@21/Native Method)
                 """;
@@ -31,7 +31,7 @@ class StatusCommandMultipleFilesTest {
                 2024-12-29 13:00:01
                 Full thread dump Java HotSpot(TM) 64-Bit Server VM (21+35-2513 mixed mode):
 
-                \"main\" #1 prio=5 os_prio=0 tid=0x00007f8b0c00b800 nid=0x1 runnable [0x00007f8b14e5d000]
+                "main" #1 prio=5 os_prio=0 tid=0x00007f8b0c00b800 nid=0x1 runnable [0x00007f8b14e5d000]
                    java.lang.Thread.State: RUNNABLE
                     at java.lang.Object.wait(java.base@21/Native Method)
                 """;

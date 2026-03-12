@@ -9,7 +9,7 @@ import java.util.*;
 
 /**
  * Orchestrates the execution of analyzers.
- *
+ * <p>
  * Responsibilities:
  * - Validate options per analyzer
  * - Filter dumps based on analyzer requirements

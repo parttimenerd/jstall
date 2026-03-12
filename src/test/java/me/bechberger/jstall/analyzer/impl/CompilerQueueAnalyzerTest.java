@@ -5,7 +5,6 @@ import me.bechberger.jstall.analyzer.ResolvedData;
 import me.bechberger.jstall.provider.requirement.CollectedData;
 import org.junit.jupiter.api.Test;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 

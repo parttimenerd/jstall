@@ -12,7 +12,6 @@ import me.bechberger.jthreaddump.model.ThreadInfo;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
@@ -71,10 +70,9 @@ public class SystemAnalyzer {
             return Collections.emptyList();
         }
 
-        var executor = Executors.newFixedThreadPool(
+        try (var executor = Executors.newFixedThreadPool(
                 Math.min(jvms.size(), Runtime.getRuntime().availableProcessors())
-        );
-        try {
+        )) {
             // Submit all JVM analysis tasks in parallel
             List<CompletableFuture<JVMAnalysis>> futures = jvms.stream()
                 .map(jvm -> CompletableFuture.supplyAsync(() -> {

@@ -7,7 +7,7 @@ import java.util.Set;
 
 /**
  * An analyzer consumes thread dumps and produces output.
- *
+ * <p>
  * Analyzers are pure consumers - they do not control dump collection
  * and do not abort execution.
  */
@@ -20,7 +20,7 @@ public interface Analyzer {
 
     /**
      * Returns the set of options this analyzer supports.
-     *
+     * <p>
      * Common options: "dumps", "interval", "keep", "top"
      */
     Set<String> supportedOptions();
@@ -32,7 +32,7 @@ public interface Analyzer {
     
     /**
      * Returns the data requirements for this analyzer.
-     * 
+     * <p>
      * This method declares what data needs to be collected for recording sessions.
      * The default implementation derives requirements from dumpRequirement() and options.
      * 

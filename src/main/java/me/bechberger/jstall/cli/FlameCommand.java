@@ -2,7 +2,6 @@ package me.bechberger.jstall.cli;
 
 import me.bechberger.femtocli.Spec;
 import me.bechberger.femtocli.annotations.Command;
-import me.bechberger.femtocli.FemtoCli;
 import me.bechberger.femtocli.annotations.Option;
 import me.bechberger.jstall.Main;
 import me.bechberger.jstall.provider.ReplayProvider;
@@ -36,7 +35,7 @@ import java.util.concurrent.Callable;
 )
 public class FlameCommand implements Callable<Integer> {
 
-    @Parameters(index = "0", arity = "0..1", description = "PID or filter (filters JVMs by main class name)")
+    @Parameters(arity = "0..1", description = "PID or filter (filters JVMs by main class name)")
     String target;
 
     @Option(names = {"-o", "--output"}, description = "Output HTML file (default: flame.html)")

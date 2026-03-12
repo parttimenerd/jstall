@@ -14,7 +14,7 @@ import java.util.Set;
 
 /**
  * Displays VM vitals information from VM.vitals jcmd command (SapMachine-specific).
- *
+ * <p>
  * Shows the last n rows of VM.vitals data (configurable via --top option, default: 5).
  */
 public class VmVitalsAnalyzer implements Analyzer {

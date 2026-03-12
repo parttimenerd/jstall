@@ -36,6 +36,7 @@ public class ThreadActivityCategorizer {
             return new MethodMatcher();
         }
 
+        @SafeVarargs
         public static Predicate<StackFrame> anyOf(Predicate<StackFrame>... predicates) {
             return frame -> {
                 for (Predicate<StackFrame> p : predicates) {
@@ -45,6 +46,7 @@ public class ThreadActivityCategorizer {
             };
         }
 
+        @SafeVarargs
         public static Predicate<StackFrame> allOf(Predicate<StackFrame>... predicates) {
             return frame -> {
                 for (Predicate<StackFrame> p : predicates) {
@@ -125,6 +127,7 @@ public class ThreadActivityCategorizer {
      * Each category contains its own matching rule and belongs to a {@link CategoryGroup}.
      * Categories are ordered by specificity - more specific categories first.
      */
+    @SuppressWarnings("unchecked")
     public enum Category {
         // External Process operations (most specific)
         EXTERNAL_PROCESS("External Process", CategoryGroup.JAVA, anyOf(

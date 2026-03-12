@@ -10,11 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -95,13 +91,11 @@ public class AsyncProfilerWindowRequirement implements IntervalWindowRequirement
         String recordingName = "jstall-record-" + pid + "-" + sampleIndex + "-" + timestamp;
         boolean jfrStarted = startJfr(pid, recordingName);
         try {
-            AsyncProfilerLoader.executeProfiler(new String[]{
-                "-d", windowMs / 1000.0 + "s",
-                "-e", event,
-                "-i", String.valueOf(PROFILE_SAMPLE_INTERVAL_NANOS),
-                "-f", flamePath.toString(),
-                String.valueOf(pid)
-            });
+            AsyncProfilerLoader.executeProfiler("-d", windowMs / 1000.0 + "s",
+                    "-e", event,
+                    "-i", String.valueOf(PROFILE_SAMPLE_INTERVAL_NANOS),
+                    "-f", flamePath.toString(),
+                    String.valueOf(pid));
 
             if (!Files.exists(flamePath)) {
                 return skip(timestamp, "flamegraph-capture-failed");
@@ -177,9 +171,7 @@ public class AsyncProfilerWindowRequirement implements IntervalWindowRequirement
         List<String> cmd = new ArrayList<>();
         cmd.add("jcmd");
         cmd.add(String.valueOf(pid));
-        for (String arg : args) {
-            cmd.add(arg);
-        }
+        cmd.addAll(Arrays.asList(args));
 
         Process process = new ProcessBuilder(cmd).start();
         try {

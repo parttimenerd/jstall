@@ -4,6 +4,7 @@ import me.bechberger.jstall.analyzer.BaseAnalyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.analyzer.ResolvedData;
+import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.model.ThreadInfo;
 
@@ -12,7 +13,7 @@ import java.util.stream.Collectors;
 
 /**
  * Identifies threads that are waiting on the same lock across multiple thread dumps with no CPU time usage.
- *
+ * <p>
  * These threads might be starving, they are waiting without making progress.
  */
 public class WaitingThreadsAnalyzer extends BaseAnalyzer {
@@ -44,7 +45,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
 
     @Override
     public AnalyzerResult analyze(ResolvedData data, Map<String, Object> options) {
-        List<ThreadDump> dumps = data.dumps().stream().map(dump -> dump.parsed()).toList();
+        List<ThreadDump> dumps = data.dumps().stream().map(ThreadDumpSnapshot::parsed).toList();
         boolean noNative = getNoNativeOption(options);
         int stackDepth = getStackDepthOption(options);
         boolean intelligentFilter = getIntelligentFilterOption(options);

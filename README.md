@@ -52,6 +52,12 @@ jstall dependency-graph 12345
 
 # Generate a flamegraph
 jstall flame 12345
+
+# Record diagnostic data for later analysis or sharing
+jstall record 12345 --output myapp-diagnostics.zip
+
+# Run status analysis on the recorded data
+jstall -f myapp-diagnostics.zip status
 ```
 
 ### JVM support check (part of `status`)
@@ -785,7 +791,7 @@ mvn clean package
 
 [bin/sync-documentation.py](bin/sync-documentation.py) is used to synchronize the CLI help messages into this README.
 
-[release.sh](./release.sh) is a helper script to create new releases.
+[release.py](./release.py) is a helper script to create new releases.
 
 ### Extending
 

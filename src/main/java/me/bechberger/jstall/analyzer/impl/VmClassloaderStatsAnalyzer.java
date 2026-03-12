@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 
 /**
  * Analyze VM.classloader_stats output.
- *
+ * <p>
  * Aggregates rows by classloader type (ignoring pointer columns), sorts by class count,
  * and optionally shows growth/decline trend when multiple samples are available.
  */

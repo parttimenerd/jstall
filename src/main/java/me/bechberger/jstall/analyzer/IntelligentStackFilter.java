@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 
 /**
  * Intelligently filters stack traces to focus on application code and important framework frames.
- *
+ * <p>
  * Collapses internal/framework stack frames while preserving important ones and application code.
  */
 public class IntelligentStackFilter {

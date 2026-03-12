@@ -5,6 +5,7 @@ import me.bechberger.jstall.util.JMXDiagnosticHelper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -13,7 +14,7 @@ import java.util.zip.ZipOutputStream;
 /**
  * Generic requirement for any jcmd diagnostic command.
  * Supports intervals for tracking changes over time (e.g., GC.heap_info, VM.native_memory).
- * 
+ * <p>
  * Examples:
  * - new JcmdRequirement("GC.heap_info", null, CollectionSchedule.intervals(5, 1000))
  * - new JcmdRequirement("VM.native_memory", new String[]{"summary"}, CollectionSchedule.once())
@@ -120,7 +121,7 @@ public class JcmdRequirement implements DataRequirement {
         }
         
         String subdir = getType() + "/";
-        String extension = getFileExtension();
+        String extension = "txt";
         
         if (schedule.isMultiple()) {
             // Multiple samples: numbered files
@@ -146,25 +147,16 @@ public class JcmdRequirement implements DataRequirement {
             }
         }
     }
-    
-    private String getFileExtension() {
-        // Thread dumps traditionally saved as .txt
-        if ("Thread.print".equals(command)) {
-            return "txt";
-        }
-        // Everything else is also text
-        return "txt";
-    }
-    
+
     @Override
     public List<CollectedData> load(ZipFile zipFile, String pidPath) throws IOException {
         List<CollectedData> result = new ArrayList<>();
         String prefix = pidPath + getType() + "/";
-        String extension = getFileExtension();
+        String extension = "txt";
         
         zipFile.stream()
             .filter(entry -> entry.getName().startsWith(prefix) && entry.getName().endsWith("." + extension))
-            .sorted((e1, e2) -> e1.getName().compareTo(e2.getName()))
+            .sorted(Comparator.comparing((ZipEntry e) -> e.getName()))
             .forEach(entry -> {
                 try {
                     String content = new String(
@@ -227,7 +219,7 @@ public class JcmdRequirement implements DataRequirement {
             return List.of();
         }
         String subdir = getType() + "/";
-        String extension = getFileExtension();
+        String extension = "txt";
         List<String> files = new ArrayList<>();
         if (schedule.isMultiple()) {
             for (int i = 0; i < samples.size(); i++) {

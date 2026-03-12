@@ -9,7 +9,7 @@ import java.util.List;
 
 /**
  * Generator for test thread dumps.
- *
+ * <p>
  * Run this test to generate sample thread dumps for use in other tests.
  * The dumps are saved to src/test/resources/thread-dumps/
  */

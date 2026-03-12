@@ -7,7 +7,7 @@ import java.util.stream.Collectors;
 /**
  * Collection of data requirements for a recording session.
  * Provides a builder API for declaring data needs.
- * 
+ * <p>
  * Example usage:
  * <pre>{@code
  * DataRequirements requirements = DataRequirements.builder()
@@ -238,7 +238,7 @@ public class DataRequirements {
         /**
          * Adds a jcmd command collection using default schedule.
          * This is the typical way to add jcmd commands in recording scenarios.
-         * 
+         * <p>
          * Example: builder.addJcmd("GC.class_histogram")
          * 
          * @param command jcmd command name (e.g., "GC.class_histogram", "VM.native_memory")
@@ -249,7 +249,7 @@ public class DataRequirements {
         
         /**
          * Adds a jcmd command collection with specific arguments using default schedule.
-         * 
+         * <p>
          * Example: builder.addJcmd("VM.native_memory", new String[]{"summary"})
          * 
          * @param command jcmd command name

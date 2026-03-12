@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class DeadLockAnalyzerIntegrationTest {
 
+    @org.junit.Test
     public void testDeadlockDetectionWithLiveApp() throws Exception {
         TestAppLauncher launcher = new TestAppLauncher();
 

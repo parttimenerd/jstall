@@ -60,8 +60,8 @@ class ReplayProviderTest {
             .withJvm(pid, mainClass);
 
         for (int i = 0; i < dumpCount && i < dumps.length; i++) {
-            builder.withThreadDump(dumps[i], baseTime + (i * 1000))
-                   .withSystemProperties(systemProps, baseTime + (i * 1000));
+            builder.withThreadDump(dumps[i], baseTime + (i * 1000L))
+                   .withSystemProperties(systemProps, baseTime + (i * 1000L));
         }
 
         builder.build().build(tempFile);
@@ -232,9 +232,7 @@ class ReplayProviderTest {
 
         ReplayProvider replay = new ReplayProvider(recording);
 
-        assertThrows(IOException.class, () -> {
-            replay.loadForPid(9999);
-        });
+        assertThrows(IOException.class, () -> replay.loadForPid(9999));
     }
 
     @Test

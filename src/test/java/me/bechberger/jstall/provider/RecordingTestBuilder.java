@@ -138,7 +138,7 @@ public class RecordingTestBuilder {
             List<String> samples = entry.getValue();
             for (int i = 0; i < samples.size(); i++) {
                 long timestamp = jvm.otherDataTimestamps.getOrDefault(
-                    dataType + ":" + i, System.currentTimeMillis() + i * 1000);
+                    dataType + ":" + i, System.currentTimeMillis() + i * 1000L);
                 String fileName = String.format("%s%d/%s/%03d-%d.txt",
                     rootPath,
                     jvm.pid, dataType, i, timestamp);

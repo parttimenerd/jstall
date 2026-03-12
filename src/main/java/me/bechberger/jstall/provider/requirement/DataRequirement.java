@@ -9,7 +9,7 @@ import java.util.zip.ZipOutputStream;
 
 /**
  * Defines a type of data that can be collected from a JVM and persisted/loaded.
- * 
+ * <p>
  * This interface enables a plugin-style architecture where new data types
  * (thread dumps, heap info, JFR recordings, etc.) can be added without
  * modifying the recording/replay framework.

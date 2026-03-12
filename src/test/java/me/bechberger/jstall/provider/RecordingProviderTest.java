@@ -2,14 +2,12 @@ package me.bechberger.jstall.provider;
 
 import me.bechberger.jstall.Main;
 import me.bechberger.jstall.util.JVMDiscovery;
-import me.bechberger.jstall.provider.requirement.DataRequirements;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipFile;
@@ -227,9 +225,7 @@ class RecordingProviderTest {
 
         ReplayProvider replay = new ReplayProvider(outputFile);
 
-        assertThrows(java.io.IOException.class, () -> {
-            replay.loadForPid(9999);
-        });
+        assertThrows(java.io.IOException.class, () -> replay.loadForPid(9999));
     }
 
     @Test
@@ -247,9 +243,9 @@ class RecordingProviderTest {
 
         // Verify ZIP structure
         try (ZipFile zipFile = new ZipFile(outputFile.toFile())) {
-            assertTrue(zipFile.getEntry("structure-recording/metadata.json") != null);
-            assertTrue(zipFile.getEntry("structure-recording/README.md") != null);
-            assertTrue(zipFile.getEntry("structure-recording/6000/thread-dumps/000-" + timestamp + ".txt") != null);
+            assertNotNull(zipFile.getEntry("structure-recording/metadata.json"));
+            assertNotNull(zipFile.getEntry("structure-recording/README.md"));
+            assertNotNull(zipFile.getEntry("structure-recording/6000/thread-dumps/000-" + timestamp + ".txt"));
         }
     }
 

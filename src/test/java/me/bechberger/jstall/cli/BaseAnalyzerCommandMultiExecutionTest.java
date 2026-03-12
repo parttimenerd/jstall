@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static me.bechberger.jstall.cli.Util.run;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**

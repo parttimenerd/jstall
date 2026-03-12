@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * AI-powered thread dump analyzer using LLM.
- *
+ * <p>
  * Runs StatusAnalyzer to get thread dump analysis, then sends it to an LLM
  * for intelligent insights and answers.
  */

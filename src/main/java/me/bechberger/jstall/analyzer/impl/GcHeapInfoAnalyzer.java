@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
 
 /**
  * Analyzes GC.heap_info samples.
- *
+ * <p>
  * Shows absolute values from the last dump plus the change compared to the previous dump.
  */
 public class GcHeapInfoAnalyzer implements Analyzer {
@@ -202,18 +202,7 @@ public class GcHeapInfoAnalyzer implements Analyzer {
             }
         }
 
-        if (heapTotal == null ||
-            heapUsed == null ||
-            youngRegionCount == null ||
-            youngRegionTotal == null ||
-            survivorRegionCount == null ||
-            survivorRegionTotal == null ||
-            metaspaceUsed == null ||
-            metaspaceCommitted == null ||
-            metaspaceReserved == null ||
-            classSpaceUsed == null ||
-            classSpaceCommitted == null ||
-            classSpaceReserved == null) {
+        if (heapTotal == null || youngRegionCount == null || youngRegionTotal == null || survivorRegionTotal == null || metaspaceCommitted == null || classSpaceCommitted == null) {
             return null;
         }
 

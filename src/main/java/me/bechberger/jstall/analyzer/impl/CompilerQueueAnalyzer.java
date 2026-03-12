@@ -106,7 +106,7 @@ public class CompilerQueueAnalyzer implements Analyzer {
         int minQueued = parsed.stream().mapToInt(ts -> ts.snapshot.totalQueuedCount()).min().orElse(0);
         
         TimestampedSnapshot latest = parsed.get(parsed.size() - 1);
-        output.append(String.format("Summary:\n"));
+        output.append("Summary:\n");
         output.append(String.format("  Active compilations: %d (range: %d-%d)\n", 
             latest.snapshot.totalActiveCount(), minActive, maxActive));
         output.append(String.format("  Queued tasks: %d (range: %d-%d)\n\n", 

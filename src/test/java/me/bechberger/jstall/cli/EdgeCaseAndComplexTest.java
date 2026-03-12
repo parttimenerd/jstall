@@ -6,7 +6,6 @@ import me.bechberger.jstall.provider.RecordingTestBuilder;
 import me.bechberger.jstall.provider.ThreadDumpTestResources;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -634,7 +633,7 @@ class EdgeCaseAndComplexTest {
     void fileEqualsStatusCommand() throws Exception {
         Path file = createRichRecording();
 
-        RunResult result = Util.run("--file=" + file.toString(), "status", "1000");
+        RunResult result = Util.run("--file=" + file, "status", "1000");
         assertEquals(0, result.exitCode(),
             () -> "--file=value with status failed. stderr: " + result.err());
     }
@@ -643,7 +642,7 @@ class EdgeCaseAndComplexTest {
     void fileEqualsDeadlockCommand() throws Exception {
         Path file = createRichRecording();
 
-        RunResult result = Util.run("--file=" + file.toString(), "deadlock", "3000");
+        RunResult result = Util.run("--file=" + file, "deadlock", "3000");
         // Deadlock detected → exit 2
         assertEquals(2, result.exitCode(),
             () -> "--file=value with deadlock should return exit 2. stderr: " + result.err());
@@ -653,7 +652,7 @@ class EdgeCaseAndComplexTest {
     void fileEqualsListCommand() throws Exception {
         Path file = createRichRecording();
 
-        RunResult result = Util.run("--file=" + file.toString(), "list");
+        RunResult result = Util.run("--file=" + file, "list");
         assertEquals(0, result.exitCode(),
             () -> "--file=value with list failed. stderr: " + result.err());
     }
@@ -662,7 +661,7 @@ class EdgeCaseAndComplexTest {
     void shortFileEqualsForm() throws Exception {
         Path file = createRichRecording();
 
-        RunResult result = Util.run("-f=" + file.toString(), "threads", "1000");
+        RunResult result = Util.run("-f=" + file, "threads", "1000");
         assertEquals(0, result.exitCode(),
             () -> "-f=value form failed. stderr: " + result.err());
     }
@@ -719,7 +718,7 @@ class EdgeCaseAndComplexTest {
         assertEquals(0, result.exitCode());
         // Should list thread names or states
         assertFalse(result.out().isBlank(),
-            () -> "threads output should not be blank");
+                "threads output should not be blank");
     }
 
     // ================== version flag ==================
