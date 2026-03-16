@@ -1,6 +1,6 @@
 # JStall
 
-[![CI](https://github.com/parttimenerd/jstall/actions/workflows/ci.yml/badge.svg)](https://github.com/parttimenerd/jstall/actions/workflows/ci.yml) [![Maven Central Version](https://img.shields.io/maven-central/v/me.bechberger/jstall)](https://central.sonatype.com/artifact/me.bechberger/jstall)
+[![CI](https://github.com/parttimenerd/jstall/actions/workflows/ci.yml/badge.svg)](https://github.com/parttimenerd/jstall/actions/workflows/ci.yml) [![Maven Central Version](https://img.shields.io/maven-central/v/me.bechberger/jstall)](https://central.sonatype.com/artifact/me.bechberger/jstall) [![JetBrains Marketplace](https://img.shields.io/jetbrains/plugin/v/30667-jstall.svg)](https://plugins.jetbrains.com/plugin/30667-jstall) [![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/bechberger.jstall)](https://marketplace.visualstudio.com/items?itemName=bechberger.jstall)
 
 **JStall answers the age-old question: "What is my Java application doing right now?"**
 
@@ -23,6 +23,10 @@ Features:
 * **Record & Replay**: Record diagnostic data for later analysis or sharing as a zip file
 
 Requires Java 17+ to run.
+
+You can use the `jstall` CLI tool directly, or through the
+[IntelliJ plugin](https://plugins.jetbrains.com/plugin/30667-jstall) or
+[VSCode extension](https://marketplace.visualstudio.com/items?itemName=bechberger.jstall) (with MCP support).
 
 ## Quick Start
 
