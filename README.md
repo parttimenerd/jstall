@@ -124,7 +124,7 @@ Add the following dependency to your `pom.xml`:
 <dependency>
     <groupId>me.bechberger</groupId>
     <artifactId>jstall</artifactId>
-    <version>0.5.3</version>
+    <version>0.5.4</version>
 </dependency>
 ```
 
