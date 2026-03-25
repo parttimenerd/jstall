@@ -1,6 +1,6 @@
 package me.bechberger.jstall.cli;
 
-import me.bechberger.femtocli.RunResult;
+// Use the fluent RunResultAssert returned by RunCommandUtil.run
 import me.bechberger.jstall.Main;
 import me.bechberger.jstall.provider.RecordingTestBuilder;
 import me.bechberger.jstall.provider.ThreadDumpTestResources;
@@ -58,44 +58,34 @@ class ReplayExtendedTest {
     @Test
     void testDeadlockCommandWithReplay() throws Exception {
         Path recording = createStandardRecording();
-        RunResult result = Util.run("-f", recording.toString(), "deadlock", "10000");
         // deadlock analyzer succeeds even if no deadlock is found (exit 0)
-        assertEquals(0, result.exitCode(),
-            () -> "deadlock with replay failed. stderr: " + result.err());
+        RunCommandUtil.run("-f", recording.toString(), "deadlock", "10000").hasNoError();
     }
 
     @Test
     void testMostWorkCommandWithReplay() throws Exception {
         Path recording = createStandardRecording();
-        RunResult result = Util.run("-f", recording.toString(), "most-work", "10000");
-        assertEquals(0, result.exitCode(),
-            () -> "most-work with replay failed. stderr: " + result.err());
-        assertFalse(result.out().isBlank(), "most-work should produce output");
+        RunCommandUtil.run("-f", recording.toString(), "most-work", "10000").hasNoError().output().isNotBlank();
     }
 
     @Test
     void testWaitingThreadsCommandWithReplay() throws Exception {
         Path recording = createStandardRecording();
-        RunResult result = Util.run("-f", recording.toString(), "waiting-threads", "10000");
-        assertEquals(0, result.exitCode(),
-            () -> "waiting-threads with replay failed. stderr: " + result.err());
+        RunCommandUtil.run("-f", recording.toString(), "waiting-threads", "10000").hasNoError().output().isNotBlank();
     }
 
     @Test
     void testDependencyGraphCommandWithReplay() throws Exception {
         Path recording = createStandardRecording();
-        RunResult result = Util.run("-f", recording.toString(), "dependency-graph", "10000");
-        // dependency-graph may return non-zero if graph is empty; just verify it doesn't crash
-        assertTrue(result.err().isEmpty() || !result.err().contains("Unknown option"),
-            () -> "dependency-graph should not report unknown option. stderr: " + result.err());
+        RunResultAssert result = RunCommandUtil.run("-f", recording.toString(), "dependency-graph", "10000");
+        // dependency-graph may return non-zero if graph is empty; just verify it doesn't report unknown option
+        result.errorOutput().doesNotContain("Unknown option");
     }
 
     @Test
     void testJvmSupportCommandWithReplay() throws Exception {
         Path recording = createStandardRecording();
-        RunResult result = Util.run("-f", recording.toString(), "jvm-support", "10000");
-        assertEquals(0, result.exitCode(),
-            () -> "jvm-support with replay failed (recent java.version.date). stderr: " + result.err());
+        RunCommandUtil.run("-f", recording.toString(), "jvm-support", "10000").hasNoError();
     }
 
     @Test
@@ -114,9 +104,7 @@ class ReplayExtendedTest {
 
         tempFile.toFile().deleteOnExit();
 
-        RunResult result = Util.run("-f", tempFile.toString(), "jvm-support", "7777");
-        assertEquals(10, result.exitCode(), "Outdated JVM should return exit code 10");
-        assertTrue(result.out().contains("outdated"), "Output should mention 'outdated'");
+        RunCommandUtil.run("-f", tempFile.toString(), "jvm-support", "7777").hasExitCode(10).output().contains("outdated");
     }
 
     // ================== --file= equals form ==================
@@ -124,9 +112,7 @@ class ReplayExtendedTest {
     @Test
     void testFileEqualsForm() throws Exception {
         Path recording = createStandardRecording();
-        RunResult result = Util.run("--file=" + recording, "status", "10000");
-        assertEquals(0, result.exitCode(),
-            () -> "--file= form failed. stderr: " + result.err());
+        RunCommandUtil.run("--file=" + recording, "status", "10000").hasNoError().output().isNotBlank();
     }
 
     // ================== implicit status with -f ==================
@@ -135,18 +121,13 @@ class ReplayExtendedTest {
     void testImplicitStatusWithReplayFile() throws Exception {
         Path recording = createStandardRecording();
         // -f file.zip 10000  →  preprocessed to  -f file.zip status 10000
-        RunResult result = Util.run("-f", recording.toString(), "10000");
-        assertEquals(0, result.exitCode(),
-            () -> "Implicit status with -f. stderr: " + result.err());
-        assertFalse(result.out().isBlank(), "Should produce status output");
+        RunCommandUtil.run("-f", recording.toString(), "10000").hasNoError().output().isNotBlank();
     }
 
     @Test
     void testImplicitStatusWithEqualsForm() throws Exception {
         Path recording = createStandardRecording();
-        RunResult result = Util.run("--file=" + recording, "10000");
-        assertEquals(0, result.exitCode(),
-            () -> "Implicit status with --file=. stderr: " + result.err());
+        RunCommandUtil.run("--file=" + recording, "10000").hasNoError().output().isNotBlank();
     }
 
     // ================== list with filter in replay ==================
@@ -171,27 +152,20 @@ class ReplayExtendedTest {
         tempFile.toFile().deleteOnExit();
 
         // Without filter: both JVMs
-        RunResult all = Util.run("-f", tempFile.toString(), "list");
-        assertEquals(0, all.exitCode());
-        assertTrue(all.out().contains("1000") && all.out().contains("2000"),
-            () -> "Should list both JVMs. Output: " + all.out());
+        RunResultAssert all = RunCommandUtil.run("-f", tempFile.toString(), "list").hasNoError();
+        all.output().contains("1000");
+        all.output().contains("2000");
 
         // With filter: only Alpha
-        RunResult filtered = Util.run("-f", tempFile.toString(), "list", "Alpha");
-        assertEquals(0, filtered.exitCode());
-        assertTrue(filtered.out().contains("Alpha"),
-            () -> "Should list Alpha. Output: " + filtered.out());
-        assertFalse(filtered.out().contains("Beta"),
-            () -> "Should NOT list Beta. Output: " + filtered.out());
+        RunResultAssert filtered = RunCommandUtil.run("-f", tempFile.toString(), "list", "Alpha").hasNoError();
+        filtered.output().contains("Alpha");
+        filtered.output().doesNotContain("Beta");
     }
 
     @Test
     void testListReplayNoMatch() throws Exception {
         Path recording = createStandardRecording();
-        RunResult result = Util.run("-f", recording.toString(), "list", "nonexistent");
-        assertTrue(result.exitCode() != 0, "List with no matches should have non-zero exit");
-        assertTrue(result.out().contains("No JVMs found"),
-            () -> "Should say no JVMs found. Output: " + result.out());
+        RunCommandUtil.run("-f", recording.toString(), "list", "nonexistent").hasError().errorOutput().contains("No JVMs found");
     }
 
     // ================== empty ZIP / corrupt data ==================
@@ -201,11 +175,11 @@ class ReplayExtendedTest {
         Path emptyZip = tempDir.resolve("empty.zip");
         // Create a minimal valid ZIP (empty archive) 
         try (var zos = new java.util.zip.ZipOutputStream(Files.newOutputStream(emptyZip))) {
-            // no entries
+            // no entries; explicitly finish to ensure central directory is written
+            zos.finish();
         }
 
-        RunResult result = Util.run("-f", emptyZip.toString(), "status", "10000");
-        assertTrue(result.exitCode() != 0, "Empty ZIP should fail");
+        RunCommandUtil.run("-f", emptyZip.toString(), "status", "10000").hasError();
     }
 
     @Test
@@ -213,76 +187,59 @@ class ReplayExtendedTest {
         Path truncated = tempDir.resolve("truncated.zip");
         Files.write(truncated, new byte[]{0x50, 0x4B, 0x03, 0x04}); // ZIP magic header, truncated
 
-        RunResult result = Util.run("-f", truncated.toString(), "status", "10000");
-        assertTrue(result.exitCode() != 0, "Truncated ZIP should fail");
+        RunCommandUtil.run("-f", truncated.toString(), "status", "10000").hasError();
     }
 
     // ================== subcommand help texts ==================
 
     @Test
     void testStatusHelp() {
-        RunResult result = Util.run("status", "--help");
-        assertEquals(0, result.exitCode());
-        assertTrue(result.out().contains("status"), "Should contain command name");
-        assertTrue(result.out().contains("--top"), "Should contain --top option");
-        assertTrue(result.out().contains("--no-native"), "Should contain --no-native option");
+        RunResultAssert result = RunCommandUtil.run("status", "--help").hasNoError();
+        result.output().contains("status");
+        result.output().contains("--top");
+        result.output().contains("--no-native");
     }
 
     @Test
     void testThreadsHelp() {
-        RunResult result = Util.run("threads", "--help");
-        assertEquals(0, result.exitCode());
-        assertTrue(result.out().contains("threads"));
+        RunCommandUtil.run("threads", "--help").hasNoError().output().contains("threads");
     }
 
     @Test
     void testMostWorkHelp() {
-        RunResult result = Util.run("most-work", "--help");
-        assertEquals(0, result.exitCode());
-        assertTrue(result.out().contains("most-work"));
+        RunCommandUtil.run("most-work", "--help").hasNoError().output().contains("most-work");
     }
 
     @Test
     void testWaitingThreadsHelp() {
-        RunResult result = Util.run("waiting-threads", "--help");
-        assertEquals(0, result.exitCode());
-        assertTrue(result.out().contains("waiting-threads"));
+        RunCommandUtil.run("waiting-threads", "--help").hasNoError().output().contains("waiting-threads");
     }
 
     @Test
     void testDependencyGraphHelp() {
-        RunResult result = Util.run("dependency-graph", "--help");
-        assertEquals(0, result.exitCode());
-        assertTrue(result.out().contains("dependency-graph"));
+        RunCommandUtil.run("dependency-graph", "--help").hasNoError().output().contains("dependency-graph");
     }
 
     @Test
     void testJvmSupportHelp() {
-        RunResult result = Util.run("jvm-support", "--help");
-        assertEquals(0, result.exitCode());
-        assertTrue(result.out().contains("jvm-support"));
+        RunCommandUtil.run("jvm-support", "--help").hasNoError().output().contains("jvm-support");
     }
 
     @Test
     void testListHelp() {
-        RunResult result = Util.run("list", "--help");
-        assertEquals(0, result.exitCode());
-        assertTrue(result.out().contains("list"));
+        RunCommandUtil.run("list", "--help").hasNoError().output().contains("list");
     }
 
     @Test
     void testVmVitalsHelp() {
-        RunResult result = Util.run("vm-vitals", "--help");
-        assertEquals(0, result.exitCode());
-        assertTrue(result.out().contains("vm-vitals"));
-        assertTrue(result.out().contains("--top"));
+        RunResultAssert result = RunCommandUtil.run("vm-vitals", "--help").hasNoError();
+        result.output().contains("vm-vitals");
+        result.output().contains("--top");
     }
 
     @Test
     void testGcHeapInfoHelp() {
-        RunResult result = Util.run("gc-heap-info", "--help");
-        assertEquals(0, result.exitCode());
-        assertTrue(result.out().contains("gc-heap-info"));
+        RunCommandUtil.run("gc-heap-info", "--help").hasNoError().output().contains("gc-heap-info");
     }
 
     // ================== no-args behaviour ==================
@@ -290,10 +247,9 @@ class ReplayExtendedTest {
     @Test
     void testNoArgsShowsUsage() {
         // When no args, Main.run() is called which prints usage + JVM list
-        RunResult result = Util.run();
-        assertEquals(0, result.exitCode());
-        assertTrue(result.out().contains("Usage:") || result.out().contains("Available commands"),
-            () -> "Should show usage. Output: " + result.out());
+        RunResultAssert result = RunCommandUtil.run().hasNoError();
+        assertTrue(result.get().out().contains("Usage:") || result.get().out().contains("Available commands"),
+            () -> "Should show usage. Output: " + result.get().out());
     }
 
     // ================== replay with --top and --no-native options ==================
@@ -301,17 +257,13 @@ class ReplayExtendedTest {
     @Test
     void testStatusWithTopOption() throws Exception {
         Path recording = createStandardRecording();
-        RunResult result = Util.run("-f", recording.toString(), "status", "--top", "1", "10000");
-        assertEquals(0, result.exitCode(),
-            () -> "status --top 1 failed. stderr: " + result.err());
+        RunCommandUtil.run("-f", recording.toString(), "status", "--top", "1", "10000").hasNoError().output().isNotBlank();
     }
 
     @Test
     void testStatusWithNoNativeOption() throws Exception {
         Path recording = createStandardRecording();
-        RunResult result = Util.run("-f", recording.toString(), "status", "--no-native", "10000");
-        assertEquals(0, result.exitCode(),
-            () -> "status --no-native failed. stderr: " + result.err());
+        RunCommandUtil.run("-f", recording.toString(), "status", "--no-native", "10000").hasNoError().output().isNotBlank();
     }
 
     // ================== replay with --dumps and --interval ==================
@@ -319,9 +271,7 @@ class ReplayExtendedTest {
     @Test
     void testThreadsWithDumpsOption() throws Exception {
         Path recording = createStandardRecording();
-        RunResult result = Util.run("-f", recording.toString(), "threads", "--dumps", "1", "10000");
-        assertEquals(0, result.exitCode(),
-            () -> "threads --dumps 1 failed. stderr: " + result.err());
+        RunCommandUtil.run("-f", recording.toString(), "threads", "--dumps", "1", "10000").hasNoError().output().isNotBlank();
     }
 
     // ================== status output contains expected sections ==================
@@ -329,10 +279,9 @@ class ReplayExtendedTest {
     @Test
     void testStatusOutputContainsSections() throws Exception {
         Path recording = createStandardRecording();
-        RunResult result = Util.run("-f", recording.toString(), "status", "10000");
-        assertEquals(0, result.exitCode());
+        RunResultAssert result = RunCommandUtil.run("-f", recording.toString(), "status", "10000").hasNoError();
 
-        String out = result.out();
+        String out = result.get().out();
         // Status runs MostWorkAnalyzer, ThreadsAnalyzer, etc.
         assertTrue(out.contains("==="), "Should contain section headers (=== analyzer_name ===)");
     }

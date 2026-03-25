@@ -191,14 +191,14 @@ class RecordReplayIntegrationTest {
 
         ReplayProvider replay = new ReplayProvider(recordingFile);
 
-        // Request different counts
-        List<ThreadDumpSnapshot> one = replay.collectFromJVM(TEST_PID, 1, 1000, null);
-        List<ThreadDumpSnapshot> two = replay.collectFromJVM(TEST_PID, 2, 1000, null);
-        List<ThreadDumpSnapshot> all = replay.collectFromJVM(TEST_PID, 0, 1000, null);
+        // Load all dumps and limit as needed
+        List<ThreadDumpSnapshot> allDumps = replay.loadForPid(TEST_PID);
+        List<ThreadDumpSnapshot> one = allDumps.subList(0, Math.min(1, allDumps.size()));
+        List<ThreadDumpSnapshot> two = allDumps.subList(0, Math.min(2, allDumps.size()));
 
         assertEquals(1, one.size());
         assertEquals(2, two.size());
-        assertEquals(3, all.size());
+        assertEquals(3, allDumps.size());
     }
 
     @Test

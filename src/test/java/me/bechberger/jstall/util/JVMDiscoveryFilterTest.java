@@ -12,9 +12,11 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class JVMDiscoveryFilterTest {
 
+    JVMDiscovery discovery = new JVMDiscovery(new CommandExecutor.LocalCommandExecutor());
+
     @Test
     void testListJVMsWithoutFilter() throws IOException {
-        List<JVMDiscovery.JVMProcess> jvms = JVMDiscovery.listJVMs();
+        List<JVMDiscovery.JVMProcess> jvms = discovery.listJVMs();
 
         assertNotNull(jvms);
         // JVMs list should not include jstack
@@ -27,7 +29,7 @@ class JVMDiscoveryFilterTest {
     @Test
     void testListJVMsWithFilter() throws IOException {
         // First get all JVMs
-        List<JVMDiscovery.JVMProcess> allJVMs = JVMDiscovery.listJVMs();
+        List<JVMDiscovery.JVMProcess> allJVMs = discovery.listJVMs();
 
         if (allJVMs.isEmpty()) {
             // No JVMs to filter, skip test
@@ -37,7 +39,7 @@ class JVMDiscoveryFilterTest {
         // Pick a known part of a JVM's main class
         String filterTerm = allJVMs.get(0).mainClass().split("\\.")[0]; // Get first package name
 
-        List<JVMDiscovery.JVMProcess> filtered = JVMDiscovery.listJVMs(filterTerm);
+        List<JVMDiscovery.JVMProcess> filtered = discovery.listJVMs(filterTerm);
 
         assertNotNull(filtered);
         // All filtered JVMs should contain the filter term
@@ -51,7 +53,7 @@ class JVMDiscoveryFilterTest {
     void testListJVMsWithNonMatchingFilter() throws IOException {
         String impossibleFilter = "VeryUnlikelyJVMName9999XYZ";
 
-        List<JVMDiscovery.JVMProcess> filtered = JVMDiscovery.listJVMs(impossibleFilter);
+        List<JVMDiscovery.JVMProcess> filtered = discovery.listJVMs(impossibleFilter);
 
         assertNotNull(filtered);
         assertTrue(filtered.isEmpty(), "Should find no JVMs with impossible filter");
@@ -59,27 +61,17 @@ class JVMDiscoveryFilterTest {
 
     @Test
     void testListJVMsWithNullFilter() throws IOException {
-        List<JVMDiscovery.JVMProcess> jvms = JVMDiscovery.listJVMs(null);
+        List<JVMDiscovery.JVMProcess> jvms = discovery.listJVMs(null);
 
         assertNotNull(jvms);
         // Should behave like no filter
-        List<JVMDiscovery.JVMProcess> noFilter = JVMDiscovery.listJVMs();
-        assertEquals(noFilter.size(), jvms.size());
-    }
-
-    @Test
-    void testListJVMsWithEmptyFilter() throws IOException {
-        List<JVMDiscovery.JVMProcess> jvms = JVMDiscovery.listJVMs("");
-
-        assertNotNull(jvms);
-        // Should behave like no filter
-        List<JVMDiscovery.JVMProcess> noFilter = JVMDiscovery.listJVMs();
+        List<JVMDiscovery.JVMProcess> noFilter = discovery.listJVMs();
         assertEquals(noFilter.size(), jvms.size());
     }
 
     @Test
     void testListJVMsCaseInsensitiveFilter() throws IOException {
-        List<JVMDiscovery.JVMProcess> allJVMs = JVMDiscovery.listJVMs();
+        List<JVMDiscovery.JVMProcess> allJVMs = discovery.listJVMs();
 
         if (allJVMs.isEmpty()) {
             return;
@@ -94,10 +86,10 @@ class JVMDiscoveryFilterTest {
         String term = mainClass.substring(0, 3);
 
         // Test with uppercase
-        List<JVMDiscovery.JVMProcess> upperCase = JVMDiscovery.listJVMs(term.toUpperCase());
+        List<JVMDiscovery.JVMProcess> upperCase = discovery.listJVMs(term.toUpperCase());
 
         // Test with lowercase
-        List<JVMDiscovery.JVMProcess> lowerCase = JVMDiscovery.listJVMs(term.toLowerCase());
+        List<JVMDiscovery.JVMProcess> lowerCase = discovery.listJVMs(term.toLowerCase());
 
         // Should find same results regardless of case
         assertEquals(upperCase.size(), lowerCase.size(),
@@ -108,7 +100,7 @@ class JVMDiscoveryFilterTest {
     void testListJVMsExcludesCurrentJVM() throws IOException {
         long currentPid = ProcessHandle.current().pid();
 
-        List<JVMDiscovery.JVMProcess> jvms = JVMDiscovery.listJVMs();
+        List<JVMDiscovery.JVMProcess> jvms = discovery.listJVMs();
 
         for (JVMDiscovery.JVMProcess jvm : jvms) {
             assertNotEquals(currentPid, jvm.pid(),

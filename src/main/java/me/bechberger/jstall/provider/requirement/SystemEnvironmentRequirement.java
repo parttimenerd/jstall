@@ -43,13 +43,13 @@ public class SystemEnvironmentRequirement implements DataRequirement {
     @Override
     public CollectedData collect(JMXDiagnosticHelper helper, int sampleIndex) throws IOException {
         long timestamp = System.currentTimeMillis();
-        
-        // Collect system environment (process list)
-        SystemEnvironment env = SystemEnvironment.createCurrent();
-        
-        // Convert to JSON for storage
+
+        // For remote executors (e.g. SSH) we cannot use ProcessHandle, so we run ps
+        // through the CommandExecutor which forwards the command to the right host.
+        // For local executors we keep the richer createCurrent() path.
+        SystemEnvironment env = SystemEnvironment.create(helper.getExecutor());
+
         String jsonData = systemEnvironmentToJson(env);
-        
         return new CollectedData(timestamp, jsonData, java.util.Map.of());
     }
     

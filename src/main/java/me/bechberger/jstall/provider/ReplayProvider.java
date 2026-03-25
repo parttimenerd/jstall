@@ -33,7 +33,7 @@ import java.util.zip.ZipFile;
 /**
  * ThreadDumpProvider that replays data from a recording ZIP file.
  */
-public class ReplayProvider implements ThreadDumpProvider {
+public class ReplayProvider {
 
     private static final String THREAD_PRINT_COMMAND = "Thread.print";
     private static final String VM_SYSTEM_PROPERTIES_COMMAND = "VM.system_properties";
@@ -110,24 +110,6 @@ public class ReplayProvider implements ThreadDumpProvider {
         return listRecordedJvms(null).stream().anyMatch(jvm -> jvm.pid() == pid);
     }
 
-    @Override
-    public List<ThreadDumpSnapshot> collectFromJVM(long pid,
-                                                   int count,
-                                                   long intervalMs,
-                                                   Path persistTo) throws IOException {
-        List<ThreadDumpSnapshot> snapshots = loadForPid(pid);
-        if (snapshots.isEmpty()) {
-            throw new IOException("No recorded thread dumps found for PID " + pid);
-        }
-
-        int effectiveCount = count <= 0 ? snapshots.size() : Math.min(count, snapshots.size());
-        return snapshots.subList(0, effectiveCount);
-    }
-
-    @Override
-    public List<ThreadDumpSnapshot> loadFromFiles(List<Path> dumpFiles) throws IOException {
-        return new JThreadDumpProvider().loadFromFiles(dumpFiles);
-    }
 
     public List<ThreadDumpSnapshot> loadForPid(long pid) throws IOException {
         String pidPath = rootPath + pid + "/";

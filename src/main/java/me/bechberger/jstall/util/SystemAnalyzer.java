@@ -3,9 +3,13 @@ package me.bechberger.jstall.util;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.ResolvedData;
 import me.bechberger.jstall.analyzer.impl.StatusAnalyzer;
+import me.bechberger.jstall.model.SystemEnvironment;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
-import me.bechberger.jstall.provider.JThreadDumpProvider;
-import me.bechberger.jstall.provider.ThreadDumpProvider;
+import me.bechberger.jstall.provider.DataCollector;
+import me.bechberger.jstall.provider.requirement.CollectedData;
+import me.bechberger.jstall.provider.requirement.CollectionSchedule;
+import me.bechberger.jstall.provider.requirement.DataRequirements;
+import me.bechberger.jstall.provider.requirement.ThreadDumpRequirement;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.model.ThreadInfo;
 
@@ -47,8 +51,14 @@ public class SystemAnalyzer {
         }
     }
 
-    private final ThreadDumpProvider provider = new JThreadDumpProvider();
+    private final JVMDiscovery discovery;
+    private final CommandExecutor executor;
     private final StatusAnalyzer statusAnalyzer = new StatusAnalyzer();
+
+    public SystemAnalyzer(CommandExecutor executor) {
+        this.executor = executor;
+        this.discovery = new JVMDiscovery(executor);
+    }
 
     /**
      * Analyzes all JVMs on the system.
@@ -64,13 +74,13 @@ public class SystemAnalyzer {
                                            Map<String, Object> options,
                                            double cpuThresholdPercent) throws IOException {
         // Discover all JVMs
-        List<JVMDiscovery.JVMProcess> jvms = JVMDiscovery.listJVMs();
+        List<JVMDiscovery.JVMProcess> jvms = discovery.listJVMs();
 
         if (jvms.isEmpty()) {
             return Collections.emptyList();
         }
 
-        var executor = Executors.newFixedThreadPool(
+        var threadPool = Executors.newFixedThreadPool(
                 Math.min(jvms.size(), Runtime.getRuntime().availableProcessors())
         );
         try {
@@ -85,7 +95,7 @@ public class SystemAnalyzer {
                                          " (" + jvm.mainClass() + "): " + e.getMessage());
                         return null;
                     }
-                }, executor))
+                }, threadPool))
                 .toList();
 
             // Wait for all analyses to complete
@@ -105,7 +115,7 @@ public class SystemAnalyzer {
                 .collect(Collectors.toList());
 
         } finally {
-            executor.shutdown();
+            threadPool.shutdown();
         }
     }
 
@@ -114,8 +124,18 @@ public class SystemAnalyzer {
      */
     private JVMAnalysis analyzeJVM(JVMDiscovery.JVMProcess jvm, int count, long intervalMs,
                                    Map<String, Object> options) throws IOException {
-        // Collect dumps
-        List<ThreadDumpSnapshot> dumps = provider.collectFromJVM(jvm.pid(), count, intervalMs, null);
+        DataRequirements requirements = DataRequirements.builder()
+                .addThreadDumps(count, intervalMs)
+                .build();
+        DataCollector collector = new DataCollector(executor.diagnosticHelper(jvm.pid()), requirements);
+        Map<me.bechberger.jstall.provider.requirement.DataRequirement, List<CollectedData>> collected = collector.collectAll();
+
+        List<CollectedData> dumpData = collected.entrySet().stream()
+                .filter(e -> ThreadDumpRequirement.TYPE.equals(e.getKey().getType()))
+                .flatMap(e -> e.getValue().stream())
+                .toList();
+        List<ThreadDumpSnapshot> dumps = ThreadDumpRequirement.toSnapshots(dumpData,
+                null, SystemEnvironment.create(executor));
 
         // Run status analysis
     ResolvedData data = ResolvedData.fromDumps(dumps);

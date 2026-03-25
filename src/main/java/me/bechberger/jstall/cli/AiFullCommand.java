@@ -2,8 +2,10 @@ package me.bechberger.jstall.cli;
 
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.impl.AiAnalyzer;
+import me.bechberger.femtocli.Spec;
 import me.bechberger.femtocli.annotations.Command;
 import me.bechberger.femtocli.annotations.Option;
+import me.bechberger.jstall.Main;
 import me.bechberger.jstall.util.llm.AiConfig;
 import me.bechberger.jstall.util.llm.LlmProvider;
 import me.bechberger.jstall.util.llm.LlmProviderFactory;
@@ -67,6 +69,8 @@ public class AiFullCommand implements Callable<Integer> {
     @Option(names = "--thinking", description = "Show thinking tokens (Ollama only)")
     private boolean showThinking;
 
+    Spec spec;
+
     @Override
     public Integer call() {
         try {
@@ -74,8 +78,7 @@ public class AiFullCommand implements Callable<Integer> {
             LlmProvider llmProvider = selection.provider();
             model = selection.model();
 
-            // Create analyzer
-            AiAnalyzer analyzer = new AiAnalyzer(llmProvider);
+            AiAnalyzer analyzer = new AiAnalyzer(llmProvider, spec.getParent(Main.class).executor());
 
             // Build options
             Map<String, Object> options = buildOptions();

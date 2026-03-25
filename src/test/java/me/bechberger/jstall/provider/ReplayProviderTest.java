@@ -116,9 +116,10 @@ class ReplayProviderTest {
         Path recording = createTestRecording(3, 100);
 
         ReplayProvider replay = new ReplayProvider(recording);
-        List<ThreadDumpSnapshot> snapshots = replay.collectFromJVM(TEST_PID, 1, 1000, null);
+        List<ThreadDumpSnapshot> allSnapshots = replay.loadForPid(TEST_PID);
+        List<ThreadDumpSnapshot> limited = allSnapshots.subList(0, Math.min(1, allSnapshots.size()));
 
-        assertEquals(1, snapshots.size(), "Should limit to requested count");
+        assertEquals(1, limited.size(), "Should limit to requested count");
     }
 
     @Test
@@ -126,9 +127,9 @@ class ReplayProviderTest {
         Path recording = createTestRecording(3, 100);
 
         ReplayProvider replay = new ReplayProvider(recording);
-        List<ThreadDumpSnapshot> snapshots = replay.collectFromJVM(TEST_PID, 0, 1000, null);
+        List<ThreadDumpSnapshot> snapshots = replay.loadForPid(TEST_PID);
 
-        assertEquals(3, snapshots.size(), "Count of 0 should return all dumps");
+        assertEquals(3, snapshots.size(), "Should return all dumps");
     }
 
     @Test
@@ -136,8 +137,10 @@ class ReplayProviderTest {
         Path recording = createTestRecording(3, 100);
 
         ReplayProvider replay = new ReplayProvider(recording);
-        List<ThreadDumpSnapshot> two = replay.collectFromJVM(TEST_PID, 2, 1000, null);
-        List<ThreadDumpSnapshot> three = replay.collectFromJVM(TEST_PID, 3, 1000, null);
+        List<ThreadDumpSnapshot> allSnapshots = replay.loadForPid(TEST_PID);
+        
+        List<ThreadDumpSnapshot> two = allSnapshots.subList(0, Math.min(2, allSnapshots.size()));
+        List<ThreadDumpSnapshot> three = allSnapshots.subList(0, Math.min(3, allSnapshots.size()));
 
         assertEquals(2, two.size());
         assertEquals(3, three.size());

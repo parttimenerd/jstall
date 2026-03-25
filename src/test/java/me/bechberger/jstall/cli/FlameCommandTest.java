@@ -13,7 +13,7 @@ class FlameCommandTest {
 
     @Test
     void testFlameCommandWithoutTarget() {
-        assertThat(Util.run("flame").out()).startsWith("""
+        RunCommandUtil.run("flame").output().startsWith("""
                 Usage: jstall flame [-hV] [--output=<outputFile>] [--duration=<duration>]
                                     [--event=<event>] [--interval=<interval>] [--open] [<target>]
                 Generate a flamegraph of the application using async-profiler
@@ -49,15 +49,14 @@ class FlameCommandTest {
 
             long pid = launcher.getPid();
 
-            var result = Util.run(
+            var result = RunCommandUtil.run(
                     "flame",
                     "--duration=1s",
                     "DeadlockTestApp"
             );
 
             // Should resolve to the single matching JVM
-            assertTrue(result.out().contains(String.valueOf(pid)) || result.out().contains("DeadlockTestApp"),
-                    "Should mention the resolved PID or class name");
+            result.output().contains("DeadlockTestApp").contains(String.valueOf(pid));
 
         } finally {
             launcher.stop();
@@ -80,20 +79,12 @@ class FlameCommandTest {
             long pid1 = launcher1.getPid();
             long pid2 = launcher2.getPid();
 
-            var result = Util.run("flame", "DeadlockTestApp");
+            var result = RunCommandUtil.run("flame", "DeadlockTestApp");
 
             // Should fail
-            assertNotEquals(0, result.exitCode());
+            result.hasError();
 
-            String errorOutput = result.err();
-
-            // Should indicate multiple matches
-            assertTrue(errorOutput.contains("does not support multiple targets") || errorOutput.contains("matched"),
-                    "Should reject multiple matches");
-
-            // Should list both PIDs
-            assertTrue(errorOutput.contains(String.valueOf(pid1)));
-            assertTrue(errorOutput.contains(String.valueOf(pid2)));
+            result.errorOutput().contains("does not support multiple targets").contains("" + pid1).contains("" + pid2);
 
         } finally {
             launcher1.stop();
@@ -109,16 +100,11 @@ class FlameCommandTest {
             launcher.launch("me.bechberger.jstall.testapp.DeadlockTestApp", "normal");
             launcher.waitUntilReady(5000);
 
-            var result = Util.run("flame", "NonExistentApp");
+            var result = RunCommandUtil.run("flame", "NonExistentApp");
 
             // Should fail
-            assertNotEquals(0, result.exitCode());
 
-            String errorOutput = result.err();
-
-            // Should indicate no JVMs found
-            assertTrue(errorOutput.contains("No JVMs") || errorOutput.contains("NonExistentApp"));
-
+            result.hasError().hasErrorContaining("No JVMs");
         } finally {
             launcher.stop();
         }

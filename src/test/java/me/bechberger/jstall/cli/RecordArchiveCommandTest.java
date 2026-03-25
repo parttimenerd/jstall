@@ -18,27 +18,14 @@ class RecordArchiveCommandTest {
         Path recordingFile = tempDir.resolve("summary-recording.zip");
         createRecording(recordingFile);
 
-        RunResult result = Util.run("record", "summary", recordingFile.toString());
-
-        assertEquals(0, result.exitCode(), () ->
-            "Summary command should succeed. stderr: " + result.err());
-        assertTrue(result.out().contains("JStall Recording Archive"), () ->
-            "Should print README content. Output: " + result.out());
-        assertTrue(result.out().contains("Recorded JVMs:"), () ->
-            "Should include JVM section. Output: " + result.out());
-        assertTrue(result.out().contains("12345"), () ->
-            "Should mention recorded PID. Output: " + result.out());
+        RunCommandUtil.run("record", "summary", recordingFile.toString()).hasNoError().hasOutputContaining("JStall Recording Archive").hasOutputContaining("Recorded JVMs:").hasOutputContaining("12345");
     }
 
     @Test
     void testRecordSummaryMissingFile(@TempDir Path tempDir) {
         Path missing = tempDir.resolve("does-not-exist.zip");
 
-        RunResult result = Util.run("record", "summary", missing.toString());
-
-        assertNotEquals(0, result.exitCode(), "Summary should fail for missing file");
-        assertTrue(result.err().contains("Error reading recording summary:"), () ->
-            "Should print summary error message. stderr: " + result.err());
+        RunCommandUtil.run("record", "summary", missing.toString()).hasError().hasErrorContaining("Error reading recording summary:");
     }
 
     @Test
@@ -47,12 +34,8 @@ class RecordArchiveCommandTest {
         Path outputDir = tempDir.resolve("extracted");
         createRecording(recordingFile);
 
-        RunResult result = Util.run("record", "extract", recordingFile.toString(), outputDir.toString());
-
-        assertEquals(0, result.exitCode(), () ->
-            "Extract command should succeed. stderr: " + result.err());
-        assertTrue(result.out().contains("Extracted"), () ->
-            "Should print extraction summary. stdout: " + result.out());
+        RunCommandUtil.run("record", "extract", recordingFile.toString(), outputDir.toString())
+                        .hasNoError().hasOutputContaining("Extracted");
 
         assertTrue(Files.exists(outputDir.resolve("README.md")), "README should be extracted");
         assertTrue(Files.exists(outputDir.resolve("metadata.json")), "metadata.json should be extracted");
@@ -72,20 +55,16 @@ class RecordArchiveCommandTest {
             zipOut.closeEntry();
         }
 
-        RunResult result = Util.run("record", "extract", maliciousZip.toString(), outputDir.toString());
-
-        assertNotEquals(0, result.exitCode(), "Extract should fail for ZIP slip entries");
+        RunCommandUtil.run("record", "extract", maliciousZip.toString(), outputDir.toString()).hasError();
     }
 
     @Test
     void testRecordCreateFailsEarlyForMissingPid(@TempDir Path tempDir) {
         Path outputZip = tempDir.resolve("missing-pid.zip");
 
-        RunResult result = Util.run("record", "999999999", "-o", outputZip.toString());
+        RunCommandUtil.run("record", "999999999", "-o", outputZip.toString()).hasError()
+                .hasErrorContaining("No JVM targets found for: 999999999");
 
-        assertNotEquals(0, result.exitCode(), "Record should fail for non-existent PID");
-        assertTrue(result.err().contains("No JVM targets found for: 999999999"), () ->
-            "Should fail early with missing target message. stderr: " + result.err());
         assertFalse(Files.exists(outputZip), "Should not create output ZIP when no target is recordable");
     }
 

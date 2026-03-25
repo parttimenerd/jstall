@@ -4,6 +4,7 @@ import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.impl.AiAnalyzer;
 import me.bechberger.femtocli.annotations.Command;
 import me.bechberger.femtocli.annotations.Option;
+import me.bechberger.jstall.Main;
 import me.bechberger.jstall.util.llm.AiConfig;
 import me.bechberger.jstall.util.llm.LlmProvider;
 import me.bechberger.jstall.util.llm.LlmProviderFactory;
@@ -69,7 +70,7 @@ public class AiCommand extends BaseAnalyzerCommand {
                 LlmProviderFactory.Selection selection = LlmProviderFactory.create(useLocal, useRemote, model);
                 LlmProvider llmProvider = selection.provider();
                 model = selection.model();
-                analyzer = new AiAnalyzer(llmProvider);
+                analyzer = new AiAnalyzer(llmProvider, spec.getParent(Main.class).executor());
             } catch (AiConfig.ConfigNotFoundException | IllegalArgumentException e) {
                 System.err.println("Error: " + e.getMessage());
                 System.exit(2);

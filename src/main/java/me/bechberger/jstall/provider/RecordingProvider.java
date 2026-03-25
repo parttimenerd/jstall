@@ -4,6 +4,7 @@ import me.bechberger.jstall.provider.requirement.CollectedData;
 import me.bechberger.jstall.provider.requirement.DataRequirement;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
 import me.bechberger.jstall.provider.requirement.JcmdRequirement;
+import me.bechberger.jstall.util.CommandExecutor;
 import me.bechberger.jstall.util.JMXDiagnosticHelper;
 import me.bechberger.jstall.util.JVMDiscovery;
 import me.bechberger.util.json.PrettyPrinter;
@@ -28,14 +29,16 @@ public class RecordingProvider {
 
     public static final int FORMAT_VERSION = 1;
 
+    private final CommandExecutor executor;
     private final String jstallVersion;
     private final boolean verbose;
 
-    public RecordingProvider(String jstallVersion) {
-        this(jstallVersion, false);
+    public RecordingProvider(CommandExecutor executor, String jstallVersion) {
+        this(executor, jstallVersion, false);
     }
 
-    public RecordingProvider(String jstallVersion, boolean verbose) {
+    public RecordingProvider(CommandExecutor executor, String jstallVersion, boolean verbose) {
+        this.executor = executor;
         this.jstallVersion = jstallVersion;
         this.verbose = verbose;
     }
@@ -47,7 +50,7 @@ public class RecordingProvider {
                                       DataRequirements requirements,
                                       Path outputFile,
                                       boolean parallel) throws IOException {
-        List<JVMDiscovery.JVMProcess> processes = JVMDiscovery.listJVMs(filter);
+        List<JVMDiscovery.JVMProcess> processes = new JVMDiscovery(executor).listJVMs(filter);
         return record(processes, requirements, outputFile, parallel);
     }
 
@@ -166,7 +169,8 @@ public class RecordingProvider {
         if (verbose) {
             System.out.println("Recording PID " + process.pid() + " (" + process.mainClass() + ")...");
         }
-        try (JMXDiagnosticHelper helper = new JMXDiagnosticHelper(process.pid())) {
+        try {
+            var helper = executor.diagnosticHelper(process.pid());
             if (verbose) {
                 System.out.println("  Connected to JMX for PID " + process.pid());
             }

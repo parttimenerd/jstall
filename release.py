@@ -72,12 +72,42 @@ def _patch_pom_for_minimal(pom_path: Path):
         flags=re.DOTALL,
     )
 
-    # 5) Keep --add-reads javadoc options – femtocli-minimal is still a named module
-    # that needs read access to jdk.attach, java.management, java.net.http.
-    # Only update the module name reference if it changed.
-    # (no removal needed)
+    # 5) Add femtojar plugin to re-encode JARs for optimal compression (after assembly plugin)
+    # This improves the minimal JAR file size
+    if 'femtojar' not in content:
+        # Insert femtojar plugin after the assembly plugin closing tag
+        # Find the assembly plugin closing </plugin> and insert femtojar right after
+        content = re.sub(
+            r'(</plugin>\s*\n\s*)\n(\s*<!-- Maven Source Plugin)',
+            r'''\1
+            <plugin>
+                <groupId>me.bechberger</groupId>
+                <artifactId>femtojar</artifactId>
+                <version>0.1.0</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>reencode-jars</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <jars>
+                        <jar>
+                            <in>${project.artifactId}.jar</in>
+                        </jar>
+                    </jars>
+                </configuration>
+            </plugin>
 
-    # 6) Minimal builds: strip debug symbols (-g:none)
+\2''',
+            content,
+            flags=re.DOTALL,
+            count=1,
+        )
+
+    # 6) Keep --add-reads javadoc options – femtocli-minimal is still a named module
     # Add compilerArgs to the existing maven-compiler-plugin configuration (keep <release>21</release> intact).
     if '-g:none' not in content:
         content = re.sub(
@@ -166,13 +196,13 @@ def build_minimal_cmd(project_root: Path, tmp_dir: str | None, copy_to_target: b
             if result.returncode != 0:
                 raise RuntimeError("Maven test failed")
 
-            # Build artifacts (jar + script) after tests
-            result = subprocess.run(['mvn', 'package', '-DskipTests'], cwd=workdir, text=True)
+            # Build artifacts (jar + script) after tests, using verify to include femtojar plugin
+            result = subprocess.run(['mvn', 'verify', '-DskipTests'], cwd=workdir, text=True)
             if result.returncode != 0:
-                raise RuntimeError("Maven package failed")
+                raise RuntimeError("Maven verify failed")
         else:
             print("→ Building jstall-minimal (skip tests) ...")
-            result = subprocess.run(['mvn', 'clean', 'package', '-DskipTests'], cwd=workdir, text=True)
+            result = subprocess.run(['mvn', 'clean', 'verify', '-DskipTests'], cwd=workdir, text=True)
             if result.returncode != 0:
                 raise RuntimeError("Maven build failed")
 
@@ -224,6 +254,37 @@ def build_minimal_cmd(project_root: Path, tmp_dir: str | None, copy_to_target: b
                 shutil.rmtree(workdir.parent, ignore_errors=True)
         else:
             print(f"(tmp workspace kept at {user_tmp})")
+
+
+def test_minimal_jar_cmd(project_root: Path):
+    """Run tests against the minimal jar with multiple execution modes."""
+    # First build the minimal jar
+    print("\n=== Building minimal JAR ===")
+    test_minimal_cmd(project_root, tmp_dir=None, keep_tmp=False)
+    
+    minimal_jar = project_root / 'target' / 'jstall-minimal.jar'
+    if not minimal_jar.exists():
+        raise RuntimeError(f"jstall-minimal.jar not found at {minimal_jar}")
+    
+    print(f"\n=== Running tests with minimal JAR (external jar mode) ===")
+    result = subprocess.run(
+        ['mvn', 'test', f'-Dtest.externalJar={minimal_jar.absolute()}'],
+        cwd=project_root,
+        text=True
+    )
+    if result.returncode != 0:
+        raise RuntimeError("Maven test failed with external minimal jar")
+    
+    print(f"\n=== Running tests with minimal JAR (shell execution mode) ===")
+    result = subprocess.run(
+        ['mvn', 'test', f'-Dtest.externalJar={minimal_jar.absolute()}', '-Dtest.forceRunWithShell=true'],
+        cwd=project_root,
+        text=True
+    )
+    if result.returncode != 0:
+        raise RuntimeError("Maven test failed with external minimal jar in shell mode")
+    
+    print("\n✓ All minimal JAR tests passed")
 
 
 def test_minimal_cmd(project_root: Path, tmp_dir: str | None, keep_tmp: bool = False):
@@ -709,6 +770,10 @@ java -jar jstall.jar <pid>
             ['mvn', 'clean', 'test'],
             "Running tests"
         )
+        self.run_command(
+            ['mvn', 'test', '-Dtest.forceRunWithShell=true'],
+            "Running tests with shell execution mode"
+        )
 
     def sync_documentation(self):
         """Sync CLI help documentation to README"""
@@ -835,6 +900,9 @@ def main():
     p_test_min.add_argument('--tmp', help='Use this directory as a temporary workspace (it will be deleted and recreated)')
     p_test_min.add_argument('--keep-tmp', action='store_true', help='Keep the temporary workspace directory for debugging')
 
+    # test-minimal-jar
+    subparsers.add_parser('test-minimal-jar', help='Build minimal jar and run comprehensive tests (external jar + shell mode)')
+
     # test
     subparsers.add_parser('test', help='Run the Java test suite (mvn clean test)')
 
@@ -865,6 +933,10 @@ def main():
 
     if args.command == 'test-minimal':
         test_minimal_cmd(project_root, args.tmp, keep_tmp=args.keep_tmp)
+        return
+
+    if args.command == 'test-minimal-jar':
+        test_minimal_jar_cmd(project_root)
         return
 
     if args.command == 'deploy-minimal':

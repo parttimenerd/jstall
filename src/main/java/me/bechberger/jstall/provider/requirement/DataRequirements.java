@@ -91,7 +91,7 @@ public class DataRequirements {
         } else if (req instanceof JcmdRequirement jcmd) {
             return new JcmdRequirement(jcmd.getCommand(), jcmd.getArgs(), schedule);
         } else if (req instanceof AsyncProfilerWindowRequirement profileRequirement) {
-            return new AsyncProfilerWindowRequirement(schedule, profileRequirement.getEvent());
+            return new AsyncProfilerWindowRequirement(schedule, profileRequirement.getEvent(), true);
         }
         // Keep original for requirements that don't support schedule changes
         return req;
@@ -148,17 +148,15 @@ public class DataRequirements {
          * @param intervalMs Interval between dumps in milliseconds
          */
         public Builder addThreadDumps(int count, long intervalMs) {
-            requirements.add(new JcmdRequirement(
-                "Thread.print", null, CollectionSchedule.intervals(count, intervalMs)
-            ));
+            requirements.add(new ThreadDumpRequirement(CollectionSchedule.intervals(count, intervalMs)));
             return this;
         }
-        
+
         /**
          * Adds a single thread dump collection.
          */
         public Builder addThreadDump() {
-            requirements.add(new JcmdRequirement("Thread.print", null, CollectionSchedule.once()));
+            requirements.add(new ThreadDumpRequirement(CollectionSchedule.once()));
             return this;
         }
         

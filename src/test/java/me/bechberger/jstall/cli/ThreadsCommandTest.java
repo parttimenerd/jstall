@@ -27,7 +27,7 @@ class ThreadsCommandTest {
         ThreadsCommand command = new ThreadsCommand();
 
         // We don't execute the analyzer (needs a real PID); we just verify parsing doesn't blow up.
-        var result = Util.run(command, "12345", "--no-native");
+        var result = RunCommandUtil.run(command, "12345", "--no-native");
 
         // It will likely fail later because PID doesn't exist, but parsing must succeed (exit code != 2 for usage error)
         assertNotEquals(2, result.exitCode());
@@ -37,7 +37,7 @@ class ThreadsCommandTest {
     void testNoNativeOption() {
         ThreadsCommand command = new ThreadsCommand();
 
-        Util.run(command, "12345", "--no-native");
+        RunCommandUtil.run(command, "12345", "--no-native");
 
         var options = command.getAdditionalOptions();
         assertEquals(true, options.get("no-native"));
@@ -47,7 +47,7 @@ class ThreadsCommandTest {
     void testDefaultNoNative() {
         ThreadsCommand command = new ThreadsCommand();
 
-        Util.run(command, "12345");
+        RunCommandUtil.run(command, "12345");
 
         var options = command.getAdditionalOptions();
         assertEquals(false, options.get("no-native"));
@@ -57,7 +57,7 @@ class ThreadsCommandTest {
     void testNoTopOption() {
         ThreadsCommand command = new ThreadsCommand();
 
-        Util.run(command, "12345");
+        RunCommandUtil.run(command, "12345");
 
         var options = command.getAdditionalOptions();
         assertFalse(options.containsKey("top"));
@@ -68,7 +68,7 @@ class ThreadsCommandTest {
         ThreadsCommand command = new ThreadsCommand();
 
         // Test inherited options from BaseAnalyzerCommand
-        var result = Util.run(command, "12345", "--dumps", "3", "--interval", "10s", "--keep");
+        var result = RunCommandUtil.run(command, "12345", "--dumps", "3", "--interval", "10s", "--keep");
 
         assertNotEquals(2, result.exitCode());
     }

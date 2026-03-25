@@ -1,5 +1,6 @@
 package me.bechberger.jstall.cli.record;
 
+import me.bechberger.femtocli.Spec;
 import me.bechberger.femtocli.annotations.Command;
 import me.bechberger.femtocli.annotations.Option;
 import me.bechberger.femtocli.annotations.Parameters;
@@ -35,6 +36,8 @@ import java.util.concurrent.Callable;
     description = "Record all data into a zip for later analysis"
 )
 public class RecordCommand implements Callable<Integer> {
+
+    Spec spec;
 
     @Parameters(
             arity = "0..1",
@@ -112,7 +115,9 @@ public class RecordCommand implements Callable<Integer> {
             System.out.println("Data requirements: " + requirements.getRequirements().size() + " requirement(s)");
         }
 
-        RecordingProvider provider = new RecordingProvider(Main.VERSION, verbose);
+        var executor = spec.getParent(Main.class).executor();
+
+        RecordingProvider provider = new RecordingProvider(executor, Main.VERSION, verbose);
         RecordingProvider.RecordingSummary summary = provider.record(targets, requirements, output, !noParallel);
 
         System.out.println("Recorded " + summary.successCount() + "/" + summary.targetCount() +
@@ -179,13 +184,15 @@ public class RecordCommand implements Callable<Integer> {
     }
 
     private List<JVMDiscovery.JVMProcess> resolveTargets(String value) throws IOException {
+        var executor = spec.getParent(Main.class).executor();
+        var discovery = new JVMDiscovery(executor);
         if (value == null || value.isBlank() || value.equalsIgnoreCase("all")) {
-            return JVMDiscovery.listJVMs();
+            return discovery.listJVMs();
         }
 
         if (value.matches("\\d+")) {
             long pid = Long.parseLong(value);
-            for (JVMDiscovery.JVMProcess process : JVMDiscovery.listJVMs()) {
+            for (JVMDiscovery.JVMProcess process : discovery.listJVMs()) {
                 if (process.pid() == pid) {
                     return List.of(process);
                 }
@@ -193,7 +200,7 @@ public class RecordCommand implements Callable<Integer> {
             return List.of();
         }
 
-        return JVMDiscovery.listJVMs(value);
+        return discovery.listJVMs(value);
     }
 
     private List<Analyzer> allRecordableAnalyzers() {

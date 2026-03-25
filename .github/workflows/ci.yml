@@ -49,6 +49,14 @@ jobs:
       - name: Run tests
         run: mvn clean test
 
+      - name: Run tests with external JAR
+        if: matrix.java-version == 17
+        run: mvn test -Dtest.externalJar=target/jstall.jar
+
+      - name: Run tests with shell execution mode
+        if: matrix.java-version == 17
+        run: mvn test -Dtest.forceRunWithShell=true
+
       - name: Regenerate thread-dump fixtures
         if: matrix.java-version == 17
         run: mvn test -Dtest=ThreadDumpGeneratorTest -Djstall.generateThreadDumpFixtures=true
@@ -57,9 +65,9 @@ jobs:
         if: matrix.java-version == 17
         run: mvn test
 
-      - name: Build + test minimal variant
+      - name: Build + test minimal variant with comprehensive testing
         if: matrix.java-version == 17
-        run: python3 release.py test-minimal
+        run: python3 release.py test-minimal-jar
 
       - name: Upload minimal JAR artifact
         if: matrix.java-version == 17

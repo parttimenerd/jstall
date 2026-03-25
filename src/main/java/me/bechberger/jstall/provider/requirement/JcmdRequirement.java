@@ -65,52 +65,9 @@ public class JcmdRequirement implements DataRequirement {
     @Override
     public CollectedData collect(JMXDiagnosticHelper helper, int sampleIndex) throws IOException {
         long timestamp = System.currentTimeMillis();
-
-        String mbeanCommand = resolveMBeanCommand(command);
         
-        String result = helper.executeCommand(mbeanCommand, command, args);
+        String result = helper.executeCommand(command, args);
         return new CollectedData(timestamp, result, java.util.Map.of());
-    }
-
-    public static String resolveMBeanCommand(String command) {
-        if (command == null || command.isEmpty()) return command;
-        return transformJcmdToMBeanName(command);
-    }
-
-    /**
-     * Transform the original jcmd command name into the JMX operation name
-     * using the same rules as DiagnosticCommandImpl:
-     * - lowercase the entire first segment (before the first '.' or '_')
-     * - remove '.' and '_' and uppercase the character following each separator
-     * Examples:
-     *  "VM.system_properties" -> "vmSystemProperties"
-     *  "GC.heap_dump" -> "gcHeapDump"
-     */
-    public static String transformJcmdToMBeanName(String cmd) {
-        StringBuilder out = new StringBuilder();
-        boolean inFirstSegment = true;
-        boolean capitalizeNext = false;
-
-        for (int i = 0; i < cmd.length(); i++) {
-            char c = cmd.charAt(i);
-            if (c == '.' || c == '_') {
-                // separators are removed and next character is capitalized
-                inFirstSegment = false;
-                capitalizeNext = true;
-                continue;
-            }
-
-            if (capitalizeNext) {
-                out.append(Character.toUpperCase(c));
-                capitalizeNext = false;
-            } else if (inFirstSegment) {
-                out.append(Character.toLowerCase(c));
-            } else {
-                out.append(c);
-            }
-        }
-
-        return out.toString();
     }
     
     @Override

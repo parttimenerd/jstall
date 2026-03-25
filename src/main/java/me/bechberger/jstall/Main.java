@@ -7,7 +7,9 @@ import me.bechberger.femtocli.FemtoCli;
 import me.bechberger.femtocli.annotations.Command;
 import me.bechberger.femtocli.annotations.Option;
 import me.bechberger.jstall.provider.ReplayProvider;
+import me.bechberger.jstall.util.CommandExecutor;
 import me.bechberger.jstall.util.JVMDiscovery;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -47,6 +49,27 @@ public class Main implements Runnable {
     @Option(names = {"-f", "--file"}, description = "File path for replay mode (replay ZIP file created by record command)")
     private Path replayFile;
 
+    @Option(names = {"-s", "--ssh"}, description = "Execution command prefix for running commands on a remote host via SSH (e.g., 'cf ssh sapmachine17 -c'), only Linux/Mac support on remote", prevents = {"--cf", "--file"})
+    private String sshCommandPrefix;
+
+    @Option(names = "--cf", description = "Use Cloud Foundry CLI for remote execution (shortcut for --ssh 'cf ssh <app-name> -c'), only Linux/Mac support on remote", prevents = {"--ssh", "--file"})
+    private String cfAppName;
+
+    private CommandExecutor cachedExecutor;
+
+    public @NotNull CommandExecutor executor() {
+        if (cachedExecutor == null) {
+            if (sshCommandPrefix != null) {
+                cachedExecutor = new CommandExecutor.RemoteCommandExecutor(sshCommandPrefix);
+            } else if (cfAppName != null) {
+                cachedExecutor = new CommandExecutor.RemoteCommandExecutor("cf ssh " + cfAppName + " -c");
+            } else {
+                cachedExecutor = new CommandExecutor.LocalCommandExecutor();
+            }
+        }
+        return cachedExecutor;
+    }
+
     public static void main(String[] args) {
         int exitCode = FemtoCli.builder()
             .commandConfig(Main::setFemtoCliCommandConfig)
@@ -62,6 +85,7 @@ public class Main implements Runnable {
         cfg.defaultValueHelpTemplate = ", default is ${DEFAULT-VALUE}";
         cfg.defaultValueOnNewLine = false;
     }
+
 
     @Override
     public void run() {
@@ -93,7 +117,7 @@ public class Main implements Runnable {
                 throw new RuntimeException(e);
             }
         } else {
-            JVMDiscovery.printAvailableJVMs(System.out);
+            new JVMDiscovery(executor()).printAvailableJVMs(System.out);
         }
     }
 

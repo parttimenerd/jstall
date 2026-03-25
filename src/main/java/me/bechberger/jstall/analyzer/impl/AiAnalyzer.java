@@ -7,6 +7,7 @@ import me.bechberger.jstall.analyzer.ResolvedData;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
 import me.bechberger.jstall.util.llm.LlmProvider;
 import me.bechberger.jstall.util.SystemAnalyzer;
+import me.bechberger.jstall.util.CommandExecutor;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -33,14 +34,15 @@ public class AiAnalyzer extends BaseAnalyzer {
         "Don't offer generic advice; focus on the specific findings from the analyses. But start with a short summary of the overall state.\n";
 
     private final LlmProvider llmProvider;
+    private final CommandExecutor commandExecutor;
 
-    /**
-     * Creates an AI analyzer with the specified LLM provider.
-     *
-     * @param llmProvider The LLM provider to use
-     */
     public AiAnalyzer(LlmProvider llmProvider) {
+        this(llmProvider, new CommandExecutor.LocalCommandExecutor());
+    }
+
+    public AiAnalyzer(LlmProvider llmProvider, CommandExecutor commandExecutor) {
         this.llmProvider = llmProvider;
+        this.commandExecutor = commandExecutor;
     }
 
     @Override
@@ -195,7 +197,7 @@ public class AiAnalyzer extends BaseAnalyzer {
         }
 
         // Analyze all JVMs
-        SystemAnalyzer systemAnalyzer = new SystemAnalyzer();
+        SystemAnalyzer systemAnalyzer = new SystemAnalyzer(commandExecutor);
         List<SystemAnalyzer.JVMAnalysis> analyses;
         try {
             analyses = systemAnalyzer.analyzeAllJVMs(count, intervalMs, statusOptions, cpuThreshold);

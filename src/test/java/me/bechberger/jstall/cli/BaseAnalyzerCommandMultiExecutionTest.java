@@ -185,9 +185,6 @@ class BaseAnalyzerCommandMultiExecutionTest {
 
     @Test
     void testEmptyTargetsList() throws Exception {
-        RunResult res = Util.run("status");
-        assertEquals(1, res.exitCode());
-        System.err.println(res);
-        assertTrue(res.out().contains("Available JVMs"));
+        RunCommandUtil.run("status").hasExitCode(1).hasOutputContaining("Available JVMs");
     }
 }

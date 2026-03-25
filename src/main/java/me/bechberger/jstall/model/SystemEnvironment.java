@@ -1,5 +1,6 @@
 package me.bechberger.jstall.model;
 
+import me.bechberger.jstall.util.CommandExecutor;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
@@ -16,7 +17,24 @@ public record SystemEnvironment(List<Process> processes) {
 
     public record Process(long pid, ProcessHandle.Info info, @Nullable Duration cpuTime, String command) {}
 
-    public static SystemEnvironment createCurrent() {
+    public static SystemEnvironment create(CommandExecutor executor) {
+        if (executor.isRemote()) {
+            try {
+                Map<Long, PsProcessInfo> psResult = tryCallPs();
+                List<Process> processes = psResult.values().stream()
+                    .map(p -> new Process(p.pid, null, p.cpuTime, p.command))
+                    .toList();
+                return new SystemEnvironment(processes);
+            } catch (IOException | InterruptedException e) {
+                // ignore and return empty environment
+                return new SystemEnvironment(List.of());
+            }
+        } else {
+            return createCurrent();
+        }
+    }
+
+    private static SystemEnvironment createCurrent() {
         List<Process> processes = ProcessHandle.allProcesses()
             .map(ph -> new Process(ph.pid(), ph.info(), ph.info().totalCpuDuration().orElse(null), ph.info().command().orElse(null)))
             .toList();

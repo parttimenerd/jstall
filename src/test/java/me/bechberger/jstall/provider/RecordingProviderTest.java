@@ -1,6 +1,7 @@
 package me.bechberger.jstall.provider;
 
 import me.bechberger.jstall.Main;
+import me.bechberger.jstall.util.CommandExecutor;
 import me.bechberger.jstall.util.JVMDiscovery;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,7 +22,7 @@ class RecordingProviderTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        provider = new RecordingProvider(Main.VERSION);
+        provider = new RecordingProvider(new CommandExecutor.LocalCommandExecutor(), Main.VERSION);
         busyWorkDumps = ThreadDumpTestResources.loadBusyWorkDumps();
     }
 

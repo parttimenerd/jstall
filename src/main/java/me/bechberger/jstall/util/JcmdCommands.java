@@ -154,14 +154,4 @@ public class JcmdCommands {
         
         return sb.toString();
     }
-    
-    /**
-     * Returns true if the command typically produces large output.
-     */
-    public static boolean isLargeOutput(String command) {
-        return command.equals("GC.class_histogram") ||
-               command.equals("VM.class_hierarchy") ||
-               command.equals("Compiler.codelist") ||
-               command.equals("Thread.print");
-    }
 }

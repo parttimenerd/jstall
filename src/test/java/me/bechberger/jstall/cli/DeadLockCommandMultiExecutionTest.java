@@ -30,15 +30,7 @@ class DeadLockCommandMultiExecutionTest {
             long pid2 = launcher2.getPid();
 
             // Use filter to match both
-            var result = Util.run("deadlock", "DeadlockTestApp");
-
-            // Should detect deadlocks
-            assertEquals(2, result.exitCode(), "Should return exit code 2 for deadlock");
-
-            String output = result.out();
-
-            // Should analyze multiple JVMs
-            assertTrue(output.contains("=".repeat(80)));
+            var output = RunCommandUtil.run("deadlock", "DeadlockTestApp").hasExitCode(2).hasOutputContaining("=".repeat(80)).get().out();
 
             // Both should have deadlocks
             long deadlockCount = output.lines()

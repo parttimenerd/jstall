@@ -1,7 +1,6 @@
 package me.bechberger.jstall.util;
 
 import com.sun.tools.attach.VirtualMachine;
-import me.bechberger.jstall.provider.requirement.JcmdRequirement;
 
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
@@ -9,9 +8,9 @@ import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicReference;
+
+import static me.bechberger.jstall.util.CommandExecutor.escapeAndJoinArgs;
 
 /**
  * Helper class for executing diagnostic commands on remote JVM processes via JMX.
@@ -32,23 +31,35 @@ import java.util.concurrent.atomic.AtomicReference;
  * String gcRun = JMXDiagnosticHelper.executeCommand(12345, "GC.run");
  * }</pre>
  */
-public class JMXDiagnosticHelper implements AutoCloseable {
+public class JMXDiagnosticHelper {
 
     private static final String DIAGNOSTIC_COMMAND_MBEAN = "com.sun.management:type=DiagnosticCommand";
 
+    private final long pid;
     private final VirtualMachine vm;
     private boolean noMBeanConnection;
     private JMXConnector connector;
     private MBeanServerConnection mbsc;
     private ObjectName diagnosticCmd;
 
+    private final CommandExecutor executor;
+
     /**
      * Creates a new JMXDiagnosticHelper attached to the specified JVM process.
+     * <p>
+     * Create new instances via {@link CommandExecutor#diagnosticHelper(long)} to ensure proper caching and resource management.
      *
      * @param pid Process ID of the target JVM
      * @throws IOException if attachment or JMX connection fails
      */
-    public JMXDiagnosticHelper(long pid) throws IOException {
+    JMXDiagnosticHelper(CommandExecutor executor, long pid) throws IOException {
+        this.pid = pid;
+        this.executor = executor;
+        if (executor.isRemote()) {
+            this.noMBeanConnection = true;
+            this.vm = null;
+            return;
+        }
         try {
             // Attach to the target VM
             this.vm = VirtualMachine.attach(String.valueOf(pid));
@@ -76,23 +87,16 @@ public class JMXDiagnosticHelper implements AutoCloseable {
         }
     }
 
-    public String executeCommand(String mbeanCommand, String jcmdCommand) throws IOException {
-        return executeCommand(mbeanCommand, jcmdCommand, (String[]) null);
-    }
-
-    public String executeCommand(String mbeanCommand, String jcmdCommand, String... args) throws IOException {
+    public String executeCommand(String command, String... args) throws IOException {
         if (noMBeanConnection) {
-            return executeCommandNoMBean(jcmdCommand, args);
+            // Fall back to jcmd if MBean connection is not available
+            return executor.executeCommand("jcmd", String.valueOf(pid), command, escapeAndJoinArgs(args)).out();
         }
-        return executeCommandMBean(mbeanCommand, args);
-    }
-
-    private String executeCommandMBean(String command, String... args) throws IOException {
         try {
             Object[] params = new Object[] { args };
             String[] signature = new String[] { "[Ljava.lang.String;" };
 
-            Object result = mbsc.invoke(diagnosticCmd, command, params, signature);
+            Object result = mbsc.invoke(diagnosticCmd, transformJcmdToMBeanName(command), params, signature);
 
             if (result instanceof String) {
                 return (String) result;
@@ -105,57 +109,40 @@ public class JMXDiagnosticHelper implements AutoCloseable {
         }
     }
 
-    static class OutputCapturingThread extends Thread {
-        private final InputStream inputStream;
-        private final AtomicReference<String> outputRef;
+    /**
+     * Transform the original jcmd command name into the JMX operation name
+     * using the same rules as DiagnosticCommandImpl:
+     * - lowercase the entire first segment (before the first '.' or '_')
+     * - remove '.' and '_' and uppercase the character following each separator
+     * Examples:
+     *  "VM.system_properties" -> "vmSystemProperties"
+     *  "GC.heap_dump" -> "gcHeapDump"
+     */
+    private static String transformJcmdToMBeanName(String cmd) {
+        StringBuilder out = new StringBuilder();
+        boolean inFirstSegment = true;
+        boolean capitalizeNext = false;
 
-        public OutputCapturingThread(InputStream inputStream) {
-            this.inputStream = inputStream;
-            this.outputRef = new AtomicReference<>();
-        }
+        for (int i = 0; i < cmd.length(); i++) {
+            char c = cmd.charAt(i);
+            if (c == '.' || c == '_') {
+                // separators are removed and next character is capitalized
+                inFirstSegment = false;
+                capitalizeNext = true;
+                continue;
+            }
 
-        @Override
-        public void run() {
-            try {
-                outputRef.set(new String(inputStream.readAllBytes()));
-            } catch (IOException e) {
-                // Ignore
+            if (capitalizeNext) {
+                out.append(Character.toUpperCase(c));
+                capitalizeNext = false;
+            } else if (inFirstSegment) {
+                out.append(Character.toLowerCase(c));
+            } else {
+                out.append(c);
             }
         }
 
-        String getString() throws IOException {
-            try {
-                join();
-            } catch (InterruptedException e) {
-                throw new IOException("Thread interrupted while waiting for output capture", e);
-            }
-            return outputRef.get();
-        }
-    }
-
-    /** Call jcmd as fallback if MBean connection is not available */
-    private String executeCommandNoMBean(String command, String... args) throws IOException {
-        ProcessBuilder pb = new ProcessBuilder("jcmd", vm.id(), command);
-        if (args != null) {
-            Arrays.stream(args).forEach(a -> pb.command().add(a));
-        }
-        pb.redirectError(ProcessBuilder.Redirect.PIPE);
-        Process process = pb.start();
-        // TODO: We should probably read the output and error streams in separate threads to avoid blocking issues
-        // TODO: write neat helper
-        OutputCapturingThread outputT = new OutputCapturingThread(process.getInputStream());
-        outputT.start();
-        OutputCapturingThread errorT = new OutputCapturingThread(process.getErrorStream());
-        errorT.start();
-        try {
-            process.waitFor();
-        } catch (InterruptedException e) {
-            throw new IOException("jcmd execution interrupted", e);
-        }
-        if (process.exitValue() != 0) {
-            throw new IOException("jcmd failed: " + outputT.getString());
-        }
-        return outputT.getString();
+        return out.toString();
     }
 
     /**
@@ -174,31 +161,31 @@ public class JMXDiagnosticHelper implements AutoCloseable {
      * Equivalent to executing {@code "VM.system_properties"} via jcmd.
      */
     public String getSystemProperties() throws IOException {
-        return executeCommand("vmSystemProperties", "VM.system_properties");
+        return executeCommand("VM.system_properties");
     }
 
     public long pid() {
-        return Long.parseLong(vm.id());
+        return pid;
     }
 
-    public static String getThreadDump(long pid) throws IOException {
-        try (JMXDiagnosticHelper helper = new JMXDiagnosticHelper(pid)) {
-            return helper.getThreadDump();
+    /**
+     * Returns the {@link CommandExecutor} associated with this helper.
+     * Requirements can use this to run arbitrary system commands on the same
+     * host (or remote machine) as the target JVM.
+     */
+    public CommandExecutor getExecutor() {
+        return executor;
+    }
+
+    /**
+     * Closes the JMX connection and detaches from the target JVM.
+     * <p>
+     * Safe to call multiple times and also when using remote commands.
+     */
+    public void cleanup() {
+        if (noMBeanConnection) {
+            return;
         }
-    }
-
-    public static String getSystemProperties(long pid) throws IOException {
-        try (JMXDiagnosticHelper helper = new JMXDiagnosticHelper(pid)) {
-            return helper.getSystemProperties();
-        }
-    }
-
-    @Override
-    public void close() throws IOException {
-        cleanup();
-    }
-
-    private void cleanup() {
         try {
             if (connector != null) {
                 connector.close();
@@ -213,22 +200,6 @@ public class JMXDiagnosticHelper implements AutoCloseable {
             }
         } catch (Exception e) {
             // Ignore
-        }
-    }
-
-    /**
-     * Static convenience method to execute a diagnostic command without managing the connection.
-     * Creates a connection, executes the command, and closes the connection.
-     *
-     * @param pid Process ID of the target JVM
-     * @param args Optional arguments for the command
-     * @return The command output as a String
-     * @throws IOException if attachment, execution, or cleanup fails
-     */
-    public static String executeCommand(long pid, String jcmdCommand, String... args) throws IOException {
-        try (JMXDiagnosticHelper helper = new JMXDiagnosticHelper(pid)) {
-            String mbeanCommand = JcmdRequirement.resolveMBeanCommand(jcmdCommand);
-            return helper.executeCommand(mbeanCommand, jcmdCommand, args);
         }
     }
 }

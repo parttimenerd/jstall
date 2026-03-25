@@ -8,11 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-### Changed
-### Deprecated
-### Removed
-### Fixed
-### Security
+- Add `-s/-ssh` to use a specific shell command to execute jcmds and more
 
 ## [0.5.4] - 2026-03-19
 

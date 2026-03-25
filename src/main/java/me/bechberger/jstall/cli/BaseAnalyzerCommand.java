@@ -7,17 +7,18 @@ import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.analyzer.ResolvedData;
 import me.bechberger.femtocli.Spec;
 import me.bechberger.femtocli.annotations.Option;
+import me.bechberger.jstall.model.SystemEnvironment;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
-import me.bechberger.jstall.provider.JThreadDumpProvider;
 import me.bechberger.jstall.provider.ReplayProvider;
-import me.bechberger.jstall.provider.ThreadDumpProvider;
 import me.bechberger.jstall.provider.DataCollector;
 import me.bechberger.jstall.provider.requirement.CollectedData;
 import me.bechberger.jstall.provider.requirement.DataRequirement;
+import me.bechberger.jstall.provider.requirement.DataRequirements;
+import me.bechberger.jstall.provider.requirement.ThreadDumpRequirement;
+import me.bechberger.jstall.util.CommandExecutor;
 import me.bechberger.jstall.util.JVMDiscovery;
-import me.bechberger.jstall.util.JMXDiagnosticHelper;
-import me.bechberger.jstall.util.TargetResolver;
 import me.bechberger.femtocli.annotations.Parameters;
+import me.bechberger.jstall.util.ResolvedTarget;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -99,186 +100,180 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
+        setupReplayFile();
+        AnalysisContext context = createContext();
+        
+        JVMDiscovery.ResolutionResult resolution = resolveTargets(context);
+        if (!resolution.isSuccess()) {
+            printResolutionError(resolution, context);
+            return 1;
+        }
+
+        return processTargets(resolution.targets(), context);
+    }
+
+    private void setupReplayFile() {
         positionalReplayFile = null;
         List<String> effectiveTargets = targets == null ? new ArrayList<>() : new ArrayList<>(targets);
         if (getReplayFilePath() == null) {
             positionalReplayFile = extractPositionalReplayFile(effectiveTargets);
         }
+    }
 
+    private record AnalysisContext(
+        Analyzer analyzer,
+        CommandExecutor executor,
+        JVMDiscovery discovery,
+        int dumpCount,
+        long intervalMs,
+        Map<String, Object> options,
+        boolean replayMode
+    ) {}
+
+    private record TargetResult(ResolvedTarget target, AnalyzerResult result, Exception error) {}
+
+    private AnalysisContext createContext() throws IOException {
         Analyzer analyzer = getAnalyzer();
+        CommandExecutor executor = resolveExecutor();
+        JVMDiscovery discovery = new JVMDiscovery(executor);
         boolean replayMode = getEffectiveReplayFilePath() != null;
+        int dumpCount = computeDumpCount(analyzer);
+        long intervalMs = computeIntervalMs(analyzer);
+        Map<String, Object> options = buildOptions(dumpCount, intervalMs);
+        return new AnalysisContext(analyzer, executor, discovery, dumpCount, intervalMs, options, replayMode);
+    }
 
-        TargetResolver.ResolutionResult resolution;
+    private JVMDiscovery.ResolutionResult resolveTargets(AnalysisContext context) throws IOException {
+        List<String> effectiveTargets = targets == null ? new ArrayList<>() : new ArrayList<>(targets);
+        if (getReplayFilePath() == null && effectiveTargets.size() > 0) {
+            extractPositionalReplayFile(effectiveTargets);
+        }
+        return resolveTargets(effectiveTargets, context.replayMode, context.discovery);
+    }
 
-        // Show help and list JVMs if no targets specified
+    private Integer processTargets(List<ResolvedTarget> resolvedTargets, AnalysisContext context) throws Exception {
+        if (allTargetsAreFiles(resolvedTargets)) {
+            return processMultipleDumpFiles(resolvedTargets, context);
+        }
+        if (resolvedTargets.size() > 1 && !supportsMultipleTargets()) {
+            printMultipleTargetsNotSupportedError(context.analyzer, resolvedTargets);
+            return 1;
+        }
+        if (resolvedTargets.size() == 1) {
+            return processSingleTarget(resolvedTargets.get(0), context);
+        }
+        return processMultipleTargets(resolvedTargets, context);
+    }
+
+    private CommandExecutor resolveExecutor() {
+        return (spec != null)
+                ? spec.getParent(Main.class).executor()
+                : new CommandExecutor.LocalCommandExecutor();
+    }
+
+    private JVMDiscovery.ResolutionResult resolveTargets(List<String> effectiveTargets, boolean replayMode, JVMDiscovery discovery) throws IOException {
         if (effectiveTargets.isEmpty()) {
             if (positionalReplayFile != null) {
-                resolution = resolveTargetsFromReplay(List.of());
+                return resolveTargetsFromReplay(List.of());
             } else {
                 spec.usage();
                 System.out.println();
                 if (replayMode) {
-                    ReplayProvider provider = new ReplayProvider(getEffectiveReplayFilePath());
-                    provider.printReplayTargets(System.out);
+                    new ReplayProvider(getEffectiveReplayFilePath()).printReplayTargets(System.out);
                 } else {
-                    JVMDiscovery.printAvailableJVMs(System.out);
+                    discovery.printAvailableJVMs(System.out);
                 }
-                return 1;
+                return JVMDiscovery.ResolutionResult.error("No targets specified", false);
             }
         } else {
-            // Resolve all targets
-            resolution = replayMode
-                ? resolveTargetsFromReplay(effectiveTargets)
-                : TargetResolver.resolveMultiple(effectiveTargets);
-        }
-
-        if (!resolution.isSuccess()) {
-            System.err.println("Error: " + resolution.errorMessage());
-            if (resolution.shouldListJVMs()) {
-                System.err.println();
-                JVMDiscovery.printAvailableJVMs(System.err);
-            }
-            return 1;
-        }
-
-        List<TargetResolver.ResolvedTarget> resolvedTargets = resolution.targets();
-
-        // If the user passed multiple files, interpret them as multiple dumps for a single analysis.
-        // This is important for analyzers with DumpRequirement.MANY (e.g. status/most-work),
-        // where multiple dumps are expected.
-        boolean allFiles = resolvedTargets.stream().allMatch(t -> t instanceof TargetResolver.ResolvedTarget.File);
-        if (allFiles && resolvedTargets.size() > 1) {
-            return processMultipleDumpFiles(resolvedTargets, analyzer);
-        }
-
-        // Check if multiple targets are supported
-        if (resolvedTargets.size() > 1 && !supportsMultipleTargets()) {
-            System.err.println("Error: " + analyzer.name() + " does not support multiple targets");
-            System.err.println("Found " + resolvedTargets.size() + " targets:");
-            for (TargetResolver.ResolvedTarget target : resolvedTargets) {
-                if (target instanceof TargetResolver.ResolvedTarget.Pid pid) {
-                    System.err.println("  PID " + pid.pid() + ": " + pid.mainClass());
-                } else if (target instanceof TargetResolver.ResolvedTarget.File file) {
-                    System.err.println("  File: " + file.path());
-                }
-            }
-            return 1;
-        }
-
-        // Process single or multiple targets
-        if (resolvedTargets.size() == 1) {
-            return processSingleTarget(resolvedTargets.get(0), analyzer);
-        } else {
-            return processMultipleTargets(resolvedTargets, analyzer);
+            return replayMode
+                    ? resolveTargetsFromReplay(effectiveTargets)
+                    : discovery.resolveMultiple(effectiveTargets);
         }
     }
 
-    private Integer processMultipleDumpFiles(List<TargetResolver.ResolvedTarget> targets, Analyzer analyzer) throws Exception {
-        // All targets are files (validated by caller)
+    private void printResolutionError(JVMDiscovery.ResolutionResult resolution, AnalysisContext context) throws IOException {
+        System.err.println("Error: " + resolution.errorMessage());
+        if (resolution.shouldListJVMs()) {
+            System.err.println();
+            printAvailableTargets(System.err, context);
+        }
+    }
+
+    private void printAvailableTargets(java.io.PrintStream out, AnalysisContext context) throws IOException {
+        if (context.replayMode) {
+            new ReplayProvider(getEffectiveReplayFilePath()).printReplayTargets(out);
+        } else {
+            context.discovery.printAvailableJVMs(out);
+        }
+    }
+
+    private boolean allTargetsAreFiles(List<ResolvedTarget> resolvedTargets) {
+        return resolvedTargets.stream().allMatch(t -> t instanceof ResolvedTarget.File) && resolvedTargets.size() > 1;
+    }
+
+    private void printMultipleTargetsNotSupportedError(Analyzer analyzer, List<ResolvedTarget> resolvedTargets) {
+        System.err.println("Error: " + analyzer.name() + " does not support multiple targets");
+        System.err.println("Found " + resolvedTargets.size() + " targets:");
+        for (ResolvedTarget target : resolvedTargets) {
+            if (target instanceof ResolvedTarget.Pid pid) {
+                System.err.println("  PID " + pid.pid() + ": " + pid.mainClass());
+            } else if (target instanceof ResolvedTarget.File file) {
+                System.err.println("  File: " + file.path());
+            }
+        }
+    }
+
+    private Integer processMultipleDumpFiles(List<ResolvedTarget> targets, AnalysisContext context) throws Exception {
         List<Path> paths = targets.stream()
-                .map(t -> (TargetResolver.ResolvedTarget.File) t)
-                .map(TargetResolver.ResolvedTarget.File::path)
+                .map(t -> (ResolvedTarget.File) t)
+                .map(ResolvedTarget.File::path)
                 .toList();
 
-        ThreadDumpProvider provider = createProvider();
-        List<ThreadDumpSnapshot> threadDumps = provider.loadFromFiles(paths);
-
-        int dumpCount = dumps != null ? dumps : analyzer.defaultDumpCount();
-        long intervalMs = interval != null ? interval.toMillis() : analyzer.defaultIntervalMs();
-
-        if (analyzer.dumpRequirement() == DumpRequirement.MANY && threadDumps.size() < 2) {
-            System.err.println("Error: " + analyzer.name() + " requires at least 2 dumps, got " + threadDumps.size());
+        List<ThreadDumpSnapshot> threadDumps = ThreadDumpRequirement.loadFromFiles(paths);
+        if (!validateDumpRequirement(threadDumps, context.analyzer)) {
             return 1;
         }
 
-        Map<String, Object> options = buildOptions(dumpCount, intervalMs);
-        ResolvedData data = buildResolvedData(provider, null, threadDumps, analyzer, options);
-        AnalyzerResult result = analyzer.analyze(data, options);
-        System.out.println(result.output());
-        return result.exitCode();
+        ResolvedData data = ResolvedData.fromDumps(threadDumps);
+        return analyzeAndPrintResult(data, context);
     }
 
-    private Integer processSingleTarget(TargetResolver.ResolvedTarget target, Analyzer analyzer) throws Exception {
-        ThreadDumpProvider provider = createProvider();
-        int dumpCount = dumps != null ? dumps : analyzer.defaultDumpCount();
-        long intervalMs = interval != null ? interval.toMillis() : analyzer.defaultIntervalMs();
-
-        List<ThreadDumpSnapshot> threadDumps;
-
-        if (target instanceof TargetResolver.ResolvedTarget.Pid pid) {
-            // Collect from running JVM
-            Path persistPath = keep ? Path.of("dumps") : null;
-            threadDumps = provider.collectFromJVM(pid.pid(), dumpCount, intervalMs, persistPath);
-        } else if (target instanceof TargetResolver.ResolvedTarget.File file) {
-            // Load from file
-            threadDumps = provider.loadFromFiles(List.of(file.path()));
-
-            // Validate dump count for MANY requirement
-            if (analyzer.dumpRequirement() == DumpRequirement.MANY && threadDumps.size() < 2) {
-                System.err.println("Error: " + analyzer.name() + " requires at least 2 dumps, got " + threadDumps.size());
-                return 1;
-            }
-        } else {
-            throw new IllegalStateException("Unknown target type: " + target);
+    private Integer processSingleTarget(ResolvedTarget target, AnalysisContext context) throws Exception {
+        LoadedTargetData targetData = loadTargetData(context.executor, target, context.analyzer, context.dumpCount, context.options);
+        if (targetData.error() != null) {
+            return 1;
         }
 
-        // Build options map
-        Map<String, Object> options = buildOptions(dumpCount, intervalMs);
-
-        // Run analyzer
-        ResolvedData data = buildResolvedData(provider, target, threadDumps, analyzer, options);
-        AnalyzerResult result = analyzer.analyze(data, options);
-        System.out.println(result.output());
-        return result.exitCode();
+        ResolvedData data = ResolvedData.fromDumpsAndCollectedData(targetData.threadDumps(), targetData.collectedDataByType());
+        return analyzeAndPrintResult(data, context);
     }
 
-    private Integer processMultipleTargets(List<TargetResolver.ResolvedTarget> targets, Analyzer analyzer) {
-         int dumpCount = dumps != null ? dumps : analyzer.defaultDumpCount();
-         long intervalMs = interval != null ? interval.toMillis() : analyzer.defaultIntervalMs();
-         Map<String, Object> options = buildOptions(dumpCount, intervalMs);
+    private Integer processMultipleTargets(List<ResolvedTarget> targets, AnalysisContext context) {
+        // Run all analyses in parallel and collect results
+        List<TargetResult> results = runAnalysesInParallel(targets, context);
+        if (results == null) {
+            return 1; // Error occurred during parallel execution
+        }
 
-        // Result holder for each target
-        record TargetResult(TargetResolver.ResolvedTarget target, AnalyzerResult result, Exception error) {}
+        // Sort and print results
+        results.sort((r1, r2) -> compareTargets(r1.target, r2.target));
+        return printAndAggregateResults(results);
+    }
 
-        // Run all analyses in parallel
+    private List<TargetResult> runAnalysesInParallel(List<ResolvedTarget> targets, AnalysisContext context) {
         List<CompletableFuture<TargetResult>> futures = new ArrayList<>();
-
-        for (TargetResolver.ResolvedTarget target : targets) {
-            CompletableFuture<TargetResult> future = CompletableFuture.supplyAsync(() -> {
-                try {
-                    ThreadDumpProvider provider = createProvider();
-                    List<ThreadDumpSnapshot> threadDumps;
-
-                    if (target instanceof TargetResolver.ResolvedTarget.Pid pid) {
-                        Path persistPath = keep ? Path.of("dumps") : null;
-                        threadDumps = provider.collectFromJVM(pid.pid(), dumpCount, intervalMs, persistPath);
-                    } else if (target instanceof TargetResolver.ResolvedTarget.File file) {
-                        threadDumps = provider.loadFromFiles(List.of(file.path()));
-                    } else {
-                        throw new IllegalStateException("Unknown target type: " + target);
-                    }
-
-                    ResolvedData data = buildResolvedData(provider, target, threadDumps, analyzer, options);
-                    AnalyzerResult result = analyzer.analyze(data, options);
-                    return new TargetResult(target, result, null);
-
-                } catch (Exception e) {
-                    return new TargetResult(target, null, e);
-                }
-            });
-            futures.add(future);
+        for (ResolvedTarget target : targets) {
+            futures.add(runAnalysisForTarget(target, context));
         }
 
-        // Wait for all to complete
-        CompletableFuture<Void> allOf = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
         try {
-            allOf.get();
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get();
         } catch (InterruptedException | ExecutionException e) {
             System.err.println("Error waiting for analyses to complete: " + e.getMessage());
-            return 1;
+            return null;
         }
 
-        // Collect all results
         List<TargetResult> results = new ArrayList<>();
         for (CompletableFuture<TargetResult> future : futures) {
             try {
@@ -287,29 +282,29 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
                 System.err.println("Error retrieving analysis result: " + e.getMessage());
             }
         }
+        return results;
+    }
 
-        // Sort results by PID (PIDs first, then files)
-        results.sort((r1, r2) -> {
-            boolean r1IsPid = r1.target instanceof TargetResolver.ResolvedTarget.Pid;
-            boolean r2IsPid = r2.target instanceof TargetResolver.ResolvedTarget.Pid;
+    private CompletableFuture<TargetResult> runAnalysisForTarget(ResolvedTarget target, AnalysisContext context) {
+        return CompletableFuture.supplyAsync(() -> analyzeTarget(target, context));
+    }
 
-            if (r1IsPid && r2IsPid) {
-                long pid1 = ((TargetResolver.ResolvedTarget.Pid) r1.target).pid();
-                long pid2 = ((TargetResolver.ResolvedTarget.Pid) r2.target).pid();
-                return Long.compare(pid1, pid2);
-            } else if (r1IsPid) {
-                return -1; // PIDs come before files
-            } else if (r2IsPid) {
-                return 1;
-            } else {
-                // Both are files, sort by path
-                String path1 = ((TargetResolver.ResolvedTarget.File) r1.target).path().toString();
-                String path2 = ((TargetResolver.ResolvedTarget.File) r2.target).path().toString();
-                return path1.compareTo(path2);
+    private TargetResult analyzeTarget(ResolvedTarget target, AnalysisContext context) {
+        try {
+            LoadedTargetData targetData = loadTargetData(context.executor, target, context.analyzer, context.dumpCount, context.options);
+            if (targetData.error() != null) {
+                return new TargetResult(target, null, targetData.error());
             }
-        });
 
-        // Print results in sorted order
+            ResolvedData data = ResolvedData.fromDumpsAndCollectedData(targetData.threadDumps(), targetData.collectedDataByType());
+            AnalyzerResult result = context.analyzer.analyze(data, context.options);
+            return new TargetResult(target, result, null);
+        } catch (Exception e) {
+            return new TargetResult(target, null, e);
+        }
+    }
+
+    private int printAndAggregateResults(List<TargetResult> results) {
         int maxExitCode = 0;
         boolean first = true;
 
@@ -319,15 +314,9 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             }
             first = false;
 
-            // Print header
-            if (targetResult.target instanceof TargetResolver.ResolvedTarget.Pid pid) {
-                System.out.println("====== PID " + pid.pid() + " (" + pid.mainClass() + ") ======");
-            } else if (targetResult.target instanceof TargetResolver.ResolvedTarget.File file) {
-                System.out.println("====== FILE " + file.path() + " ======");
-            }
+            printTargetHeader(targetResult.target);
             System.out.println();
 
-            // Print result or error
             if (targetResult.error != null) {
                 System.err.println("Error analyzing target: " + targetResult.error.getMessage());
                 maxExitCode = Math.max(maxExitCode, 1);
@@ -336,8 +325,118 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
                 maxExitCode = Math.max(maxExitCode, targetResult.result.exitCode());
             }
         }
-
         return maxExitCode;
+    }
+
+    private int analyzeAndPrintResult(ResolvedData data, AnalysisContext context) {
+        AnalyzerResult result = context.analyzer.analyze(data, context.options);
+        System.out.println(result.output());
+        return result.exitCode();
+    }
+
+    private int computeDumpCount(Analyzer analyzer) {
+        return dumps != null ? dumps : analyzer.defaultDumpCount();
+    }
+
+    private long computeIntervalMs(Analyzer analyzer) {
+        return interval != null ? interval.toMillis() : analyzer.defaultIntervalMs();
+    }
+
+    private boolean validateDumpRequirement(List<ThreadDumpSnapshot> threadDumps, Analyzer analyzer) {
+        if (analyzer.dumpRequirement() == DumpRequirement.MANY && threadDumps.size() < 2) {
+            System.err.println("Error: " + analyzer.name() + " requires at least 2 dumps, got " + threadDumps.size());
+            return false;
+        }
+        return true;
+    }
+
+    private record LoadedTargetData(List<ThreadDumpSnapshot> threadDumps, Map<String, List<CollectedData>> collectedDataByType, Exception error) {
+        LoadedTargetData(List<ThreadDumpSnapshot> threadDumps, Map<String, List<CollectedData>> collectedDataByType) {
+            this(threadDumps, collectedDataByType, null);
+        }
+        LoadedTargetData(Exception error) {
+            this(null, null, error);
+        }
+    }
+
+    private LoadedTargetData loadTargetData(CommandExecutor executor, ResolvedTarget target, Analyzer analyzer, int dumpCount, Map<String, Object> options) throws Exception {
+        if (target instanceof ResolvedTarget.Pid pid) {
+            return loadDataForPid(executor, pid, analyzer, dumpCount, options);
+        } else if (target instanceof ResolvedTarget.File file) {
+            return loadDataForFile(file, analyzer);
+        } else {
+            throw new IllegalStateException("Unknown target type: " + target);
+        }
+    }
+
+    private LoadedTargetData loadDataForPid(CommandExecutor executor, ResolvedTarget.Pid pid, Analyzer analyzer, int dumpCount, Map<String, Object> options) throws Exception {
+        Path replayFile = getEffectiveReplayFilePath();
+        if (replayFile != null) {
+            return loadDataFromReplay(replayFile, pid, dumpCount);
+        } else {
+            return loadDataFromCollection(executor, pid, analyzer, options);
+        }
+    }
+
+    private LoadedTargetData loadDataFromReplay(Path replayFile, ResolvedTarget.Pid pid, int dumpCount) throws IOException {
+        ReplayProvider replay = new ReplayProvider(replayFile);
+        List<ThreadDumpSnapshot> all = replay.loadForPid(pid.pid());
+        int effectiveCount = dumpCount <= 0 ? all.size() : Math.min(dumpCount, all.size());
+        List<ThreadDumpSnapshot> threadDumps = all.subList(0, effectiveCount);
+        Map<String, List<CollectedData>> collectedDataByType = replay.loadCollectedDataByTypeForPid(pid.pid());
+        return new LoadedTargetData(threadDumps, collectedDataByType);
+    }
+
+    private LoadedTargetData loadDataFromCollection(CommandExecutor executor, ResolvedTarget.Pid pid, Analyzer analyzer, Map<String, Object> options) throws IOException {
+        Map<String, List<CollectedData>> collectedDataByType = collectAll(executor, pid.pid(), analyzer, options);
+        List<CollectedData> dumpData = collectedDataByType.getOrDefault(ThreadDumpRequirement.TYPE, List.of());
+        List<ThreadDumpSnapshot> threadDumps = ThreadDumpRequirement.toSnapshots(dumpData,
+                extractSystemProps(collectedDataByType), SystemEnvironment.create(executor));
+        if (keep && !dumpData.isEmpty()) {
+            ThreadDumpRequirement.persistToDirectory(dumpData, Path.of("dumps"));
+        }
+        return new LoadedTargetData(threadDumps, collectedDataByType);
+    }
+
+    private LoadedTargetData loadDataForFile(ResolvedTarget.File file, Analyzer analyzer) {
+        try {
+            List<ThreadDumpSnapshot> threadDumps = ThreadDumpRequirement.loadFromFiles(List.of(file.path()));
+            if (!validateDumpRequirement(threadDumps, analyzer)) {
+                return new LoadedTargetData(new IllegalArgumentException(
+                    "Analyzer " + analyzer.name() + " requires at least 2 dumps, got " + threadDumps.size()));
+            }
+            return new LoadedTargetData(threadDumps, Map.of());
+        } catch (Exception e) {
+            return new LoadedTargetData(e);
+        }
+    }
+
+    private void printTargetHeader(ResolvedTarget target) {
+        if (target instanceof ResolvedTarget.Pid pid) {
+            System.out.println("====== PID " + pid.pid() + " (" + pid.mainClass() + ") ======");
+        } else if (target instanceof ResolvedTarget.File file) {
+            System.out.println("====== FILE " + file.path() + " ======");
+        }
+    }
+
+    private int compareTargets(ResolvedTarget t1, ResolvedTarget t2) {
+        boolean t1IsPid = t1 instanceof ResolvedTarget.Pid;
+        boolean t2IsPid = t2 instanceof ResolvedTarget.Pid;
+
+        if (t1IsPid && t2IsPid) {
+            long pid1 = ((ResolvedTarget.Pid) t1).pid();
+            long pid2 = ((ResolvedTarget.Pid) t2).pid();
+            return Long.compare(pid1, pid2);
+        } else if (t1IsPid) {
+            return -1; // PIDs come before files
+        } else if (t2IsPid) {
+            return 1;
+        } else {
+            // Both are files, sort by path
+            String path1 = ((ResolvedTarget.File) t1).path().toString();
+            String path2 = ((ResolvedTarget.File) t2).path().toString();
+            return path1.compareTo(path2);
+        }
     }
 
     private Map<String, Object> buildOptions(int dumpCount, long intervalMs) {
@@ -348,88 +447,54 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
         if (intelligentFilter != null) {
             options.put("intelligent-filter", intelligentFilter);
         }
+        options.put("full", full);
         options.putAll(getAdditionalOptions());
         return options;
     }
 
-    private ThreadDumpProvider createProvider() throws IOException {
-        Path replayFile = getEffectiveReplayFilePath();
-        if (replayFile != null) {
-            return new ReplayProvider(replayFile);
-        }
-        return new JThreadDumpProvider();
-    }
+    /** Runs DataCollector for all requirements declared by the analyzer, returns results keyed by type. */
+    private Map<String, List<CollectedData>> collectAll(CommandExecutor executor, long pid,
+                                                        Analyzer analyzer, Map<String, Object> options) throws IOException {
+        DataRequirements requirements = analyzer.getDataRequirements(options);
+        DataCollector collector = new DataCollector(executor.diagnosticHelper(pid), requirements);
+        Map<DataRequirement, List<CollectedData>> collected = collector.collectAll();
 
-    private ResolvedData buildResolvedData(ThreadDumpProvider provider,
-                                           TargetResolver.ResolvedTarget target,
-                                           List<ThreadDumpSnapshot> threadDumps,
-                                           Analyzer analyzer,
-                                           Map<String, Object> options) {
-        if (provider instanceof ReplayProvider replayProvider && target instanceof TargetResolver.ResolvedTarget.Pid pid) {
-            try {
-                Map<String, List<CollectedData>> collectedDataByType = replayProvider.loadCollectedDataByTypeForPid(pid.pid());
-                return ResolvedData.fromDumpsAndCollectedData(threadDumps, collectedDataByType);
-            } catch (IOException ignored) {
-                // Fall back to thread-dump-only resolved data if replay extras cannot be loaded.
-            }
-        }
-
-        if (!(provider instanceof ReplayProvider) && target instanceof TargetResolver.ResolvedTarget.Pid pid) {
-            try {
-                Map<String, List<CollectedData>> collectedDataByType = collectLiveDataByType(pid.pid(), analyzer, options);
-                return ResolvedData.fromDumpsAndCollectedData(threadDumps, collectedDataByType);
-            } catch (Exception e) {
-                // Fall back to thread-dump-only resolved data if live requirement collection fails.
-                System.err.println("[jstall] Warning: live jcmd data collection failed, jcmd-based analyses will be skipped: " + e.getMessage());
-            }
-        }
-
-        return ResolvedData.fromDumps(threadDumps);
-    }
-
-    private Map<String, List<CollectedData>> collectLiveDataByType(long pid,
-                                                                    Analyzer analyzer,
-                                                                    Map<String, Object> options) throws IOException {
         Map<String, List<CollectedData>> byType = new HashMap<>();
-        var requirements = analyzer.getDataRequirements(options);
-
-        try (JMXDiagnosticHelper helper = new JMXDiagnosticHelper(pid)) {
-            DataCollector collector = new DataCollector(helper, requirements);
-            Map<DataRequirement, List<CollectedData>> collected = collector.collectAll();
-
-            for (Map.Entry<DataRequirement, List<CollectedData>> entry : collected.entrySet()) {
-                String type = entry.getKey().getType();
-                if (type == null || type.isBlank()) {
-                    continue;
-                }
+        for (Map.Entry<DataRequirement, List<CollectedData>> entry : collected.entrySet()) {
+            String type = entry.getKey().getType();
+            if (type != null && !type.isBlank()) {
                 byType.computeIfAbsent(type, __ -> new ArrayList<>()).addAll(entry.getValue());
             }
         }
-
         byType.replaceAll((__, samples) -> samples.stream()
-            .sorted(java.util.Comparator.comparingLong(CollectedData::timestamp))
-            .toList());
-
+                .sorted(java.util.Comparator.comparingLong(CollectedData::timestamp))
+                .toList());
         return byType;
     }
 
-    private TargetResolver.ResolutionResult resolveTargetsFromReplay(List<String> requestedTargets) {
+    private static Map<String, String> extractSystemProps(Map<String, List<CollectedData>> byType) {
+        List<CollectedData> props = byType.getOrDefault("system-properties", List.of());
+        if (props.isEmpty()) return null;
+        return me.bechberger.jstall.util.JcmdOutputParsers.parseVmSystemProperties(props.get(0).rawData());
+    }
+
+    private JVMDiscovery.ResolutionResult resolveTargetsFromReplay(List<String> requestedTargets) {
         try {
             ReplayProvider provider = new ReplayProvider(getEffectiveReplayFilePath());
             List<JVMDiscovery.JVMProcess> recorded = provider.listRecordedJvms(null);
 
             if (requestedTargets == null || requestedTargets.isEmpty()) {
                 if (recorded.isEmpty()) {
-                    return TargetResolver.ResolutionResult.error("No recorded JVMs found in replay file", false);
+                    return JVMDiscovery.ResolutionResult.error("No recorded JVMs found in replay file", false);
                 }
-                List<TargetResolver.ResolvedTarget> allRecorded = recorded.stream()
-                    .map(jvm -> new TargetResolver.ResolvedTarget.Pid(jvm.pid(), jvm.mainClass()))
-                    .map(t -> (TargetResolver.ResolvedTarget) t)
+                List<ResolvedTarget> allRecorded = recorded.stream()
+                    .map(jvm -> new ResolvedTarget.Pid(jvm.pid(), jvm.mainClass()))
+                    .map(t -> (ResolvedTarget) t)
                     .toList();
-                return TargetResolver.ResolutionResult.success(allRecorded);
+                return JVMDiscovery.ResolutionResult.success(allRecorded);
             }
 
-            List<TargetResolver.ResolvedTarget> resolved = new ArrayList<>();
+            List<ResolvedTarget> resolved = new ArrayList<>();
 
             for (String target : requestedTargets) {
                 if (target == null || target.isBlank()) {
@@ -438,18 +503,18 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
 
                 if (target.equalsIgnoreCase("all")) {
                     if (recorded.isEmpty()) {
-                        return TargetResolver.ResolutionResult.error("No recorded JVMs found in replay file", false);
+                        return JVMDiscovery.ResolutionResult.error("No recorded JVMs found in replay file", false);
                     }
                     resolved.addAll(recorded.stream()
-                        .map(jvm -> new TargetResolver.ResolvedTarget.Pid(jvm.pid(), jvm.mainClass()))
-                        .map(t -> (TargetResolver.ResolvedTarget) t)
+                        .map(jvm -> new ResolvedTarget.Pid(jvm.pid(), jvm.mainClass()))
+                        .map(t -> (ResolvedTarget) t)
                         .toList());
                     continue;
                 }
 
                 Path filePath = Path.of(target);
                 if (java.nio.file.Files.exists(filePath) && java.nio.file.Files.isRegularFile(filePath)) {
-                    resolved.add(new TargetResolver.ResolvedTarget.File(filePath));
+                    resolved.add(new ResolvedTarget.File(filePath));
                     continue;
                 }
 
@@ -460,9 +525,9 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
                         .findFirst()
                         .orElse(null);
                     if (match == null) {
-                        return TargetResolver.ResolutionResult.error("No recorded JVM found with PID " + pid, false);
+                        return JVMDiscovery.ResolutionResult.error("No recorded JVM found with PID " + pid, false);
                     }
-                    resolved.add(new TargetResolver.ResolvedTarget.Pid(match.pid(), match.mainClass()));
+                    resolved.add(new ResolvedTarget.Pid(match.pid(), match.mainClass()));
                     continue;
                 }
 
@@ -471,19 +536,19 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
                     .filter(jvm -> jvm.mainClass().toLowerCase().contains(filter))
                     .toList();
                 if (matches.isEmpty()) {
-                    return TargetResolver.ResolutionResult.error("No recorded JVMs found matching filter: " + target, false);
+                    return JVMDiscovery.ResolutionResult.error("No recorded JVMs found matching filter: " + target, false);
                 }
                 for (JVMDiscovery.JVMProcess match : matches) {
-                    resolved.add(new TargetResolver.ResolvedTarget.Pid(match.pid(), match.mainClass()));
+                    resolved.add(new ResolvedTarget.Pid(match.pid(), match.mainClass()));
                 }
             }
 
             if (resolved.isEmpty()) {
-                return TargetResolver.ResolutionResult.error("No targets specified", false);
+                return JVMDiscovery.ResolutionResult.error("No targets specified", false);
             }
-            return TargetResolver.ResolutionResult.success(resolved);
+            return JVMDiscovery.ResolutionResult.success(resolved);
         } catch (IOException e) {
-            return TargetResolver.ResolutionResult.error("Failed to open replay file: " + e.getMessage(), false);
+            return JVMDiscovery.ResolutionResult.error("Failed to open replay file: " + e.getMessage(), false);
         }
     }
 

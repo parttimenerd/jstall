@@ -1,11 +1,13 @@
 package me.bechberger.jstall.cli;
 
 import me.bechberger.femtocli.annotations.Command;
+import me.bechberger.femtocli.annotations.Option;
 import me.bechberger.jstall.Main;
 import me.bechberger.jstall.provider.ReplayProvider;
 import me.bechberger.jstall.util.JVMDiscovery;
 import me.bechberger.femtocli.annotations.Parameters;
 import me.bechberger.femtocli.Spec;
+import me.bechberger.jstall.util.StringUtil;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -27,6 +29,12 @@ public class ListCommand implements Callable<Integer> {
     )
     private String filter;
 
+    @Option(
+            names = "--no-truncate",
+            description = "Don't truncate descriptors in the output"
+    )
+    private boolean noTruncate;
+
     private Spec spec;
 
     @Override
@@ -39,12 +47,12 @@ public class ListCommand implements Callable<Integer> {
                 ReplayProvider provider = new ReplayProvider(replayFile);
                 jvms = provider.listRecordedJvms(filter);
             } else {
-                jvms = JVMDiscovery.listJVMs(filter);
+                jvms = new JVMDiscovery(main.executor()).listJVMs(filter);
             }
 
             if (jvms.isEmpty()) {
                 if (filter != null && !filter.isBlank()) {
-                    System.out.println("No JVMs found matching filter: " + filter);
+                    System.err.println("No JVMs found matching filter: " + filter);
                 } else {
                     System.out.println("No running JVMs found.");
                 }
@@ -53,7 +61,11 @@ public class ListCommand implements Callable<Integer> {
 
             // Print each JVM
             for (JVMDiscovery.JVMProcess jvm : jvms) {
-                System.out.println(jvm);
+                if (noTruncate) {
+                    System.out.println(jvm);
+                } else {
+                    System.out.println(StringUtil.truncate(jvm.toString(), 150));
+                }
             }
 
             return 0;

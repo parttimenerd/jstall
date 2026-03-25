@@ -167,7 +167,7 @@ public class TestAppLauncher {
     /**
      * Gets the Java executable path.
      */
-    private String getJavaExecutable() {
+    public static String getJavaExecutable() {
         String javaHome = System.getProperty("java.home");
         return javaHome + "/bin/java";
     }

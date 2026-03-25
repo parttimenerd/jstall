@@ -40,7 +40,7 @@ class JMXDiagnosticHelperHistogramCaptureTest {
                 throw new IllegalStateException("HelperApp did not print PID");
             }
 
-            String out = JMXDiagnosticHelper.executeCommand(pid, "GC.class_histogram");
+            String out = new CommandExecutor.LocalCommandExecutor().diagnosticHelper(pid).executeCommand("GC.class_histogram");
             assertFalse(out.isBlank());
             assertFalse(out.lines().limit(50).noneMatch(l -> l.contains("#instances") || l.contains("class name")));
         } finally {

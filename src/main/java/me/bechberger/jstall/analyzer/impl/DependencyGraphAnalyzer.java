@@ -75,7 +75,7 @@ public class DependencyGraphAnalyzer extends BaseAnalyzer {
             }
         }
         if (dependencies.isEmpty()) {
-            return AnalyzerResult.nothing();
+            return AnalyzerResult.ok();
         }
         return AnalyzerResult.ok(formatDependencyGraph(dependencies, waitReasons, latestDump));
     }

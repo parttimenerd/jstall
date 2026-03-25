@@ -1,6 +1,5 @@
 package me.bechberger.jstall.cli;
 
-import me.bechberger.femtocli.RunResult;
 import me.bechberger.jstall.Main;
 import me.bechberger.jstall.provider.RecordingTestBuilder;
 import me.bechberger.jstall.provider.ThreadDumpTestResources;
@@ -45,116 +44,86 @@ class RecordReplayCommandTest {
     }
 
     @Test
-    void testStatusCommandWithReplayFile(@TempDir Path tempDir) throws Exception {
+    void testStatusCommandWithReplayFile() throws Exception {
         Path recordingFile = createTestRecording();
 
-        RunResult result = Util.run("-f", recordingFile.toString(), "status", "10000");
-
-        assertFalse(result.exitCode() != 0, () -> 
-            "Command should succeed. stderr: " + result.err() + ", stdout: " + result.out());
-        assertFalse(result.out().isEmpty(), "Should produce analysis output");
+        RunCommandUtil.run("-f", recordingFile.toString(), "status", "10000").hasNoError().output().isNotEmpty();
     }
 
     @Test
-    void testStatusCommandWithReplayFilePathFormatVariation(@TempDir Path tempDir) throws Exception {
+    void testStatusCommandWithReplayFilePathFormatVariation() throws Exception {
         Path recordingFile = createTestRecording();
 
         // Test --file long form
-        RunResult result1 = Util.run("--file", recordingFile.toString(), "status", "10000");
-        assertFalse(result1.exitCode() != 0, () -> 
-            "Command with --file should succeed. stderr: " + result1.err());
+        RunCommandUtil.run("--file", recordingFile.toString(), "status", "10000").hasNoError();
 
         // Test -f short form
-        RunResult result2 = Util.run("-f", recordingFile.toString(), "status", "10000");
-        assertFalse(result2.exitCode() != 0, () -> 
-            "Command with -f should succeed. stderr: " + result2.err());
+        RunCommandUtil.run("-f", recordingFile.toString(), "status", "10000").hasNoError();
     }
 
     @Test
-    void testReplayListCommand(@TempDir Path tempDir) throws Exception {
+    void testReplayListCommand() throws Exception {
         Path recordingFile = createTestRecording();
 
-        RunResult result = Util.run("--file", recordingFile.toString(), "list");
-
-        assertFalse(result.exitCode() != 0, () -> 
-            "List command should succeed. stderr: " + result.err());
-        assertTrue(result.out().contains("10000") || result.out().contains("Recorded JVMs"), () ->
-            "Output should contain recorded JVM info. Output was: " + result.out());
+        RunResultAssert result = RunCommandUtil.run("--file", recordingFile.toString(), "list").hasNoError();
+        assertTrue(result.get().out().contains("10000") || result.get().out().contains("Recorded JVMs"), () ->
+            "Output should contain recorded JVM info. Output was: " + result.get().out());
     }
 
     @Test
-    void testStatusWithReplayBeforeCommand(@TempDir Path tempDir) throws Exception {
+    void testStatusWithReplayBeforeCommand() throws Exception {
         Path recordingFile = createTestRecording();
 
         // Test with replay file before command: -f file.zip status 10000
-        RunResult result = Util.run("-f", recordingFile.toString(), "status", "10000");
-
-        assertFalse(result.exitCode() != 0, () -> 
-            "Command should succeed with replay file before command. stderr: " + result.err());
-        assertFalse(result.out().isEmpty(), "Should produce output");
+        RunCommandUtil.run("-f", recordingFile.toString(), "status", "10000").hasNoError().output().isNotEmpty();
     }
 
     @Test
-    void testStatusWithReplayAfterCommand(@TempDir Path tempDir) throws Exception {
+    void testStatusWithReplayAfterCommand() throws Exception {
         Path recordingFile = createTestRecording();
 
         // Test with --file long form before command
-        RunResult result = Util.run("--file", recordingFile.toString(), "status", "10000");
-
-        assertFalse(result.exitCode() != 0, () -> 
-            "Command should succeed with replay file before command. stderr: " + result.err());
-        assertFalse(result.out().isEmpty(), "Should produce output");
+        RunCommandUtil.run("--file", recordingFile.toString(), "status", "10000").hasNoError().output().isNotEmpty();
     }
 
     @Test
-    void testDefaultStatusCommandWithReplayFile(@TempDir Path tempDir) throws Exception {
+    void testDefaultStatusCommandWithReplayFile() throws Exception {
         Path recordingFile = createTestRecording();
 
         // Test default to status: -f file.zip 10000 (without explicit status)
-        RunResult result = Util.run("-f", recordingFile.toString(), "10000");
-
-        assertFalse(result.exitCode() != 0, () -> 
-            "Command should default to status. stderr: " + result.err());
-        assertFalse(result.out().isEmpty(), "Should produce status output");
+        RunCommandUtil.run("-f", recordingFile.toString(), "10000").hasNoError().output().isNotEmpty();
     }
 
     @Test
-    void testThreadsCommandWithReplay(@TempDir Path tempDir) throws Exception {
+    void testThreadsCommandWithReplay() throws Exception {
         Path recordingFile = createTestRecording();
 
-        RunResult result = Util.run("-f", recordingFile.toString(), "threads", "10000");
-
-        assertFalse(result.exitCode() != 0, () -> 
-            "Threads command should succeed. stderr: " + result.err());
+        RunCommandUtil.run("-f", recordingFile.toString(), "threads", "10000").hasNoError();
     }
 
     @Test
-    void testMissingReplayFile(@TempDir Path tempDir) throws Exception {
+    void testMissingReplayFile(@TempDir Path tempDir) {
         Path nonExistent = tempDir.resolve("nonexistent.zip");
 
-        RunResult result = Util.run("-f", nonExistent.toString(), "status", "10000");
-
-        assertTrue(result.exitCode() != 0, "Should fail for non-existent replay file");
-        assertTrue(result.err().length() > 0 || result.out().contains("Error") ||
-            result.out().contains("not found"), () -> 
-            "Should have error message. stderr: " + result.err() + ", stdout: " + result.out());
+        RunResultAssert result = RunCommandUtil.run("-f", nonExistent.toString(), "status", "10000").hasError();
+        assertTrue(!result.get().err().isEmpty() || result.get().out().contains("Error") ||
+            result.get().out().contains("not found"), () -> 
+            "Should have error message. stderr: " + result.get().err() + ", stdout: " + result.get().out());
     }
 
     @Test
-    void testMissingPidInReplay(@TempDir Path tempDir) throws Exception {
+    void testMissingPidInReplay() throws Exception {
         Path recordingFile = createTestRecording();
 
         // Try to analyze a PID that isn't in the recording
-        RunResult result = Util.run("-f", recordingFile.toString(), "status", "99999");
-
-        assertTrue(result.exitCode() != 0, "Should fail for missing PID");
-        assertTrue(!result.err().isEmpty() || result.out().contains("not found") ||
-                   result.out().contains("No recorded"), () ->
-            "Should have appropriate error. stderr: " + result.err() + ", stdout: " + result.out());
+        RunResultAssert result = RunCommandUtil.run("-f", recordingFile.toString(), "status", "99999").hasError();
+        assertTrue(!result.get().err().isEmpty() || result.get().out().contains("not found") ||
+                   result.get().out().contains("No recorded"), () ->
+            "Should have appropriate error. stderr: " + result.get().err() + ", stdout: " + result.get().out());
     }
 
     @Test
-    void testReplayFileWithMultipleJvms(@TempDir Path tempDir) throws Exception {
+    void testReplayFileWithMultipleJvms() throws Exception {
         Path recordingFile = Files.createTempFile("multi-jvm-", ".zip");
         long baseTime = System.currentTimeMillis();
         String systemProps = "java.version=21\njava.version.date=2026-01-01\n";
@@ -175,20 +144,17 @@ class RecordReplayCommandTest {
         recordingFile.toFile().deleteOnExit();
 
         // Can analyze first JVM
-        RunResult result1 = Util.run("-f", recordingFile.toString(), "status", "11111");
-        assertFalse(result1.exitCode() != 0, "Should succeed for first PID");
+        RunCommandUtil.run("-f", recordingFile.toString(), "status", "11111").hasNoError();
 
         // Can analyze second JVM
-        RunResult result2 = Util.run("-f", recordingFile.toString(), "status", "22222");
-        assertFalse(result2.exitCode() != 0, "Should succeed for second PID");
+        RunCommandUtil.run("-f", recordingFile.toString(), "status", "22222").hasNoError();
 
         // Cannot analyze non-existent JVM
-        RunResult result3 = Util.run("-f", recordingFile.toString(), "status", "33333");
-        assertTrue(result3.exitCode() != 0, "Should fail for non-existent PID");
+        RunCommandUtil.run("-f", recordingFile.toString(), "status", "33333").hasError();
     }
 
     @Test
-    void testReplayFileWithAllTarget(@TempDir Path tempDir) throws Exception {
+    void testReplayFileWithAllTarget() throws Exception {
         Path recordingFile = Files.createTempFile("multi-jvm-all-", ".zip");
         long baseTime = System.currentTimeMillis();
         String systemProps = "java.version=21\njava.version.date=2026-01-01\n";
@@ -208,15 +174,11 @@ class RecordReplayCommandTest {
 
         recordingFile.toFile().deleteOnExit();
 
-        RunResult result = Util.run("-f", recordingFile.toString(), "status", "all");
-
-        assertFalse(result.exitCode() != 0, () ->
-            "Status command should support replay target 'all'. stderr: " + result.err());
-        assertFalse(result.out().isBlank(), "Should produce combined output for all recorded JVMs");
+        RunCommandUtil.run("-f", recordingFile.toString(), "status", "all").hasNoError().output().isNotBlank();
     }
 
     @Test
-    void testListReplayedJvms(@TempDir Path tempDir) throws Exception {
+    void testListReplayedJvms() throws Exception {
         Path recordingFile = Files.createTempFile("list-", ".zip");
         long baseTime = System.currentTimeMillis();
         String systemProps = "java.version=21\njava.version.date=2026-01-01\n";
@@ -234,12 +196,9 @@ class RecordReplayCommandTest {
 
         recordingFile.toFile().deleteOnExit();
 
-        RunResult result = Util.run("-f", recordingFile.toString(), "list");
+        RunResultAssert result = RunCommandUtil.run("-f", recordingFile.toString(), "list").hasNoError();
 
-        assertFalse(result.exitCode() != 0, () -> 
-            "List command should succeed. stderr: " + result.err());
-        
-        String output = result.out();
+        String output = result.get().out();
         assertTrue(output.contains("5000") || output.contains("ServiceA") || 
             output.contains("Recorded JVMs"), () ->
             "Output should contain recorded JVM info. Output was: " + output);
@@ -251,18 +210,14 @@ class RecordReplayCommandTest {
         Path invalidFile = tempDir.resolve("invalid.zip");
         Files.writeString(invalidFile, "This is not a valid ZIP file");
 
-        RunResult result = Util.run("-f", invalidFile.toString(), "status", "10000");
-
-        assertTrue(result.exitCode() != 0, "Should fail for invalid ZIP file");
+        RunCommandUtil.run("-f", invalidFile.toString(), "status", "10000").hasError();
     }
 
     @Test
-    void testHelpWithReplayFile(@TempDir Path tempDir) throws Exception {
-        RunResult result = Util.run("--help");
-
-        assertFalse(result.exitCode() != 0, "Help should succeed");
-        assertTrue(result.out().contains("--file") || result.out().contains("-f"), () ->
-            "Help should document replay file option. Output: " + result.out());
+    void testHelpWithReplayFile() {
+        RunResultAssert result = RunCommandUtil.run("--help").hasNoError();
+        assertTrue(result.get().out().contains("--file") || result.get().out().contains("-f"), () ->
+            "Help should document replay file option. Output: " + result.get().out());
     }
 
     @Test
@@ -282,35 +237,27 @@ class RecordReplayCommandTest {
                 .build()
             .build(recordingFile);
 
-        RunResult result = Util.run("-f", recordingFile.toString(), "status", "8888");
-
-        assertFalse(result.exitCode() != 0, () -> 
-            "Should handle file paths with spaces. stderr: " + result.err());
+        RunCommandUtil.run("-f", recordingFile.toString(), "status", "8888").hasNoError();
     }
 
     @Test
-    void testBaseAnalyzerCommandWithReplay(@TempDir Path tempDir) throws Exception {
+    void testBaseAnalyzerCommandWithReplay() throws Exception {
         Path recordingFile = createTestRecording();
 
         // Test various analyzer commands with replay
         String[] commands = {"status", "threads"};
 
         for (String cmd : commands) {
-            RunResult result = Util.run("-f", recordingFile.toString(), cmd, "10000");
-            assertFalse(result.exitCode() != 0, () -> 
-                "Command '" + cmd + "' should work with replay. stderr: " + result.err());
+            RunCommandUtil.run("-f", recordingFile.toString(), cmd, "10000").hasNoError();
         }
     }
 
     @Test
-    void testReplayFlagVariations(@TempDir Path tempDir) throws Exception {
+    void testReplayFlagVariations() throws Exception {
         Path recordingFile = createTestRecording();
 
         // All these variations should work (global -f/--file must come before subcommand)
-        RunResult r1 = Util.run("-f", recordingFile.toString(), "status", "10000");
-        RunResult r2 = Util.run("--file", recordingFile.toString(), "status", "10000");
-
-        assertFalse(r1.exitCode() != 0, () -> "-f should work. stderr: " + r1.err());
-        assertFalse(r2.exitCode() != 0, () -> "--file should work. stderr: " + r2.err());
+        RunCommandUtil.run("-f", recordingFile.toString(), "status", "10000").hasNoError();
+        RunCommandUtil.run("--file", recordingFile.toString(), "status", "10000").hasNoError();
     }
 }
