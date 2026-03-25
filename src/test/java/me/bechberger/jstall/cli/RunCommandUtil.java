@@ -31,9 +31,9 @@ public class RunCommandUtil {
     private static final String externalJar;
 
     static {
-        if (System.getProperty("test.externalJar") != null) {
+        if (System.getProperty("test.externalJar") != null && !System.getProperty("test.externalJar").isBlank()) {
             externalJar = System.getProperty("test.externalJar");
-            if ( externalJar.isBlank() || !Objects.requireNonNull(externalJar).endsWith(".jar") || !Files.exists(java.nio.file.Path.of(externalJar))) {
+            if (externalJar.isBlank() || !Objects.requireNonNull(externalJar).endsWith(".jar") || !Files.exists(java.nio.file.Path.of(externalJar))) {
                 throw new IllegalArgumentException("System property 'test.externalJar' is blank");
             }
         } else {
