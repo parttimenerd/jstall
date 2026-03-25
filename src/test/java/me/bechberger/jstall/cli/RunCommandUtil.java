@@ -31,11 +31,12 @@ public class RunCommandUtil {
     private static final String externalJar;
 
     static {
-        if (System.getProperty("test.externalJar") != null && !System.getProperty("test.externalJar").isBlank()) {
-            externalJar = System.getProperty("test.externalJar");
-            if (externalJar.isBlank() || !Objects.requireNonNull(externalJar).endsWith(".jar") || !Files.exists(java.nio.file.Path.of(externalJar))) {
-                throw new IllegalArgumentException("System property 'test.externalJar' is blank");
+        String jarProp = System.getProperty("test.externalJar");
+        if (jarProp != null && !jarProp.isBlank()) {
+            if (!jarProp.endsWith(".jar") || !Files.exists(java.nio.file.Path.of(jarProp))) {
+                throw new IllegalArgumentException("System property 'test.externalJar' must be a valid JAR file path");
             }
+            externalJar = jarProp;
         } else {
             externalJar = null;
         }
