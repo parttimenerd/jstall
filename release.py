@@ -83,7 +83,7 @@ def _patch_pom_for_minimal(pom_path: Path):
             <plugin>
                 <groupId>me.bechberger</groupId>
                 <artifactId>femtojar</artifactId>
-                <version>0.1.0</version>
+                <version>0.1.1</version>
                 <executions>
                     <execution>
                         <phase>package</phase>
@@ -93,6 +93,13 @@ def _patch_pom_for_minimal(pom_path: Path):
                     </execution>
                 </executions>
                 <configuration>
+                    <proguard>
+                        <enabled>true</enabled>
+                        <options>
+                            <option>-keep class me.bechberger.jstall.cli.** { *; }</option>
+                            <option>-dontwarn</option>
+                        </options>
+                    </proguard>
                     <jars>
                         <jar>
                             <in>${project.artifactId}.jar</in>

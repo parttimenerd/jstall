@@ -21,6 +21,7 @@ Features:
 * **Supports Java 11+**: Works with all modern Java versions as a target, but requires Java 17+ to run
 * **AI-powered analysis**: Get intelligent insights from thread dumps using LLMs (supports local models via Ollama)
 * **Record & Replay**: Record diagnostic data for later analysis or sharing as a zip file
+* **Minimal Builds Available**: There are minimal builds (< 250 KB) available that exclude the bundled async-profiler ([SapMachine](https://sap.github.io/SapMachine/) ships with it anyway) and are optimized via [femtojar](https://github.com/parttimenerd/femtojar).
 
 Requires Java 17+ to run.
 
@@ -868,7 +869,8 @@ To ensure comprehensive test coverage across different execution modes, run the 
 
 #### Release Process
 
-[release.py](./release.py) is a helper script to create new releases. It supports testing with minimal/optimized builds:
+[release.py](./release.py) is a helper script to create new releases. It supports testing with minimal/optimized builds,
+using [femtojar](https://github.com/parttimenerd/femtojar).
 
 ```bash
 ./release.py build minimal
