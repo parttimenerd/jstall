@@ -272,6 +272,8 @@ def test_minimal_jar_cmd(project_root: Path):
     minimal_jar = project_root / 'target' / 'jstall-minimal.jar'
     if not minimal_jar.exists():
         raise RuntimeError(f"jstall-minimal.jar not found at {minimal_jar}")
+
+    _assert_femtojar_reencoded(minimal_jar)
     
     print(f"\n=== Running tests with minimal JAR (external jar mode) ===")
     result = subprocess.run(
@@ -292,6 +294,34 @@ def test_minimal_jar_cmd(project_root: Path):
         raise RuntimeError("Maven test failed with external minimal jar in shell mode")
     
     print("\n✓ All minimal JAR tests passed")
+
+
+def _assert_femtojar_reencoded(jar_path: Path):
+    """Fail fast if the produced minimal jar is not femtojar/proguard reencoded."""
+    import zipfile
+
+    with zipfile.ZipFile(jar_path, 'r') as zf:
+        names = set(zf.namelist())
+
+        if 'me/bechberger/femtojar/rt/BundleBootstrap.class' not in names:
+            raise RuntimeError(
+                f"{jar_path} is not femtojar-reencoded: missing BundleBootstrap runtime class"
+            )
+
+        try:
+            manifest = zf.read('META-INF/MANIFEST.MF').decode('utf-8', errors='replace')
+        except KeyError as e:
+            raise RuntimeError(f"{jar_path} is missing META-INF/MANIFEST.MF") from e
+
+        if 'Main-Class: me.bechberger.femtojar.rt.BundleBootstrap' not in manifest:
+            raise RuntimeError(
+                f"{jar_path} is not femtojar-reencoded: Main-Class is not BundleBootstrap"
+            )
+
+        if 'X-Original-Main-Class:' not in manifest:
+            raise RuntimeError(
+                f"{jar_path} is not femtojar-reencoded: X-Original-Main-Class missing"
+            )
 
 
 def test_minimal_cmd(project_root: Path, tmp_dir: str | None, keep_tmp: bool = False):
