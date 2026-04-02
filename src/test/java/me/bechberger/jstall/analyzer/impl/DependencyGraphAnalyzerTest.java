@@ -142,9 +142,10 @@ class DependencyGraphAnalyzerTest {
         assertTrue(output.contains("Thread Dependency Graph"));
         assertTrue(output.contains("thread-2"));
         assertTrue(output.contains("thread-1"));
-        assertTrue(output.contains("→")); // Arrow showing dependency
-        assertTrue(output.contains("0x12345")); // Lock ID
-        assertTrue(output.contains("Total waiting threads: 1"));
+        assertTrue(output.contains("0x12345")); // Lock ID in root locks section
+        assertTrue(output.contains("1 potential bottleneck(s)"));
+        assertTrue(output.contains("1 blocked thread(s)")); // In tree root header
+        assertTrue(output.contains("Total blocked threads: 1"));
     }
 
     @Test
@@ -193,7 +194,7 @@ class DependencyGraphAnalyzerTest {
                 null
         );
 
-        // Thread 3 holds lock C
+        // Thread 3 holds lock C (root - owns but doesn't wait)
         ThreadInfo thread3 = new ThreadInfo(
                 "compute-thread-3",
                 3L,
@@ -228,16 +229,18 @@ class DependencyGraphAnalyzerTest {
         assertEquals(0, result.exitCode());
         String output = result.output();
 
-        // Should show dependencies and chain
+        // Should show the tree structure
         assertTrue(output.contains("Thread Dependency Graph"));
-        assertTrue(output.contains("Total waiting threads: 2"));
-        assertTrue(output.contains("Dependency Chains Detected"));
-        assertTrue(output.contains("Chain:"));
+        assertTrue(output.contains("Total blocked threads: 2"));
 
         // Should include category prefixes
         assertTrue(output.contains("[I/O Read]") || output.contains("I/O Read"));
         assertTrue(output.contains("[Network]") || output.contains("Network"));
         assertTrue(output.contains("[Computation]") || output.contains("Computation"));
+
+        // Root should be compute-thread-3 (only thread that owns locks but doesn't wait)
+        assertTrue(output.contains("compute-thread-3"));
+        assertTrue(output.contains("2 blocked thread(s)"));
     }
 
     @Test
@@ -319,8 +322,8 @@ class DependencyGraphAnalyzerTest {
         assertEquals(0, result.exitCode());
         String output = result.output();
 
-        // Should show both waiters depending on the same owner
-        assertTrue(output.contains("Total waiting threads: 2"));
+        // Should show both waiters blocked by the same owner
+        assertTrue(output.contains("Total blocked threads: 2"));
         assertTrue(output.contains("Total dependencies: 2"));
         assertTrue(output.contains("waiter-thread-1"));
         assertTrue(output.contains("waiter-thread-2"));
@@ -328,12 +331,14 @@ class DependencyGraphAnalyzerTest {
     }
 
     @Test
-    void testMultipleDumpsUsesLatest() {
+    void testMultipleDumpsAggregation() {
         DependencyGraphAnalyzer analyzer = new DependencyGraphAnalyzer();
 
-        // First dump: thread-1 holds lock, thread-2 waits on it
-        ThreadInfo oldThread1 = new ThreadInfo(
-                "old-owner",
+        Instant baseTime = Instant.parse("2024-01-01T00:00:00Z");
+
+        // First dump: owner holds lock, waiter blocked
+        ThreadInfo owner1 = new ThreadInfo(
+                "owner-thread",
                 1L,
                 null,
                 5,
@@ -342,17 +347,17 @@ class DependencyGraphAnalyzerTest {
                 1.0,
                 10.0,
                 List.of(
-                        new StackFrame("com.example.OldApp", "oldMethod", "OldApp.java", 100)
+                        new StackFrame("com.example.MyApp", "method1", "MyApp.java", 100)
                 ),
                 List.of(
-                        new LockInfo("0xOLD1", "java.lang.Object", LockInfo.LockOperation.LOCKED)
+                        new LockInfo("0xABC", "java.lang.Object", LockInfo.LockOperation.LOCKED)
                 ),
                 null,
                 null
         );
 
-        ThreadInfo oldThread2 = new ThreadInfo(
-                "old-waiter",
+        ThreadInfo waiter1 = new ThreadInfo(
+                "waiter-thread",
                 2L,
                 null,
                 5,
@@ -361,96 +366,85 @@ class DependencyGraphAnalyzerTest {
                 0.5,
                 10.0,
                 List.of(
-                        new StackFrame("com.example.OldApp", "oldMethod2", "OldApp.java", 200)
+                        new StackFrame("com.example.MyApp", "method2", "MyApp.java", 200)
                 ),
                 List.of(
-                        new LockInfo("0xOLD1", "java.lang.Object", LockInfo.LockOperation.WAITING_TO_LOCK)
+                        new LockInfo("0xABC", "java.lang.Object", LockInfo.LockOperation.WAITING_TO_LOCK)
                 ),
                 null,
                 null
         );
 
-        ThreadDump oldDump = new ThreadDump(
-                Instant.now().minusSeconds(10),
-                "Old Dump",
-                List.of(oldThread1, oldThread2),
+        ThreadDump dump1 = new ThreadDump(
+                baseTime,
+                "Dump 1",
+                List.of(owner1, waiter1),
                 null,
                 null,
                 null
         );
 
-        // Second dump (latest): different threads with different locks
-        ThreadInfo newThread1 = new ThreadInfo(
-                "new-owner",
-                3L,
+        // Second dump (5 seconds later): same pattern persists
+        ThreadInfo owner2 = new ThreadInfo(
+                "owner-thread",
+                1L,
                 null,
                 5,
                 false,
                 Thread.State.RUNNABLE,
                 2.0,
-                10.0,
+                15.0,
                 List.of(
-                        new StackFrame("java.sql.Connection", "executeQuery", "Connection.java", 100)
+                        new StackFrame("com.example.MyApp", "method1", "MyApp.java", 100)
                 ),
                 List.of(
-                        new LockInfo("0xNEW1", "java.lang.Object", LockInfo.LockOperation.LOCKED)
+                        new LockInfo("0xABC", "java.lang.Object", LockInfo.LockOperation.LOCKED)
                 ),
                 null,
                 null
         );
 
-        ThreadInfo newThread2 = new ThreadInfo(
-                "new-waiter",
-                4L,
+        ThreadInfo waiter2 = new ThreadInfo(
+                "waiter-thread",
+                2L,
                 null,
                 5,
                 false,
                 Thread.State.BLOCKED,
                 1.0,
-                10.0,
+                15.0,
                 List.of(
-                        new StackFrame("java.io.FileOutputStream", "write", "FileOutputStream.java", 200)
+                        new StackFrame("com.example.MyApp", "method2", "MyApp.java", 200)
                 ),
                 List.of(
-                        new LockInfo("0xNEW1", "java.lang.Object", LockInfo.LockOperation.WAITING_TO_LOCK)
+                        new LockInfo("0xABC", "java.lang.Object", LockInfo.LockOperation.WAITING_TO_LOCK)
                 ),
                 null,
                 null
         );
 
-        ThreadDump newDump = new ThreadDump(
-                Instant.now(),
-                "New Dump",
-                List.of(newThread1, newThread2),
+        ThreadDump dump2 = new ThreadDump(
+                baseTime.plusSeconds(5),
+                "Dump 2",
+                List.of(owner2, waiter2),
                 null,
                 null,
                 null
         );
 
-        // Analyze with both dumps
-        ThreadDumpSnapshot oldSnapshot = new ThreadDumpSnapshot(oldDump, "", null, null);
-        ThreadDumpSnapshot newSnapshot = new ThreadDumpSnapshot(newDump, "", null, null);
-        AnalyzerResult result = analyzer.analyze(ResolvedData.fromDumps(List.of(oldSnapshot, newSnapshot)), Map.of());
+        ThreadDumpSnapshot snapshot1 = new ThreadDumpSnapshot(dump1, "", null, null);
+        ThreadDumpSnapshot snapshot2 = new ThreadDumpSnapshot(dump2, "", null, null);
+        AnalyzerResult result = analyzer.analyze(ResolvedData.fromDumps(List.of(snapshot1, snapshot2)), Map.of());
 
         assertEquals(0, result.exitCode());
         String output = result.output();
 
-        // Should only show threads from the NEW dump
-        assertTrue(output.contains("new-waiter"), "Should contain new waiter thread");
-        assertTrue(output.contains("new-owner"), "Should contain new owner thread");
-        assertTrue(output.contains("0xNEW1"), "Should contain new lock ID");
-
-        // Should NOT show threads from the OLD dump
-        assertFalse(output.contains("old-waiter"), "Should NOT contain old waiter thread");
-        assertFalse(output.contains("old-owner"), "Should NOT contain old owner thread");
-        assertFalse(output.contains("0xOLD1"), "Should NOT contain old lock ID");
-
-        // Should show correct categories from new dump
-        assertTrue(output.contains("[Database]"), "Should categorize database thread");
-        assertTrue(output.contains("[I/O Write]"), "Should categorize I/O write thread");
-
-        // Should show correct summary
-        assertTrue(output.contains("Total waiting threads: 1"), "Should show 1 waiting thread from latest dump");
+        // Should aggregate: same root across 2 dumps
+        assertTrue(output.contains("owner-thread"), "Should contain root thread");
+        assertTrue(output.contains("waiter-thread"), "Should contain blocked thread");
+        assertTrue(output.contains("2 dump(s)"), "Should show persistence across 2 dumps");
+        assertTrue(output.contains("[+5s]"), "Should show time diff of 5 seconds for second dump");
+        assertTrue(output.contains("Bottleneck roots: 1"), "Should have 1 bottleneck root");
     }
 
     @Test
@@ -514,31 +508,90 @@ class DependencyGraphAnalyzerTest {
 
         // Check for expected output structure
         assertTrue(output.contains("Thread Dependency Graph"), "Should contain header");
-        assertTrue(output.contains("io-thread"), "Should contain waiting thread name");
-        assertTrue(output.contains("db-thread"), "Should contain owner thread name");
-        assertTrue(output.contains("→"), "Should contain dependency arrow");
+        assertTrue(output.contains("io-thread"), "Should contain blocked thread name");
+        assertTrue(output.contains("db-thread"), "Should contain root thread name");
         assertTrue(output.contains("0xDB01"), "Should contain lock ID");
 
         // Check for category prefixes
         assertTrue(output.contains("[Database]"), "Should contain Database category");
         assertTrue(output.contains("[I/O Write]"), "Should contain I/O Write category");
 
-        // Check for thread states
-        assertTrue(output.contains("Waiter state: BLOCKED"), "Should show waiter state");
-        assertTrue(output.contains("Owner state:  RUNNABLE"), "Should show owner state");
-
         // Check for CPU times
-        assertTrue(output.contains("CPU: 0.50s"), "Should show waiter CPU time");
-        assertTrue(output.contains("CPU: 5.00s"), "Should show owner CPU time");
+        assertTrue(output.contains("CPU: 0.50s"), "Should show blocked thread CPU time");
+        assertTrue(output.contains("CPU: 5.00s"), "Should show root thread CPU time");
 
         // Check for summary
         assertTrue(output.contains("Summary:"), "Should contain summary section");
-        assertTrue(output.contains("Total waiting threads: 1"), "Should show waiting thread count");
+        assertTrue(output.contains("Total blocked threads: 1"), "Should show blocked thread count");
         assertTrue(output.contains("Total dependencies: 1"), "Should show dependency count");
 
-        // Verify the full dependency line format
-        assertTrue(output.contains("[I/O Write] io-thread"), "Should show categorized waiter");
-        assertTrue(output.contains("[Database] db-thread"), "Should show categorized owner");
+        // Verify the categorized thread names in output
+        assertTrue(output.contains("[I/O Write] io-thread"), "Should show categorized blocked thread");
+        assertTrue(output.contains("[Database] db-thread"), "Should show categorized root thread");
+    }
+
+    @Test
+    void testDisappearingNodes() {
+        DependencyGraphAnalyzer analyzer = new DependencyGraphAnalyzer();
+
+        Instant baseTime = Instant.parse("2024-01-01T00:00:00Z");
+
+        // --- Dump 1: owner blocks waiter-A and waiter-B ---
+        ThreadInfo owner1 = new ThreadInfo(
+                "owner-thread", 1L, null, 5, false, Thread.State.RUNNABLE, 1.0, 10.0,
+                List.of(new StackFrame("com.example.MyApp", "method1", "MyApp.java", 100)),
+                List.of(new LockInfo("0xABC", "java.lang.Object", LockInfo.LockOperation.LOCKED)),
+                null, null
+        );
+        ThreadInfo waiterA1 = new ThreadInfo(
+                "waiter-A", 2L, null, 5, false, Thread.State.BLOCKED, 0.5, 10.0,
+                List.of(new StackFrame("com.example.MyApp", "methodA", "MyApp.java", 200)),
+                List.of(new LockInfo("0xABC", "java.lang.Object", LockInfo.LockOperation.WAITING_TO_LOCK)),
+                null, null
+        );
+        ThreadInfo waiterB1 = new ThreadInfo(
+                "waiter-B", 3L, null, 5, false, Thread.State.BLOCKED, 0.3, 10.0,
+                List.of(new StackFrame("com.example.MyApp", "methodB", "MyApp.java", 300)),
+                List.of(new LockInfo("0xABC", "java.lang.Object", LockInfo.LockOperation.WAITING_TO_LOCK)),
+                null, null
+        );
+        ThreadDump dump1 = new ThreadDump(
+                baseTime, "Dump 1", List.of(owner1, waiterA1, waiterB1), null, null, null
+        );
+
+        // --- Dump 2: waiter-B disappeared (got unblocked), only waiter-A remains ---
+        ThreadInfo owner2 = new ThreadInfo(
+                "owner-thread", 1L, null, 5, false, Thread.State.RUNNABLE, 2.0, 15.0,
+                List.of(new StackFrame("com.example.MyApp", "method1", "MyApp.java", 100)),
+                List.of(new LockInfo("0xABC", "java.lang.Object", LockInfo.LockOperation.LOCKED)),
+                null, null
+        );
+        ThreadInfo waiterA2 = new ThreadInfo(
+                "waiter-A", 2L, null, 5, false, Thread.State.BLOCKED, 1.0, 15.0,
+                List.of(new StackFrame("com.example.MyApp", "methodA", "MyApp.java", 200)),
+                List.of(new LockInfo("0xABC", "java.lang.Object", LockInfo.LockOperation.WAITING_TO_LOCK)),
+                null, null
+        );
+        ThreadDump dump2 = new ThreadDump(
+                baseTime.plusSeconds(5), "Dump 2", List.of(owner2, waiterA2), null, null, null
+        );
+
+        ThreadDumpSnapshot snapshot1 = new ThreadDumpSnapshot(dump1, "", null, null);
+        ThreadDumpSnapshot snapshot2 = new ThreadDumpSnapshot(dump2, "", null, null);
+        AnalyzerResult result = analyzer.analyze(
+                ResolvedData.fromDumps(List.of(snapshot1, snapshot2)), Map.of());
+
+        assertEquals(0, result.exitCode());
+        String output = result.output();
+
+        // waiter-B disappeared from dump2 but should still appear in the merged tree
+        assertTrue(output.contains("waiter-B"), "Disappeared thread should still appear in tree");
+        assertTrue(output.contains("[disappeared]"), "Disappeared thread should be annotated");
+        // waiter-A persists and should NOT be marked as disappeared
+        assertTrue(output.contains("waiter-A"), "Persistent thread should appear");
+        // The merged tree should count both blocked threads
+        assertTrue(output.contains("Total blocked threads: 2"),
+                "Should count both persistent and disappeared threads");
     }
 
     @Test
