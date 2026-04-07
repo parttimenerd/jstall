@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Edge-case and complex-interaction tests for the jstall CLI.
  * Covers:
  * - defaultSubcommand behavior (bare PID routes to status)
- * - Replay with deadlock / waiting-threads / dependency-graph / jvm-support / most-work
+ * - Replay with deadlock / waiting-threads / dependency-tree / jvm-support / most-work
  * - Multi-PID analysis from a single replay file
  * - Filter-based target resolution in replay mode
  * - Recording with system environment data
@@ -128,13 +128,13 @@ class EdgeCaseAndComplexTest {
             "--no-native", "--stack-depth", "5", "1000").hasNoError().output().isNotBlank();
     }
 
-    // ================== dependency-graph with replay ==================
+    // ================== dependency-tree with replay ==================
 
     @Test
     void dependencyGraphWithReplay() throws Exception {
         Path file = createRichRecording();
 
-        RunCommandUtil.run("-f", file.toString(), "dependency-graph", "3000").hasNoError();
+        RunCommandUtil.run("-f", file.toString(), "dependency-tree", "3000").hasNoError();
     }
 
     // ================== jvm-support with replay ==================
@@ -391,20 +391,20 @@ class EdgeCaseAndComplexTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"status", "threads", "deadlock", "most-work", "waiting-threads",
-        "dependency-graph", "jvm-support"})
+        "dependency-tree", "jvm-support"})
     void allAnalyzerCommandsOnBusyAppRecording(String command) throws Exception {
         Path file = createRichRecording();
 
         RunResultAssert result = RunCommandUtil.run("-f", file.toString(), command, "1000").hasNoError();
-        // Commands like deadlock, jvm-support, dependency-graph may produce no output if nothing found; other commands should produce output
-        if (!command.equals("deadlock") && !command.equals("jvm-support") && !command.equals("dependency-graph")) {
+        // Commands like deadlock, jvm-support, dependency-tree may produce no output if nothing found; other commands should produce output
+        if (!command.equals("deadlock") && !command.equals("jvm-support") && !command.equals("dependency-tree")) {
             result.output().isNotBlank();
         }
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"status", "threads", "most-work", "waiting-threads",
-        "dependency-graph", "jvm-support"})
+        "dependency-tree", "jvm-support"})
     void allNonDeadlockAnalyzerCommandsOnDeadlockAppRecording(String command) throws Exception {
         Path file = createRichRecording();
 
@@ -581,7 +581,7 @@ class EdgeCaseAndComplexTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"status", "threads", "deadlock", "most-work", "waiting-threads",
-        "dependency-graph", "jvm-support"})
+        "dependency-tree", "jvm-support"})
     void subcommandHelpInReplayMode(String command) throws Exception {
         Path file = createRichRecording();
 

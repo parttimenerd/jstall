@@ -53,7 +53,7 @@ jstall most-work 12345
 jstall waiting-threads 12345
 
 # Show thread dependency graph (which threads wait on which)
-jstall dependency-graph 12345
+jstall dependency-tree 12345
 
 # Generate a flamegraph
 jstall flame 12345
@@ -104,7 +104,7 @@ Commands:
   flame                 Generate a flamegraph of the application using async-profiler
   threads               List all threads sorted by CPU time
   waiting-threads       Identify threads waiting without progress (potentially starving)
-  dependency-graph      Show thread dependencies (which threads wait on locks held by others)
+  dependency-tree       Show thread dependencies (which threads wait on locks held by others)
   vm-vitals             Show VM.vitals (if available)
   gc-heap-info          Show GC.heap_info last absolute values and change
   vm-classloader-stats  Show VM.classloader_stats grouped by classloader type
@@ -170,7 +170,7 @@ List running JVM processes (excluding this tool)
 
 ### `status` (default)
 
-Runs multiple analyzers (deadlock, most-work, threads, dependency-graph) over shared thread dumps.
+Runs multiple analyzers (deadlock, most-work, threads, dependency-graph, dependency-tree) over shared thread dumps.
 
 <!-- BEGIN help_status -->
 ```
@@ -351,7 +351,7 @@ Shows thread dependencies by visualizing which threads wait on locks held by oth
 
 <!-- BEGIN help_dependency_graph -->
 ```
-Usage: jstall dependency-graph [-hV] [--keep] [--dumps=<dumps>]
+Usage: jstall dependency-tree [-hV] [--keep] [--dumps=<dumps>]
                                [--interval=<interval>] [<targets>...]
 Show thread dependencies (which threads wait on locks held by others)
       [<targets>...]    PID, filter or dump files
@@ -395,6 +395,28 @@ Dependency Chains Detected:
 ---------------------------
 Chain: [Database] jdbc-connection-pool → [I/O Write] file-writer → [Network] netty-worker-1
 ```
+
+---
+
+### `dependency-tree`
+
+Shows non-deadlock thread dependencies by visualizing which threads wait on locks held by other threads
+over time.
+
+<!-- BEGIN help_dependency_tree -->
+```
+Usage: jstall dependency-tree [-hV] [--keep] [--dumps=<dumps>]
+                               [--interval=<interval>] [<targets>...]
+Show thread dependencies (which threads wait on locks held by others)
+      [<targets>...]    PID, filter or dump files
+      --dumps=<dumps>   Number of dumps to collect, default is 2
+  -h, --help            Show this help message and exit.
+      --interval=<interval>
+                        Interval between dumps, default is 5s
+      --keep            Persist dumps to disk
+  -V, --version         Print version information and exit.
+```
+<!-- END help_dependency_tree -->
 
 ---
 
@@ -721,7 +743,7 @@ JStall automatically categorizes threads by their activity based on stack trace 
 - **Computation** — Active computation
 - **Unknown** ��� Unrecognized activity
 
-Categories appear in `most-work`, `threads`, and `dependency-graph` command outputs.
+Categories appear in `most-work`, `threads`, and `dependency-tree` command outputs.
 
 **Example:**
 ```

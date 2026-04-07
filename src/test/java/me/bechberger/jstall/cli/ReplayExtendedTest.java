@@ -77,8 +77,8 @@ class ReplayExtendedTest {
     @Test
     void testDependencyGraphCommandWithReplay() throws Exception {
         Path recording = createStandardRecording();
-        RunResultAssert result = RunCommandUtil.run("-f", recording.toString(), "dependency-graph", "10000");
-        // dependency-graph may return non-zero if graph is empty; just verify it doesn't report unknown option
+        RunResultAssert result = RunCommandUtil.run("-f", recording.toString(), "dependency-tree", "10000");
+        // dependency-tree may return non-zero if graph is empty; just verify it doesn't report unknown option
         result.errorOutput().doesNotContain("Unknown option");
     }
 
@@ -217,7 +217,7 @@ class ReplayExtendedTest {
 
     @Test
     void testDependencyGraphHelp() {
-        RunCommandUtil.run("dependency-graph", "--help").hasNoError().output().contains("dependency-graph");
+        RunCommandUtil.run("dependency-tree", "--help").hasNoError().output().contains("dependency-tree");
     }
 
     @Test

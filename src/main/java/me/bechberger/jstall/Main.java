@@ -30,6 +30,7 @@ import java.nio.file.Path;
         ThreadsCommand.class,
         WaitingThreadsCommand.class,
         DependencyGraphCommand.class,
+        DependencyTreeCommand.class,
         VmVitalsCommand.class,
         GcHeapInfoCommand.class,
         VmClassloaderStatsCommand.class,
@@ -102,6 +103,7 @@ public class Main implements Runnable {
         System.out.println("  threads           - List all threads");
         System.out.println("  waiting-threads   - Identify threads waiting without progress");
         System.out.println("  dependency-graph  - Show thread dependencies (lock wait relationships)");
+        System.out.println("  dependency-tree   - Show non deadlock thread dependencies over time");
         System.out.println("  vm-vitals         - Show VM.vitals (if available)");
         System.out.println("  gc-heap-info      - Show GC.heap_info last absolute values and deltas");
         System.out.println("  jvm-support       - Check whether the target JVM is likely still supported");

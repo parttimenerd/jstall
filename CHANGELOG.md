@@ -9,11 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Add `-s/-ssh` to use a specific shell command to execute jcmds and more
-
-## [0.5.5] - 2026-04-02
-
-### Added
-- `dependency-graph` with proper detection of dependencies between threads
+- `dependency-tree` with proper detection of dependencies between threads
 
 ## [0.5.4] - 2026-03-19
 
