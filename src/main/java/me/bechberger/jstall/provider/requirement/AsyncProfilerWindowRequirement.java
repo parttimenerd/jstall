@@ -151,7 +151,7 @@ public class AsyncProfilerWindowRequirement implements IntervalWindowRequirement
         // Probe for the asprof binary — failure is non-fatal (JFR may still be collected).
         boolean asprofAvailable;
         try {
-            asprofAvailable = executor.executeCommand("which", "asprof").exitCode() == 0;
+            asprofAvailable = executor.executeCommand("asprof", "-v").exitCode() == 0;
         } catch (IOException e) {
             asprofAvailable = false;
         }

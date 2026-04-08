@@ -22,6 +22,7 @@ Features:
 * **AI-powered analysis**: Get intelligent insights from thread dumps using LLMs (supports local models via Ollama)
 * **Record & Replay**: Record diagnostic data for later analysis or sharing as a zip file
 * **Minimal Builds Available**: There are minimal builds (< 250 KB) available that exclude the bundled async-profiler ([SapMachine](https://sap.github.io/SapMachine/) ships with it anyway) and are optimized via [femtojar](https://github.com/parttimenerd/femtojar).
+* **Remote JVMs**: via `-s "ssh user@host" COMMAND` or via `--cf APP COMMAND` for cloud-foundry
 
 Requires Java 17+ to run.
 
@@ -90,12 +91,20 @@ Or use with [JBang](https://www.jbang.dev/): `jbang jstall@parttimenerd/jstall <
 
 <!-- BEGIN help -->
 ```bash
-Usage: jstall [-hV] [--file=<replayFile>] [COMMAND]
+Usage: jstall [-hV] [--file=<replayFile>] [--ssh=<sshCommandPrefix>]
+              [--cf=<cfAppName>] [COMMAND]
 One-shot JVM inspection tool
-  -f, --file=<replayFile>    File path for replay mode (replay ZIP file created
-                             by record command)
-  -h, --help                 Show this help message and exit.
-  -V, --version              Print version information and exit.
+      --cf=<cfAppName>            Use Cloud Foundry CLI for remote execution
+                                  (shortcut for --ssh 'cf ssh <app-name> -c'),
+                                  only Linux/Mac support on remote
+  -f, --file=<replayFile>         File path for replay mode (replay ZIP file
+                                  created by record command)
+  -h, --help                      Show this help message and exit.
+  -s, --ssh=<sshCommandPrefix>    Execution command prefix for running commands
+                                  on a remote host via SSH (e.g., 'cf ssh
+                                  sapmachine17 -c'), only Linux/Mac support on
+                                  remote
+  -V, --version                   Print version information and exit.
 Commands:
   record                Record all data into a zip for later analysis
   status                Run multiple analyzers over thread dumps (default command)
@@ -104,7 +113,8 @@ Commands:
   flame                 Generate a flamegraph of the application using async-profiler
   threads               List all threads sorted by CPU time
   waiting-threads       Identify threads waiting without progress (potentially starving)
-  dependency-tree       Show thread dependencies (which threads wait on locks held by others)
+  dependency-tree       Show thread dependencies
+  dependency-tree       Show non deadlock thread dependencies over time
   vm-vitals             Show VM.vitals (if available)
   gc-heap-info          Show GC.heap_info last absolute values and change
   vm-classloader-stats  Show VM.classloader_stats grouped by classloader type
@@ -149,11 +159,13 @@ jstall deadlock kafka          # Check deadlocks in matching JVMs
 
 <!-- BEGIN help_list -->
 ```
-Usage: jstall list [-hV] [<filter>]
+Usage: jstall list [-hV] [--no-truncate] [<filter>]
 List running JVM processes (excluding this tool)
       [<filter>]   Optional filter - only show JVMs whose main class contains
                    this text
   -h, --help       Show this help message and exit.
+      --no-truncate
+                   Don't truncate descriptors in the output
   -V, --version    Print version information and exit.
 ```
 <!-- END help_list -->

@@ -8,9 +8,9 @@ import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 import java.io.IOException;
-import java.util.Arrays;
-
-import static me.bechberger.jstall.util.CommandExecutor.escapeAndJoinArgs;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Helper class for executing diagnostic commands on remote JVM processes via JMX.
@@ -90,7 +90,13 @@ public class JMXDiagnosticHelper {
     public String executeCommand(String command, String... args) throws IOException {
         if (noMBeanConnection) {
             // Fall back to jcmd if MBean connection is not available
-            return executor.executeCommand("jcmd", String.valueOf(pid), command, escapeAndJoinArgs(args)).out();
+            List<String> jcmdArgs = new ArrayList<>();
+            jcmdArgs.add(String.valueOf(pid));
+            jcmdArgs.add(command);
+            if (args != null && args.length > 0) {
+                Collections.addAll(jcmdArgs, args);
+            }
+            return executor.executeCommand("jcmd", jcmdArgs.toArray(String[]::new)).out();
         }
         try {
             Object[] params = new Object[] { args };

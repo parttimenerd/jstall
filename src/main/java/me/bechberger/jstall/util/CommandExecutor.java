@@ -5,10 +5,7 @@ import me.bechberger.femtocli.RunResult;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -38,6 +35,9 @@ public abstract class CommandExecutor {
         diagnosticHelpers.clear();
     }
 
+    /**
+     * Execute the given command.
+     */
     public abstract CommandResult executeCommand(String command, String... args) throws IOException;
 
     public abstract TemporaryFile createTemporaryFile(String prefix, String suffix) throws IOException;
@@ -78,7 +78,7 @@ public abstract class CommandExecutor {
         }
 
         @Override
-        public CommandResult executeCommand(String command, String[] args) throws IOException {
+        public CommandResult executeCommand(String command, String... args) throws IOException {
             ProcessBuilder pb = new ProcessBuilder(command);
             if (args != null) {
                 Arrays.stream(args).forEach(a -> pb.command().add(a));
@@ -122,12 +122,18 @@ public abstract class CommandExecutor {
                 }
             };
         }
+
+
     }
 
     /**
      * Execute commands remotely via SSH or other means, also handles temporary files.
+     * <p>
+     * Has special detection logic for JVM-related commands (jcmd, jps, jstack, jmap, jinfo, jstat, asprof)
+     * to resolve their actual path on the remote host before execution.
      */
     public static class RemoteCommandExecutor extends CommandExecutor {
+        private static final Set<String> JVM_RELATED_COMMANDS = Set.of("jcmd", "jps", "jstack", "jmap", "jinfo", "jstat", "asprof");
         private final String sshCommandPrefix;
         private final LocalCommandExecutor localExecutor = new LocalCommandExecutor();
 
@@ -138,13 +144,15 @@ public abstract class CommandExecutor {
 
         @Override
         public CommandResult executeCommand(String command, String... args) throws IOException {
-            String fullCommand = sshCommandPrefix + " ";
-            if (args != null) {
-                fullCommand += '"' + command + " " + escapeAndJoinArgs(args) + '"';
-            } else {
-                fullCommand += '"' + command + '"';
+            String actualCommand = command;
+            if (JVM_RELATED_COMMANDS.contains(command)) {
+                actualCommand = "candidate=$(command -v " + escapeForShell(command) + " 2>/dev/null || find / -type f -name " + escapeForShell(command) + " 2>/dev/null | head -1); " +
+                        "if [ -z \"$candidate\" ]; then echo " + escapeForShell(command + " not found") + " >&2; exit 1; fi; \"$candidate\"";
             }
-            return localExecutor.executeCommand("sh", new String[]{"-c", fullCommand});
+
+            String remotePayload = args != null ? actualCommand + " " + escapeAndJoinArgs(args) : actualCommand;
+            String fullCommand = sshCommandPrefix + " " + escapeForShell(remotePayload);
+            return localExecutor.executeCommand("sh", "-c", fullCommand);
         }
 
         /**
@@ -176,7 +184,7 @@ public abstract class CommandExecutor {
                     CommandResult r = executeCommand("rm", path);
                     if (r.exitCode() != 0) throw new IOException("Failed to delete temporary file on remote host: " + r.err());
                 }
-                
+
                 @Override
                 public void copyInto(Path destination) throws IOException {
                     CommandResult r = executeCommand("base64", path);

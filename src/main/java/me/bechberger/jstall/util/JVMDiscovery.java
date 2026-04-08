@@ -239,6 +239,12 @@ public class JVMDiscovery {
             }
             String command = parts.length > 1 && !parts[1].isEmpty() ? parts[1] : "<unknown>";
             String descriptor = command == null || command.isBlank() ? "" : command;
+            String lowerDescriptor = descriptor.toLowerCase();
+
+            // jps often appears in fallback output and should never be analyzed as a target.
+            if (lowerDescriptor.equals("jps") || lowerDescriptor.contains("sun.tools.jps.jps")) {
+                return null;
+            }
             
             // Apply filter if specified
             if (hasFilter && !descriptor.toLowerCase().contains(filter.toLowerCase())) {
