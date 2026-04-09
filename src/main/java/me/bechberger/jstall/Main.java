@@ -50,7 +50,7 @@ public class Main implements Runnable {
     @Option(names = {"-f", "--file"}, description = "File path for replay mode (replay ZIP file created by record command)")
     private Path replayFile;
 
-    @Option(names = {"-s", "--ssh"}, description = "Execution command prefix for running commands on a remote host via SSH (e.g., 'cf ssh sapmachine17 -c'), only Linux/Mac support on remote", prevents = {"--cf", "--file"})
+    @Option(names = {"-s", "--ssh"}, description = "Execution command prefix for running commands on a remote host via SSH (e.g., 'ssh user@host'), only Linux/Mac support on remote", prevents = {"--cf", "--file"})
     private String sshCommandPrefix;
 
     @Option(names = "--cf", description = "Use Cloud Foundry CLI for remote execution (shortcut for --ssh 'cf ssh <app-name> -c'), only Linux/Mac support on remote", prevents = {"--ssh", "--file"})
