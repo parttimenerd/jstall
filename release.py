@@ -97,6 +97,7 @@ def _patch_pom_for_minimal(pom_path: Path):
                         <enabled>true</enabled>
                         <options>
                             <option>-keep class me.bechberger.jstall.cli.** { *; }</option>
+                            <option>-keep class me.bechberger.jstall.Main { *; }</option>
                             <option>-dontwarn</option>
                         </options>
                     </proguard>
