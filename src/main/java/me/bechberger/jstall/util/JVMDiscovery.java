@@ -245,7 +245,6 @@ public class JVMDiscovery {
             if (lowerDescriptor.equals("jps") || lowerDescriptor.contains("sun.tools.jps.jps")) {
                 return null;
             }
-            
             // Apply filter if specified
             if (hasFilter && !descriptor.toLowerCase().contains(filter.toLowerCase())) {
                 return null;  // Filter doesn't match, skip this JVM

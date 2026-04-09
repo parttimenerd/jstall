@@ -2,6 +2,7 @@ package me.bechberger.jstall.provider.requirement;
 
 import me.bechberger.jstall.util.CommandExecutor;
 import me.bechberger.jstall.util.JMXDiagnosticHelper;
+import me.bechberger.util.json.PrettyPrinter;
 import one.profiler.AsyncProfilerLoader;
 
 import java.io.IOException;
@@ -288,18 +289,13 @@ public class AsyncProfilerWindowRequirement implements IntervalWindowRequirement
                 // Write metadata JSON as flame.meta.json (event, windowMs, interval)
                 ZipEntry metaZipEntry = new ZipEntry(pidPath + FLAME_SUBDIR + "flame.meta.json");
                 zipOut.putNextEntry(metaZipEntry);
+                Map<String, String> metadata = new HashMap<>(sample.metadata());
                 StringBuilder metaJson = new StringBuilder("{");
-                boolean first = true;
-                for (Map.Entry<String, String> entry : sample.metadata().entrySet()) {
-                    if (!first) metaJson.append(",");
-                    metaJson.append("\"").append(entry.getKey()).append("\":\"").append(entry.getValue()).append("\"");
-                    first = false;
-                }
+
                 if (!sample.metadata().isEmpty()) {
-                    metaJson.append(",\"intervalNanos\":\"").append(PROFILE_SAMPLE_INTERVAL_NANOS).append("\"");
+                    metadata.put("intervalNanos", String.valueOf(intervalNanos));
                 }
-                metaJson.append("}");
-                zipOut.write(metaJson.toString().getBytes(StandardCharsets.UTF_8));
+                zipOut.write(PrettyPrinter.prettyPrint(metadata).getBytes(StandardCharsets.UTF_8));
                 zipOut.closeEntry();
             }
 
