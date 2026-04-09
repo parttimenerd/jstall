@@ -101,9 +101,8 @@ One-shot JVM inspection tool
                                   created by record command)
   -h, --help                      Show this help message and exit.
   -s, --ssh=<sshCommandPrefix>    Execution command prefix for running commands
-                                  on a remote host via SSH (e.g., 'cf ssh
-                                  sapmachine17 -c'), only Linux/Mac support on
-                                  remote
+                                  on a remote host via SSH (e.g., 'ssh
+                                  user@host'), only Linux/Mac support on remote
   -V, --version                   Print version information and exit.
 Commands:
   record                Record all data into a zip for later analysis
@@ -135,7 +134,7 @@ Add the following dependency to your `pom.xml`:
 <dependency>
     <groupId>me.bechberger</groupId>
     <artifactId>jstall</artifactId>
-    <version>0.5.4</version>
+    <version>0.6.0</version>
 </dependency>
 ```
 

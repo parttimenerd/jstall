@@ -8,7 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Add `-s/-ssh` to use a specific shell command to execute jcmds and more
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.6.0] - 2026-04-09
+
+### Added
+- Add `-s/--ssh` to use a specific shell command to execute jcmds and more
 - Add `--cf` to support cloud foundry environments directly
 - `dependency-tree` with proper detection of dependencies between threads
 
