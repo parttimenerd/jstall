@@ -83,7 +83,7 @@ def _patch_pom_for_minimal(pom_path: Path):
             <plugin>
                 <groupId>me.bechberger</groupId>
                 <artifactId>femtojar</artifactId>
-                <version>0.1.2</version>
+                <version>0.1.4</version>
                 <executions>
                     <execution>
                         <phase>package</phase>
