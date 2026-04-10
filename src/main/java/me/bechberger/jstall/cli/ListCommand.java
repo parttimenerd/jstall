@@ -4,6 +4,7 @@ import me.bechberger.femtocli.annotations.Command;
 import me.bechberger.femtocli.annotations.Option;
 import me.bechberger.jstall.Main;
 import me.bechberger.jstall.provider.ReplayProvider;
+import me.bechberger.jstall.util.CommandExecutor.SSHCommandException;
 import me.bechberger.jstall.util.JVMDiscovery;
 import me.bechberger.femtocli.annotations.Parameters;
 import me.bechberger.femtocli.Spec;
@@ -70,6 +71,9 @@ public class ListCommand implements Callable<Integer> {
 
             return 0;
 
+        } catch (SSHCommandException e) {
+            System.err.println("ERROR: " + e.getMessage());
+            return 2;
         } catch (IOException e) {
             System.err.println("Error listing JVMs: " + e.getMessage());
             return 1;

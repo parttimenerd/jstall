@@ -92,7 +92,7 @@ Or use with [JBang](https://www.jbang.dev/): `jbang jstall@parttimenerd/jstall <
 <!-- BEGIN help -->
 ```bash
 Usage: jstall [-hV] [--file=<replayFile>] [--ssh=<sshCommandPrefix>]
-              [--cf=<cfAppName>] [COMMAND]
+              [--cf=<cfAppName>] [--verbose] [COMMAND]
 One-shot JVM inspection tool
       --cf=<cfAppName>            Use Cloud Foundry CLI for remote execution
                                   (shortcut for --ssh 'cf ssh <app-name> -c'),
@@ -103,6 +103,8 @@ One-shot JVM inspection tool
   -s, --ssh=<sshCommandPrefix>    Execution command prefix for running commands
                                   on a remote host via SSH (e.g., 'ssh
                                   user@host'), only Linux/Mac support on remote
+  -v, --verbose                   Enable verbose logging of remote SSH commands
+                                  and their outputs
   -V, --version                   Print version information and exit.
 Commands:
   record                Record all data into a zip for later analysis
@@ -112,7 +114,7 @@ Commands:
   flame                 Generate a flamegraph of the application using async-profiler
   threads               List all threads sorted by CPU time
   waiting-threads       Identify threads waiting without progress (potentially starving)
-  dependency-tree       Show thread dependencies
+  dependency-graph      Show thread dependencies
   dependency-tree       Show non deadlock thread dependencies over time
   vm-vitals             Show VM.vitals (if available)
   gc-heap-info          Show GC.heap_info last absolute values and change
@@ -123,6 +125,7 @@ Commands:
   list                  List running JVM processes (excluding this tool)
   processes             Detect other processes running on the system that consume high CPU time
   jvm-support           Check whether the target JVM is likely still supported (based on java.version.date)
+  help                  Show help (same as --help)
 ```
 <!-- END help -->
 
@@ -182,6 +185,7 @@ List running JVM processes (excluding this tool)
 ### `status` (default)
 
 Runs multiple analyzers (deadlock, most-work, threads, dependency-graph, dependency-tree) over shared thread dumps.
+Requires at least 2 thread dumps (collected automatically from live JVMs, or pass multiple dump files).
 
 <!-- BEGIN help_status -->
 ```
@@ -221,8 +225,21 @@ Checks whether the target JVM is reasonably up-to-date based on `java.version.da
 
 <!-- BEGIN help_jvm_support -->
 ```
-Usage: jstall jvm-support [-hV] [--dumps=<dumps>] [--interval=<interval>] [--keep]
-                          [--intelligent-filter] [<targets>...]
+Usage: jstall jvm-support [-hV] [--dumps=<dumps>] [--interval=<interval>]
+                          [--keep] [--intelligent-filter] [--full] [<targets>...]
+Check whether the target JVM is likely still supported (based on java.version.date)
+      [<targets>...]       PID, 'all', filter or dump files (or replay ZIP as
+                           first argument)
+      --dumps=<dumps>      Number of dumps to collect, default is none
+      --full               Run all analyses including expensive ones (only for
+                           status command)
+  -h, --help               Show this help message and exit.
+      --intelligent-filter Use intelligent stack trace filtering (collapses
+                           internal frames, focuses on application code)
+      --interval=<interval>
+                           Interval between dumps, default is 5s
+      --keep               Persist dumps to disk
+  -V, --version            Print version information and exit.
 ```
 <!-- END help_jvm_support -->
 
@@ -233,6 +250,8 @@ Usage: jstall jvm-support [-hV] [--dumps=<dumps>] [--interval=<interval>] [--kee
 ---
 
 ### `most-work`
+
+Requires at least 2 thread dumps.
 
 <!-- BEGIN help_most_work -->
 ```
@@ -293,6 +312,7 @@ Detect JVM-reported thread deadlocks
 ### `threads`
 
 Lists all threads sorted by CPU time in a table format.
+Requires at least 2 thread dumps.
 
 <!-- BEGIN help_threads -->
 ```
@@ -362,16 +382,21 @@ Shows thread dependencies by visualizing which threads wait on locks held by oth
 
 <!-- BEGIN help_dependency_graph -->
 ```
-Usage: jstall dependency-tree [-hV] [--keep] [--dumps=<dumps>]
-                               [--interval=<interval>] [<targets>...]
-Show thread dependencies (which threads wait on locks held by others)
-      [<targets>...]    PID, filter or dump files
-      --dumps=<dumps>   Number of dumps to collect, default is 2
-  -h, --help            Show this help message and exit.
+Usage: jstall dependency-graph [-hV] [--dumps=<dumps>] [--interval=<interval>]
+                               [--keep] [--intelligent-filter] [--full] [<targets>...]
+Show thread dependencies
+      [<targets>...]       PID, 'all', filter or dump files (or replay ZIP as
+                           first argument)
+      --dumps=<dumps>      Number of dumps to collect, default is none
+      --full               Run all analyses including expensive ones (only for
+                           status command)
+  -h, --help               Show this help message and exit.
+      --intelligent-filter Use intelligent stack trace filtering (collapses
+                           internal frames, focuses on application code)
       --interval=<interval>
-                        Interval between dumps, default is 5s
-      --keep            Persist dumps to disk
-  -V, --version         Print version information and exit.
+                           Interval between dumps, default is 5s
+      --keep               Persist dumps to disk
+  -V, --version            Print version information and exit.
 ```
 <!-- END help_dependency_graph -->
 
@@ -416,16 +441,21 @@ over time.
 
 <!-- BEGIN help_dependency_tree -->
 ```
-Usage: jstall dependency-tree [-hV] [--keep] [--dumps=<dumps>]
-                               [--interval=<interval>] [<targets>...]
-Show thread dependencies (which threads wait on locks held by others)
-      [<targets>...]    PID, filter or dump files
-      --dumps=<dumps>   Number of dumps to collect, default is 2
-  -h, --help            Show this help message and exit.
+Usage: jstall dependency-tree [-hV] [--dumps=<dumps>] [--interval=<interval>]
+                              [--keep] [--intelligent-filter] [--full] [<targets>...]
+Show non deadlock thread dependencies over time
+      [<targets>...]       PID, 'all', filter or dump files (or replay ZIP as
+                           first argument)
+      --dumps=<dumps>      Number of dumps to collect, default is none
+      --full               Run all analyses including expensive ones (only for
+                           status command)
+  -h, --help               Show this help message and exit.
+      --intelligent-filter Use intelligent stack trace filtering (collapses
+                           internal frames, focuses on application code)
       --interval=<interval>
-                        Interval between dumps, default is 5s
-      --keep            Persist dumps to disk
-  -V, --version         Print version information and exit.
+                           Interval between dumps, default is 5s
+      --keep               Persist dumps to disk
+  -V, --version            Print version information and exit.
 ```
 <!-- END help_dependency_tree -->
 
@@ -496,32 +526,40 @@ AI-powered thread dump analysis using a Large Language Model (LLM). Combines sta
 
 <!-- BEGIN help_ai -->
 ```
-Usage: jstall ai [-hV] [--dry-run] [--intelligent-filter] [--keep] [--no-native]
-                 [--raw] [--dumps=<dumps>] [--interval=<interval>]
-                 [--model=<model>] [--question=<question>]
-                 [--stack-depth=<stackDepth>] [--top=<top>] [<targets>...]
+Usage: jstall ai [-hV] [--dumps=<dumps>] [--interval=<interval>] [--keep]
+                 [--intelligent-filter] [--full] [--local] [--remote] [--model=<model>]
+                 [--question=<question>] [--raw] [--top=<top>] [--no-native]
+                 [--stack-depth=<stackDepth>] [--dry-run] [--short] [--thinking] [<targets>...]
+                 [COMMAND]
 AI-powered thread dump analysis using LLM
-      [<targets>...]    PID, filter or dump files
-      --dumps=<dumps>   Number of dumps to collect, default is 2
-      --dry-run         Perform a dry run without calling the AI API
-  -h, --help            Show this help message and exit.
-      --intelligent-filter
-                        Use intelligent stack trace filtering (collapses
-                          internal frames, focuses on application code)
-      --interval=<interval>
-                        Interval between dumps, default is 5s
-      --keep            Persist dumps to disk
-      --model=<model>   LLM model to use (default: gpt-50-nano)
-      --no-native       Ignore threads without stack traces (typically
-                          native/system threads)
-      --question=<question>
-                        Custom question to ask (use '-' to read from stdin)
-      --raw             Output raw JSON response
+      [<targets>...]            PID, 'all', filter or dump files (or replay ZIP
+                                as first argument)
+      --dry-run                 Perform a dry run without calling the AI API
+      --dumps=<dumps>           Number of dumps to collect, default is none
+      --full                    Run all analyses including expensive ones (only
+                                for status command)
+  -h, --help                    Show this help message and exit.
+      --intelligent-filter      Use intelligent stack trace filtering (collapses
+                                internal frames, focuses on application code)
+      --interval=<interval>     Interval between dumps, default is 5s
+      --keep                    Persist dumps to disk
+      --local                   Use local Ollama provider (overrides config)
+      --model=<model>           LLM model to use (default from config or
+                                provider default)
+      --no-native               Ignore threads without stack traces
+      --question=<question>     Custom question to ask (use '-' to read from
+                                stdin)
+      --raw                     Output raw JSON response
+      --remote                  Use remote Gardener AI provider (overrides
+                                config)
+      --short                   Create a succinct summary of the analysis
       --stack-depth=<stackDepth>
-                        Stack trace depth to show (default: 10, 0=all, in
-                          intelligent mode: max relevant frames)
-      --top=<top>       Number of top threads (default: 3)
-  -V, --version         Print version information and exit.
+                                Stack trace depth (default: none, 0=all)
+      --thinking                Show thinking tokens (Ollama only)
+      --top=<top>               Number of top threads (default: none)
+  -V, --version                 Print version information and exit.
+Commands:
+  full  Analyze all JVMs on the system with AI
 ```
 <!-- END help_ai -->
 
@@ -621,30 +659,34 @@ Analyzes **all active JVMs on the system** with AI-powered insights. Discovers r
 
 <!-- BEGIN help_ai_full -->
 ```
-Usage: jstall ai full [-hV] [--dry-run] [--intelligent-filter] [--no-native]
-                      [--raw] [--cpu-threshold=<cpuThreshold>]
-                      [-i=<interval>] [--model=<model>] [-n=<dumps>]
-                      [--question=<question>] [--stack-depth=<stackDepth>]
-                      [--top=<top>]
+Usage: jstall ai full [-hV] [--local] [--remote] [--model=<model>]
+                      [--question=<question>] [--raw] [--cpu-threshold=<cpuThreshold>]
+                      [--dumps=<dumps>] [--interval=<interval>] [--top=<top>] [--no-native]
+                      [--stack-depth=<stackDepth>] [--dry-run] [--short] [--thinking]
 Analyze all JVMs on the system with AI
       --cpu-threshold=<cpuThreshold>
-                        CPU threshold percentage (default: 1.0%)
-      --dry-run         Perform a dry run without calling the AI API
-  -h, --help            Show this help message and exit.
-  -i, --interval=<interval>
-                        Interval between dumps in seconds (default: 1)
-      --intelligent-filter
-                        Enable intelligent stack filtering (default: true)
-      --model=<model>   LLM model to use (default: gpt-50-nano)
-  -n, --dumps=<dumps>   Number of dumps per JVM (default: 2)
-      --no-native       Ignore threads without stack traces
-      --question=<question>
-                        Custom question to ask (use '-' to read from stdin)
-      --raw             Output raw JSON response
-      --stack-depth=<stackDepth>
-                        Stack trace depth (default: 10, 0=all)
-      --top=<top>       Number of top threads per JVM (default: 3)
-  -V, --version         Print version information and exit.
+                                    CPU threshold percentage (default: none%)
+      --dry-run                     Perform a dry run without calling the AI API
+  -h, --help                        Show this help message and exit.
+  -i, --interval=<interval>         Interval between dumps in seconds (default:
+                                    none)
+      --local                       Use local Ollama provider (overrides config)
+      --model=<model>               LLM model to use (default from config or
+                                    provider default)
+  -n, --dumps=<dumps>               Number of dumps per JVM (default: none)
+      --no-native                   Ignore threads without stack traces
+      --question=<question>         Custom question to ask (use '-' to read from
+                                    stdin)
+      --raw                         Output raw JSON response
+      --remote                      Use remote Gardener AI provider (overrides
+                                    config)
+      --short                       Create a succinct summary of the system
+                                    analysis
+      --stack-depth=<stackDepth>    Stack trace depth (default: none, 0=all)
+      --thinking                    Show thinking tokens (Ollama only)
+      --top=<top>                   Number of top threads per JVM (default:
+                                    none)
+  -V, --version                     Print version information and exit.
 ```
 <!-- END help_ai_full -->
 
@@ -707,6 +749,14 @@ No JVM targets found for: <target>
 
 <!-- BEGIN help_record -->
 ```
+Usage: jstall record [-hV] [COMMAND]
+Record all data into a zip for later analysis
+  -h, --help       Show this help message and exit.
+  -V, --version    Print version information and exit.
+Commands:
+  create   Record all data into a zip for later analysis
+  extract  Extract recording folder from ZIP into a folder
+  summary  Print the README summary from a recording ZIP
 ```
 <!-- END help_record -->
 
@@ -823,9 +873,21 @@ In either of these cases, list all processes with a CPU usage above 1% of CPU ti
 
 <!-- BEGIN help_processes -->
 ```
-Usage: jstall processes [-hV] [--cpu-threshold=<cpuThreshold>]
-                          [--own-process-cpu-threshold=<ownProcessCpuThreshold>]
-
+Usage: jstall processes [-hV] [--dumps=<dumps>] [--interval=<interval>] [--keep]
+                        [--intelligent-filter] [--full] [<targets>...]
+Detect other processes running on the system that consume high CPU time
+      [<targets>...]       PID, 'all', filter or dump files (or replay ZIP as
+                           first argument)
+      --dumps=<dumps>      Number of dumps to collect, default is none
+      --full               Run all analyses including expensive ones (only for
+                           status command)
+  -h, --help               Show this help message and exit.
+      --intelligent-filter Use intelligent stack trace filtering (collapses
+                           internal frames, focuses on application code)
+      --interval=<interval>
+                           Interval between dumps, default is 5s
+      --keep               Persist dumps to disk
+  -V, --version            Print version information and exit.
 ```                          
 <!-- END help_processes -->
 

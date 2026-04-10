@@ -46,7 +46,7 @@ public class HelpTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"list", "deadlock", "most-work", "flame", "threads", "waiting-threads", "dependency-tree", "compiler-queue", "vm-classloader-stats", "vm-metaspace", "jvm-support", "ai", "ai full"})
+    @ValueSource(strings = {"list", "deadlock", "most-work", "flame", "threads", "waiting-threads", "dependency-graph", "compiler-queue", "vm-classloader-stats", "vm-metaspace", "jvm-support", "ai", "ai full"})
     public void smokeTestHelpTest(String cmd) {
         var args = cmd.split(" ");
         final var argsWithHelp = Arrays.copyOf(args, args.length + 1);

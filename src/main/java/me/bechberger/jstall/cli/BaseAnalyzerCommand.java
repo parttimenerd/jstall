@@ -16,6 +16,7 @@ import me.bechberger.jstall.provider.requirement.DataRequirement;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
 import me.bechberger.jstall.provider.requirement.ThreadDumpRequirement;
 import me.bechberger.jstall.util.CommandExecutor;
+import me.bechberger.jstall.util.CommandExecutor.SSHCommandException;
 import me.bechberger.jstall.util.JVMDiscovery;
 import me.bechberger.femtocli.annotations.Parameters;
 import me.bechberger.jstall.util.ResolvedTarget;
@@ -27,6 +28,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -101,9 +103,21 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
     @Override
     public Integer call() throws Exception {
         setupReplayFile();
-        AnalysisContext context = createContext();
-        
-        JVMDiscovery.ResolutionResult resolution = resolveTargets(context);
+        AnalysisContext context;
+        try {
+            context = createContext();
+        } catch (SSHCommandException e) {
+            System.err.println("ERROR: " + e.getMessage());
+            return 2;
+        }
+
+        JVMDiscovery.ResolutionResult resolution;
+        try {
+            resolution = resolveTargets(context);
+        } catch (SSHCommandException e) {
+            System.err.println("ERROR: " + e.getMessage());
+            return 2;
+        }
         if (!resolution.isSuccess()) {
             printResolutionError(resolution, context);
             return 1;
@@ -194,10 +208,22 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
 
     private void printResolutionError(JVMDiscovery.ResolutionResult resolution, AnalysisContext context) throws IOException {
         System.err.println("Error: " + resolution.errorMessage());
-        if (resolution.shouldListJVMs()) {
+        if (shouldPrintAvailableTargets(resolution)) {
             System.err.println();
             printAvailableTargets(System.err, context);
         }
+    }
+
+    private boolean shouldPrintAvailableTargets(JVMDiscovery.ResolutionResult resolution) {
+        if (!resolution.shouldListJVMs()) {
+            return false;
+        }
+        String message = resolution.errorMessage();
+        if (message == null) {
+            return true;
+        }
+        String normalized = message.trim().toLowerCase(Locale.ROOT);
+        return !normalized.equals("no jvms found") && !normalized.equals("no running jvms found");
     }
 
     private void printAvailableTargets(java.io.PrintStream out, AnalysisContext context) throws IOException {

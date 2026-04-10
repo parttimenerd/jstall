@@ -222,6 +222,16 @@ public class JVMDiscovery {
     private List<JVMProcess> listJVMsFallback(String filter, boolean excludeSelf) throws IOException {
         boolean hasFilter = filter != null && !filter.isBlank();
         var result = executor.executeCommand("jps", "-l");
+
+        // Distinguish SSH/command errors from empty JVM discovery
+        if (result.exitCode() != 0) {
+            String errorDetail = result.err().isBlank() ? result.out().trim() : result.err().trim();
+            if (errorDetail.isBlank()) {
+                errorDetail = "exit code " + result.exitCode();
+            }
+            throw new IOException("Remote command failed: " + errorDetail);
+        }
+
         long currentPid = ProcessHandle.current().pid();
         return result.out().lines().map(
             line -> line.split("\\s+", 2)

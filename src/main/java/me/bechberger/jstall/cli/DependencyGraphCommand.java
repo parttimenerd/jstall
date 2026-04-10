@@ -9,7 +9,7 @@ import me.bechberger.jstall.analyzer.impl.DependencyTreeAnalyzer;
  * Shows thread dependencies by analyzing which threads wait on locks held by other threads.
  */
 @Command(
-    name = "dependency-tree",
+    name = "dependency-graph",
     description = "Show thread dependencies"
 )
 public class DependencyGraphCommand extends BaseAnalyzerCommand {

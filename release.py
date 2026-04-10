@@ -83,7 +83,7 @@ def _patch_pom_for_minimal(pom_path: Path):
             <plugin>
                 <groupId>me.bechberger</groupId>
                 <artifactId>femtojar</artifactId>
-                <version>0.1.1</version>
+                <version>0.1.2</version>
                 <executions>
                     <execution>
                         <phase>package</phase>
@@ -428,11 +428,15 @@ class VersionBumper:
         print(f"✓ Updated pom.xml: {old_version} -> {new_version}")
 
     def update_main_java(self, old_version: str, new_version: str):
-        """Update version in Main.java"""
+        """Update version in Main.java (both @Command annotation and VERSION constant)"""
         content = self.main_java.read_text()
         content = content.replace(
             f'version = "{old_version}"',
             f'version = "{new_version}"'
+        )
+        content = content.replace(
+            f'VERSION = "{old_version}"',
+            f'VERSION = "{new_version}"'
         )
         self.main_java.write_text(content)
         print(f"✓ Updated Main.java: {old_version} -> {new_version}")
@@ -480,6 +484,8 @@ class VersionBumper:
         print(f"\n  Main.java:")
         print(f"    - version = \"{old_version}\"")
         print(f"    + version = \"{new_version}\"")
+        print(f"    - VERSION = \"{old_version}\"")
+        print(f"    + VERSION = \"{new_version}\"")
 
         print(f"\n  README.md:")
         print(f"    - <version>{old_version}</version>")

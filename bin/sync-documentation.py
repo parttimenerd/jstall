@@ -37,22 +37,23 @@ def write_file(path: Path, content: str) -> None:
         f.write(content)
 
 
-def build_project_and_get_help() -> dict[str, str]:
+def build_project_and_get_help(skip_build: bool = False) -> dict[str, str]:
     """Build project and extract --help output for each command."""
     repo_root = get_repo_root()
 
-    # Build the project
-    print("Building project...")
-    result = subprocess.run(
-        ["mvn", "package", "-DskipTests", "-q"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True
-    )
+    if not skip_build:
+        # Build the project
+        print("Building project...")
+        result = subprocess.run(
+            ["mvn", "package", "-DskipTests", "-q"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True
+        )
 
-    if result.returncode != 0:
-        print(f"Warning: Maven build failed: {result.stderr}", file=sys.stderr)
-        return {}
+        if result.returncode != 0:
+            print(f"Warning: Maven build failed: {result.stderr}", file=sys.stderr)
+            return {}
 
     jar_path = repo_root / "target/jstall.jar"
     if not jar_path.exists():
@@ -72,7 +73,12 @@ def build_project_and_get_help() -> dict[str, str]:
     elif root_result.stderr.strip():
         help_outputs[""] = root_result.stderr.strip()
 
-    commands = ["list", "status", "deadlock", "most-work", "threads", "waiting-threads", "flame"]
+    commands = [
+        "list", "status", "deadlock", "most-work", "threads", "waiting-threads", "flame",
+        "jvm-support", "dependency-graph", "dependency-tree", "processes",
+        "gc-heap-info", "vm-vitals", "vm-metaspace", "vm-classloader-stats", "compiler-queue",
+        "ai", "record",
+    ]
 
     for cmd in commands:
         result = subprocess.run(
@@ -87,6 +93,20 @@ def build_project_and_get_help() -> dict[str, str]:
             # Try stderr as some CLI frameworks output help there
             if result.stderr.strip():
                 help_outputs[cmd] = result.stderr.strip()
+
+    # Subcommands that need special invocation: "ai full"
+    for parent, sub, marker in [("ai", "full", "ai full")]:
+        result = subprocess.run(
+            ["java", "-jar", str(jar_path), parent, sub, "--help"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True
+        )
+        if result.returncode == 0:
+            help_outputs[marker] = result.stdout.strip()
+        else:
+            if result.stderr.strip():
+                help_outputs[marker] = result.stderr.strip()
 
     return help_outputs
 
@@ -109,7 +129,7 @@ def update_readme_help_section(content: str, command: str, help_text: str) -> st
     ```
     <!-- END help_command -->
     """
-    section_marker = "help" if command == "" else f"help_{command.replace('-', '_')}"
+    section_marker = "help" if command == "" else f"help_{command.replace('-', '_').replace(' ', '_')}"
     pattern = rf'(<!-- BEGIN {section_marker} -->\s*```(?:bash)?\s*)\s*(.*?)\s*(```\s*<!-- END {section_marker} -->)'
 
     if re.search(pattern, content, re.DOTALL):
@@ -135,7 +155,7 @@ def sync_help_to_readme(readme_content: str, help_outputs: dict[str, str]) -> st
     """Sync CLI --help outputs to README."""
     for command, help_text in help_outputs.items():
         readme_content = update_readme_help_section(readme_content, command, help_text)
-        printable_command = "jstall" if command == "" else command
+        printable_command = "jstall" if command == "" else f"jstall {command}"
         print(f"Synced {printable_command} --help to README")
 
     return readme_content
@@ -178,14 +198,13 @@ Examples:
     original_content = readme_content
 
     # Build and sync CLI help (unless skipped)
-    if not args.skip_build:
-        help_outputs = build_project_and_get_help()
-        if help_outputs:
-            readme_content = sync_help_to_readme(readme_content, help_outputs)
-        else:
-            print("Warning: No help outputs extracted", file=sys.stderr)
-    else:
+    if args.skip_build:
         print("Skipping build (--skip-build specified)")
+    help_outputs = build_project_and_get_help(skip_build=args.skip_build)
+    if help_outputs:
+        readme_content = sync_help_to_readme(readme_content, help_outputs)
+    else:
+        print("Warning: No help outputs extracted", file=sys.stderr)
 
     # Write updated README
     if readme_content != original_content:

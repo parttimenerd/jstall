@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Utility class to execute system commands and capture their output, either executes locally or remotely via SSH.
@@ -15,6 +16,26 @@ import java.util.stream.Collectors;
  */
 public abstract class CommandExecutor {
 
+    /**
+     * Exception thrown when an SSH command fails, carrying the SSH exit code.
+     */
+    public static class SSHCommandException extends IOException {
+        private final int sshExitCode;
+
+        public SSHCommandException(String message, int sshExitCode) {
+            super(message);
+            this.sshExitCode = sshExitCode;
+        }
+
+        public int getSshExitCode() {
+            return sshExitCode;
+        }
+    }
+
+    /**
+     * Temporary file that lives where the command is executed (locally or remotely),
+     * with utility methods to read content, copy it locally and delete it.
+     */
     public interface TemporaryFile {
         String getPath();
         String readContent() throws IOException;
@@ -136,23 +157,86 @@ public abstract class CommandExecutor {
         private static final Set<String> JVM_RELATED_COMMANDS = Set.of("jcmd", "jps", "jstack", "jmap", "jinfo", "jstat", "asprof");
         private final String sshCommandPrefix;
         private final LocalCommandExecutor localExecutor = new LocalCommandExecutor();
+        private boolean verbose = false;
+
+        private final Object probeLock = new Object();
+        private volatile boolean remoteProbeDone = false;
+
+        /**
+         * Shell snippet that discovers a JDK bin directory and prepends it to PATH.
+         * Runs once per command invocation but is cheap (searches from . first, then /).
+         */
+        private static final String JDK_PATH_DISCOVERY_PREFIX =
+                "JDK_BIN=$(dirname \"$(find . -executable -name jps 2>/dev/null | head -1)\" 2>/dev/null); " +
+                "if [ -z \"$JDK_BIN\" ] || [ \"$JDK_BIN\" = \".\" ]; then " +
+                    "JDK_BIN=$(dirname \"$(find / -executable -name jps 2>/dev/null | head -1)\" 2>/dev/null); " +
+                "fi; " +
+                "if [ -n \"$JDK_BIN\" ] && [ \"$JDK_BIN\" != \".\" ]; then export PATH=\"$JDK_BIN:$PATH\"; fi; ";
 
         public RemoteCommandExecutor(String sshCommandPrefix) {
             super(true);
             this.sshCommandPrefix = sshCommandPrefix;
         }
 
+        public void setVerbose(boolean verbose) {
+            this.verbose = verbose;
+        }
+
+        public boolean isVerbose() {
+            return verbose;
+        }
+
+        /**
+         * Ensures that the passed command prefix works at all.
+         * Throws IOException with the SSH error output on failure.
+         */
+        private void ensureRemoteProbe() throws IOException {
+            if (remoteProbeDone) return;
+            synchronized (probeLock) {
+                if (remoteProbeDone) return;
+
+                String marker = "__JSTALL_REMOTE_OK__";
+                String fullCommand = sshCommandPrefix + " " + escapeForShell("echo " + marker);
+                if (verbose) {
+                    System.err.println("[verbose] SSH probe: sh -c " + fullCommand);
+                }
+                CommandResult probe = localExecutor.executeCommand("sh", "-c", fullCommand);
+
+                if (probe.exitCode() != 0) {
+                    String details = Stream.of(probe.err(), probe.out()).filter(s -> !s.isBlank()).collect(Collectors.joining("\n"));
+                    throw new SSHCommandException("SSH command failed (exit code " + probe.exitCode() + "):\n  " + details.replace("\n", "\n  "), probe.exitCode());
+                }
+                remoteProbeDone = true;
+            }
+        }
+
         @Override
         public CommandResult executeCommand(String command, String... args) throws IOException {
-            String actualCommand = command;
+            ensureRemoteProbe();
+            String actualCommand;
             if (JVM_RELATED_COMMANDS.contains(command)) {
-                actualCommand = "candidate=$(command -v " + escapeForShell(command) + " 2>/dev/null || find / -type f -name " + escapeForShell(command) + " 2>/dev/null | head -1); " +
-                        "if [ -z \"$candidate\" ]; then echo " + escapeForShell(command + " not found") + " >&2; exit 1; fi; \"$candidate\"";
+                // Prepend JDK PATH discovery so tools like jps/jcmd work on CF containers
+                actualCommand = JDK_PATH_DISCOVERY_PREFIX + command;
+            } else {
+                actualCommand = command;
             }
 
             String remotePayload = args != null ? actualCommand + " " + escapeAndJoinArgs(args) : actualCommand;
             String fullCommand = sshCommandPrefix + " " + escapeForShell(remotePayload);
-            return localExecutor.executeCommand("sh", "-c", fullCommand);
+            if (verbose) {
+                System.err.println("[verbose] SSH command: sh -c " + fullCommand);
+            }
+            CommandResult result = localExecutor.executeCommand("sh", "-c", fullCommand);
+            if (verbose) {
+                System.err.println("[verbose] Exit code: " + result.exitCode());
+                if (!result.out().isBlank()) {
+                    System.err.println("[verbose] stdout: " + result.out().trim());
+                }
+                if (!result.err().isBlank()) {
+                    System.err.println("[verbose] stderr: " + result.err().trim());
+                }
+            }
+            return result;
         }
 
         /**
