@@ -109,7 +109,8 @@ public class RunCommandUtil {
 
     private static boolean isReplayMode(String[] args) {
         for (String arg : args) {
-            if ("-f".equals(arg) || "--file".equals(arg)) {
+            if ("-f".equals(arg) || "--file".equals(arg)
+                    || arg.startsWith("--file=") || arg.startsWith("-f=")) {
                 return true;
             }
         }
