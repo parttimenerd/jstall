@@ -85,7 +85,7 @@ public class RunCommandUtil {
             command.add(externalJarPath);
         }
 
-        if (forceShellOption()) {
+        if (forceShellOption() && !isReplayMode(args)) {
             // FemtoCli parses help/version reliably when they come before -s.
             if (isGlobalHelpOrVersion(args)) {
                 command.addAll(List.of(args));
@@ -105,6 +105,15 @@ public class RunCommandUtil {
     private static boolean isGlobalHelpOrVersion(String[] args) {
         return args.length == 1
             && ("--help".equals(args[0]) || "-h".equals(args[0]) || "--version".equals(args[0]) || "-V".equals(args[0]));
+    }
+
+    private static boolean isReplayMode(String[] args) {
+        for (String arg : args) {
+            if ("-f".equals(arg) || "--file".equals(arg)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
