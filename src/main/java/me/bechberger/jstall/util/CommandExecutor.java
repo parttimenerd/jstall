@@ -164,12 +164,15 @@ public abstract class CommandExecutor {
 
         /**
          * Shell snippet that discovers a JDK bin directory and prepends it to PATH.
-         * Runs once per command invocation but is cheap (searches from . first, then /).
+         * Prefers JAVA_HOME if set, then searches from . and finally from /.
          */
         private static final String JDK_PATH_DISCOVERY_PREFIX =
-                "JDK_BIN=$(dirname \"$(find . -executable -name jps 2>/dev/null | head -1)\" 2>/dev/null); " +
-                "if [ -z \"$JDK_BIN\" ] || [ \"$JDK_BIN\" = \".\" ]; then " +
-                    "JDK_BIN=$(dirname \"$(find / -executable -name jps 2>/dev/null | head -1)\" 2>/dev/null); " +
+                "if [ -n \"$JAVA_HOME\" ] && [ -x \"$JAVA_HOME/bin/jps\" ]; then JDK_BIN=\"$JAVA_HOME/bin\"; " +
+                "else " +
+                    "JDK_BIN=$(dirname \"$(find . -executable -name jps 2>/dev/null | head -1)\" 2>/dev/null); " +
+                    "if [ -z \"$JDK_BIN\" ] || [ \"$JDK_BIN\" = \".\" ]; then " +
+                        "JDK_BIN=$(dirname \"$(find / -executable -name jps 2>/dev/null | head -1)\" 2>/dev/null); " +
+                    "fi; " +
                 "fi; " +
                 "if [ -n \"$JDK_BIN\" ] && [ \"$JDK_BIN\" != \".\" ]; then export PATH=\"$JDK_BIN:$PATH\"; fi; ";
 
