@@ -140,7 +140,7 @@ Add the following dependency to your `pom.xml`:
 <dependency>
     <groupId>me.bechberger</groupId>
     <artifactId>jstall</artifactId>
-    <version>0.6.0</version>
+    <version>0.6.1</version>
 </dependency>
 ```
 
@@ -164,14 +164,14 @@ jstall deadlock kafka          # Check deadlocks in matching JVMs
 
 <!-- BEGIN help_list -->
 ```
-Usage: jstall list [-hV] [--no-truncate] [<filter>]
+Usage: jstall list [-hV] [--no-truncate] [<filters>...]
 List running JVM processes (excluding this tool)
-      [<filter>]   Optional filter - only show JVMs whose main class contains
-                   this text
-  -h, --help       Show this help message and exit.
-      --no-truncate
-                   Don't truncate descriptors in the output
-  -V, --version    Print version information and exit.
+      [<filters>...]
+                    Optional filter(s) - only show JVMs whose main class
+                    contains any of these texts
+  -h, --help        Show this help message and exit.
+      --no-truncate Don't truncate descriptors in the output
+  -V, --version     Print version information and exit.
 ```
 <!-- END help_list -->
 
@@ -192,24 +192,27 @@ Requires at least 2 thread dumps (collected automatically from live JVMs, or pas
 
 <!-- BEGIN help_status -->
 ```
-Usage: jstall status [-hV] [--dumps=<dumps>] [--interval=<interval>] [--keep]
-                     [--intelligent-filter] [--full] [--top=<top>] [--no-native] [<targets>...]
+Usage: jstall status [-hV] [--dump-count=<count>] [--interval=<interval>]
+                     [--keep] [--intelligent-filter] [--full]
+                     [--file=<replayFile>] [--top=<top>] [--no-native]
+                     [<targets>...]
 Run multiple analyzers over thread dumps (default command)
-      [<targets>...]       PID, 'all', filter or dump files (or replay ZIP as
-                           first argument)
-      --dumps=<dumps>      Number of dumps to collect, default is none
-      --full               Run all analyses including expensive ones (only for
-                           status command)
-  -h, --help               Show this help message and exit.
-      --intelligent-filter Use intelligent stack trace filtering (collapses
-                           internal frames, focuses on application code)
-      --interval=<interval>
-                           Interval between dumps, default is 5s
-      --keep               Persist dumps to disk
-      --no-native          Ignore threads without stack traces (typically
-                           native/system threads)
-      --top=<top>          Number of top threads (default: 3)
-  -V, --version            Print version information and exit.
+      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
+                             first argument)
+      --dump-count=<count>   Number of dumps to collect, default is none
+  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
+                             subcommand)
+      --full                 Run all analyses including expensive ones (only for
+                             status command)
+  -h, --help                 Show this help message and exit.
+      --intelligent-filter   Use intelligent stack trace filtering (collapses
+                             internal frames, focuses on application code)
+      --interval=<interval>  Interval between dumps, default is 5s
+      --keep                 Persist dumps to disk
+      --no-native            Ignore threads without stack traces (typically
+                             native/system threads)
+      --top=<top>            Number of top threads (default: 3)
+  -V, --version              Print version information and exit.
 ```
 <!-- END help_status -->
 
@@ -228,21 +231,23 @@ Checks whether the target JVM is reasonably up-to-date based on `java.version.da
 
 <!-- BEGIN help_jvm_support -->
 ```
-Usage: jstall jvm-support [-hV] [--dumps=<dumps>] [--interval=<interval>]
-                          [--keep] [--intelligent-filter] [--full] [<targets>...]
+Usage: jstall jvm-support [-hV] [--dump-count=<count>] [--interval=<interval>]
+                          [--keep] [--intelligent-filter] [--full]
+                          [--file=<replayFile>] [<targets>...]
 Check whether the target JVM is likely still supported (based on java.version.date)
-      [<targets>...]       PID, 'all', filter or dump files (or replay ZIP as
-                           first argument)
-      --dumps=<dumps>      Number of dumps to collect, default is none
-      --full               Run all analyses including expensive ones (only for
-                           status command)
-  -h, --help               Show this help message and exit.
-      --intelligent-filter Use intelligent stack trace filtering (collapses
-                           internal frames, focuses on application code)
-      --interval=<interval>
-                           Interval between dumps, default is 5s
-      --keep               Persist dumps to disk
-  -V, --version            Print version information and exit.
+      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
+                             first argument)
+      --dump-count=<count>   Number of dumps to collect, default is none
+  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
+                             subcommand)
+      --full                 Run all analyses including expensive ones (only for
+                             status command)
+  -h, --help                 Show this help message and exit.
+      --intelligent-filter   Use intelligent stack trace filtering (collapses
+                             internal frames, focuses on application code)
+      --interval=<interval>  Interval between dumps, default is 5s
+      --keep                 Persist dumps to disk
+  -V, --version              Print version information and exit.
 ```
 <!-- END help_jvm_support -->
 
@@ -258,13 +263,16 @@ Requires at least 2 thread dumps.
 
 <!-- BEGIN help_most_work -->
 ```
-Usage: jstall most-work [-hV] [--dumps=<dumps>] [--interval=<interval>] [--keep]
-                        [--intelligent-filter] [--full] [--top=<top>] [--no-native]
+Usage: jstall most-work [-hV] [--dump-count=<count>] [--interval=<interval>]
+                        [--keep] [--intelligent-filter] [--full]
+                        [--file=<replayFile>] [--top=<top>] [--no-native]
                         [--stack-depth=<stackDepth>] [<targets>...]
 Identify threads doing the most work across dumps
       [<targets>...]            PID, 'all', filter or dump files (or replay ZIP
                                 as first argument)
-      --dumps=<dumps>           Number of dumps to collect, default is none
+      --dump-count=<count>      Number of dumps to collect, default is none
+  -f, --file=<replayFile>       Replay ZIP file to analyze (works before or
+                                after subcommand)
       --full                    Run all analyses including expensive ones (only
                                 for status command)
   -h, --help                    Show this help message and exit.
@@ -290,21 +298,23 @@ Shows CPU time, CPU percentage, core utilization, state distribution, and activi
 
 <!-- BEGIN help_deadlock -->
 ```
-Usage: jstall deadlock [-hV] [--dumps=<dumps>] [--interval=<interval>] [--keep]
-                       [--intelligent-filter] [--full] [<targets>...]
+Usage: jstall deadlock [-hV] [--dump-count=<count>] [--interval=<interval>]
+                       [--keep] [--intelligent-filter] [--full]
+                       [--file=<replayFile>] [<targets>...]
 Detect JVM-reported thread deadlocks
-      [<targets>...]       PID, 'all', filter or dump files (or replay ZIP as
-                           first argument)
-      --dumps=<dumps>      Number of dumps to collect, default is none
-      --full               Run all analyses including expensive ones (only for
-                           status command)
-  -h, --help               Show this help message and exit.
-      --intelligent-filter Use intelligent stack trace filtering (collapses
-                           internal frames, focuses on application code)
-      --interval=<interval>
-                           Interval between dumps, default is 5s
-      --keep               Persist dumps to disk
-  -V, --version            Print version information and exit.
+      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
+                             first argument)
+      --dump-count=<count>   Number of dumps to collect, default is none
+  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
+                             subcommand)
+      --full                 Run all analyses including expensive ones (only for
+                             status command)
+  -h, --help                 Show this help message and exit.
+      --intelligent-filter   Use intelligent stack trace filtering (collapses
+                             internal frames, focuses on application code)
+      --interval=<interval>  Interval between dumps, default is 5s
+      --keep                 Persist dumps to disk
+  -V, --version              Print version information and exit.
 ```
 <!-- END help_deadlock -->
 
@@ -319,23 +329,25 @@ Requires at least 2 thread dumps.
 
 <!-- BEGIN help_threads -->
 ```
-Usage: jstall threads [-hV] [--dumps=<dumps>] [--interval=<interval>] [--keep]
-                      [--intelligent-filter] [--full] [--no-native] [<targets>...]
+Usage: jstall threads [-hV] [--dump-count=<count>] [--interval=<interval>]
+                      [--keep] [--intelligent-filter] [--full]
+                      [--file=<replayFile>] [--no-native] [<targets>...]
 List all threads sorted by CPU time
-      [<targets>...]       PID, 'all', filter or dump files (or replay ZIP as
-                           first argument)
-      --dumps=<dumps>      Number of dumps to collect, default is none
-      --full               Run all analyses including expensive ones (only for
-                           status command)
-  -h, --help               Show this help message and exit.
-      --intelligent-filter Use intelligent stack trace filtering (collapses
-                           internal frames, focuses on application code)
-      --interval=<interval>
-                           Interval between dumps, default is 5s
-      --keep               Persist dumps to disk
-      --no-native          Ignore threads without stack traces (typically
-                           native/system threads)
-  -V, --version            Print version information and exit.
+      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
+                             first argument)
+      --dump-count=<count>   Number of dumps to collect, default is none
+  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
+                             subcommand)
+      --full                 Run all analyses including expensive ones (only for
+                             status command)
+  -h, --help                 Show this help message and exit.
+      --intelligent-filter   Use intelligent stack trace filtering (collapses
+                             internal frames, focuses on application code)
+      --interval=<interval>  Interval between dumps, default is 5s
+      --keep                 Persist dumps to disk
+      --no-native            Ignore threads without stack traces (typically
+                             native/system threads)
+  -V, --version              Print version information and exit.
 ```
 <!-- END help_threads -->
 
@@ -349,13 +361,17 @@ Identifies threads waiting on the same lock instance across all dumps with no CP
 
 <!-- BEGIN help_waiting_threads -->
 ```
-Usage: jstall waiting-threads [-hV] [--dumps=<dumps>] [--interval=<interval>]
-                              [--keep] [--intelligent-filter] [--full] [--no-native]
+Usage: jstall waiting-threads [-hV] [--dump-count=<count>]
+                              [--interval=<interval>] [--keep]
+                              [--intelligent-filter] [--full]
+                              [--file=<replayFile>] [--no-native]
                               [--stack-depth=<stackDepth>] [<targets>...]
 Identify threads waiting without progress (potentially starving)
       [<targets>...]            PID, 'all', filter or dump files (or replay ZIP
                                 as first argument)
-      --dumps=<dumps>           Number of dumps to collect, default is none
+      --dump-count=<count>      Number of dumps to collect, default is none
+  -f, --file=<replayFile>       Replay ZIP file to analyze (works before or
+                                after subcommand)
       --full                    Run all analyses including expensive ones (only
                                 for status command)
   -h, --help                    Show this help message and exit.
@@ -385,21 +401,24 @@ Shows thread dependencies by visualizing which threads wait on locks held by oth
 
 <!-- BEGIN help_dependency_graph -->
 ```
-Usage: jstall dependency-graph [-hV] [--dumps=<dumps>] [--interval=<interval>]
-                               [--keep] [--intelligent-filter] [--full] [<targets>...]
+Usage: jstall dependency-graph [-hV] [--dump-count=<count>]
+                               [--interval=<interval>] [--keep]
+                               [--intelligent-filter] [--full]
+                               [--file=<replayFile>] [<targets>...]
 Show thread dependencies
-      [<targets>...]       PID, 'all', filter or dump files (or replay ZIP as
-                           first argument)
-      --dumps=<dumps>      Number of dumps to collect, default is none
-      --full               Run all analyses including expensive ones (only for
-                           status command)
-  -h, --help               Show this help message and exit.
-      --intelligent-filter Use intelligent stack trace filtering (collapses
-                           internal frames, focuses on application code)
-      --interval=<interval>
-                           Interval between dumps, default is 5s
-      --keep               Persist dumps to disk
-  -V, --version            Print version information and exit.
+      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
+                             first argument)
+      --dump-count=<count>   Number of dumps to collect, default is none
+  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
+                             subcommand)
+      --full                 Run all analyses including expensive ones (only for
+                             status command)
+  -h, --help                 Show this help message and exit.
+      --intelligent-filter   Use intelligent stack trace filtering (collapses
+                             internal frames, focuses on application code)
+      --interval=<interval>  Interval between dumps, default is 5s
+      --keep                 Persist dumps to disk
+  -V, --version              Print version information and exit.
 ```
 <!-- END help_dependency_graph -->
 
@@ -444,21 +463,24 @@ over time.
 
 <!-- BEGIN help_dependency_tree -->
 ```
-Usage: jstall dependency-tree [-hV] [--dumps=<dumps>] [--interval=<interval>]
-                              [--keep] [--intelligent-filter] [--full] [<targets>...]
+Usage: jstall dependency-tree [-hV] [--dump-count=<count>]
+                              [--interval=<interval>] [--keep]
+                              [--intelligent-filter] [--full]
+                              [--file=<replayFile>] [<targets>...]
 Show non deadlock thread dependencies over time
-      [<targets>...]       PID, 'all', filter or dump files (or replay ZIP as
-                           first argument)
-      --dumps=<dumps>      Number of dumps to collect, default is none
-      --full               Run all analyses including expensive ones (only for
-                           status command)
-  -h, --help               Show this help message and exit.
-      --intelligent-filter Use intelligent stack trace filtering (collapses
-                           internal frames, focuses on application code)
-      --interval=<interval>
-                           Interval between dumps, default is 5s
-      --keep               Persist dumps to disk
-  -V, --version            Print version information and exit.
+      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
+                             first argument)
+      --dump-count=<count>   Number of dumps to collect, default is none
+  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
+                             subcommand)
+      --full                 Run all analyses including expensive ones (only for
+                             status command)
+  -h, --help                 Show this help message and exit.
+      --intelligent-filter   Use intelligent stack trace filtering (collapses
+                             internal frames, focuses on application code)
+      --interval=<interval>  Interval between dumps, default is 5s
+      --keep                 Persist dumps to disk
+  -V, --version              Print version information and exit.
 ```
 <!-- END help_dependency_tree -->
 
@@ -529,16 +551,18 @@ AI-powered thread dump analysis using a Large Language Model (LLM). Combines sta
 
 <!-- BEGIN help_ai -->
 ```
-Usage: jstall ai [-hV] [--dumps=<dumps>] [--interval=<interval>] [--keep]
-                 [--intelligent-filter] [--full] [--local] [--remote] [--model=<model>]
-                 [--question=<question>] [--raw] [--top=<top>] [--no-native]
-                 [--stack-depth=<stackDepth>] [--dry-run] [--short] [--thinking] [<targets>...]
-                 [COMMAND]
+Usage: jstall ai [-hV] [--dump-count=<count>] [--interval=<interval>] [--keep]
+                 [--intelligent-filter] [--full] [--file=<replayFile>] [--local]
+                 [--remote] [--model=<model>] [--question=<question>] [--raw]
+                 [--top=<top>] [--no-native] [--stack-depth=<stackDepth>]
+                 [--dry-run] [--short] [--thinking] [<targets>...] [COMMAND]
 AI-powered thread dump analysis using LLM
       [<targets>...]            PID, 'all', filter or dump files (or replay ZIP
                                 as first argument)
       --dry-run                 Perform a dry run without calling the AI API
-      --dumps=<dumps>           Number of dumps to collect, default is none
+      --dump-count=<count>      Number of dumps to collect, default is none
+  -f, --file=<replayFile>       Replay ZIP file to analyze (works before or
+                                after subcommand)
       --full                    Run all analyses including expensive ones (only
                                 for status command)
   -h, --help                    Show this help message and exit.
@@ -663,9 +687,11 @@ Analyzes **all active JVMs on the system** with AI-powered insights. Discovers r
 <!-- BEGIN help_ai_full -->
 ```
 Usage: jstall ai full [-hV] [--local] [--remote] [--model=<model>]
-                      [--question=<question>] [--raw] [--cpu-threshold=<cpuThreshold>]
-                      [--dumps=<dumps>] [--interval=<interval>] [--top=<top>] [--no-native]
-                      [--stack-depth=<stackDepth>] [--dry-run] [--short] [--thinking]
+                      [--question=<question>] [--raw]
+                      [--cpu-threshold=<cpuThreshold>] [--dump-count=<count>]
+                      [--interval=<interval>] [--top=<top>] [--no-native]
+                      [--stack-depth=<stackDepth>] [--dry-run] [--short]
+                      [--thinking]
 Analyze all JVMs on the system with AI
       --cpu-threshold=<cpuThreshold>
                                     CPU threshold percentage (default: none%)
@@ -676,7 +702,7 @@ Analyze all JVMs on the system with AI
       --local                       Use local Ollama provider (overrides config)
       --model=<model>               LLM model to use (default from config or
                                     provider default)
-  -n, --dumps=<dumps>               Number of dumps per JVM (default: none)
+  -n, --dump-count=<count>          Number of dumps per JVM (default: none)
       --no-native                   Ignore threads without stack traces
       --question=<question>         Custom question to ask (use '-' to read from
                                     stdin)
@@ -876,21 +902,23 @@ In either of these cases, list all processes with a CPU usage above 1% of CPU ti
 
 <!-- BEGIN help_processes -->
 ```
-Usage: jstall processes [-hV] [--dumps=<dumps>] [--interval=<interval>] [--keep]
-                        [--intelligent-filter] [--full] [<targets>...]
+Usage: jstall processes [-hV] [--dump-count=<count>] [--interval=<interval>]
+                        [--keep] [--intelligent-filter] [--full]
+                        [--file=<replayFile>] [<targets>...]
 Detect other processes running on the system that consume high CPU time
-      [<targets>...]       PID, 'all', filter or dump files (or replay ZIP as
-                           first argument)
-      --dumps=<dumps>      Number of dumps to collect, default is none
-      --full               Run all analyses including expensive ones (only for
-                           status command)
-  -h, --help               Show this help message and exit.
-      --intelligent-filter Use intelligent stack trace filtering (collapses
-                           internal frames, focuses on application code)
-      --interval=<interval>
-                           Interval between dumps, default is 5s
-      --keep               Persist dumps to disk
-  -V, --version            Print version information and exit.
+      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
+                             first argument)
+      --dump-count=<count>   Number of dumps to collect, default is none
+  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
+                             subcommand)
+      --full                 Run all analyses including expensive ones (only for
+                             status command)
+  -h, --help                 Show this help message and exit.
+      --intelligent-filter   Use intelligent stack trace filtering (collapses
+                             internal frames, focuses on application code)
+      --interval=<interval>  Interval between dumps, default is 5s
+      --keep                 Persist dumps to disk
+  -V, --version              Print version information and exit.
 ```                          
 <!-- END help_processes -->
 
@@ -901,7 +929,8 @@ Generates a flamegraph using async-profiler.
 <!-- BEGIN help_flame -->
 ```
 Usage: jstall flame [-hV] [--output=<outputFile>] [--duration=<duration>]
-                    [--event=<event>] [--interval=<interval>] [--open] [<target>]
+                    [--event=<event>] [--interval=<interval>] [--open]
+                    [<target>]
 Generate a flamegraph of the application using async-profiler
       [<target>]               PID or filter (filters JVMs by main class name)
   -d, --duration=<duration>    Profiling duration (default: 10s), default is 10s

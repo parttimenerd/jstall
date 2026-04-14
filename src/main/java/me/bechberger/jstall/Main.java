@@ -21,7 +21,7 @@ import java.nio.file.Path;
 @Command(
     name = "jstall",
     description = "One-shot JVM inspection tool",
-    version = "0.6.0",
+    version = "0.6.1",
     subcommands = {
         RecordMainCommand.class,
         StatusCommand.class,
@@ -47,7 +47,7 @@ import java.nio.file.Path;
 )
 public class Main implements Runnable {
 
-    public static final String VERSION = "0.6.0";
+    public static final String VERSION = "0.6.1";
 
     @Option(names = {"-f", "--file"}, description = "File path for replay mode (replay ZIP file created by record command)")
     private Path replayFile;
