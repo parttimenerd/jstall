@@ -99,6 +99,20 @@ public class DeadlockTestApp {
             idle.start();
         }
 
+        // A thread that permanently waits on a lock (used by waiting-threads analysis tests)
+        Object waitLock = new Object();
+        Thread waiter = new Thread(() -> {
+            synchronized (waitLock) {
+                try {
+                    waitLock.wait(); // waits forever - WAITING (on object monitor)
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }, "WaiterThread");
+        waiter.setDaemon(true);
+        waiter.start();
+
         System.out.println("Busy work scenario running. Press Ctrl+C to exit.");
         Thread.sleep(Long.MAX_VALUE);
     }
