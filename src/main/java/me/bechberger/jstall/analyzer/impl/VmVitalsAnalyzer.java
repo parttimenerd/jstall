@@ -44,25 +44,23 @@ public class VmVitalsAnalyzer implements Analyzer {
 
     @Override
     public AnalyzerResult analyze(ResolvedData data, Map<String, Object> options) {
-        StringBuilder output = new StringBuilder();
-
         List<CollectedData> vitalsSamples = data.collectedData("vm-vitals");
-        if (!vitalsSamples.isEmpty()) {
-            String rawVitals = vitalsSamples.get(vitalsSamples.size() - 1).rawData();
-            if (rawVitals != null && !rawVitals.isBlank()) {
-                int top = getIntOption(options, "top", 5);
-                String vmVitalsOutput = formatVmVitals(rawVitals, top);
-                if (!vmVitalsOutput.isEmpty()) {
-                    output.append(vmVitalsOutput);
-                }
-            }
-        }
-
-        if (output.isEmpty()) {
+        if (vitalsSamples.isEmpty()) {
             return AnalyzerResult.ok("VM.vitals not available (requires SapMachine JVM)");
         }
 
-        return AnalyzerResult.ok(output.toString());
+        String rawVitals = vitalsSamples.get(vitalsSamples.size() - 1).rawData();
+        if (rawVitals == null || rawVitals.isBlank()) {
+            return AnalyzerResult.nothing();
+        }
+
+        int top = getIntOption(options, "top", 5);
+        String vmVitalsOutput = formatVmVitals(rawVitals, top);
+        if (vmVitalsOutput.isEmpty()) {
+            return AnalyzerResult.nothing();
+        }
+
+        return AnalyzerResult.ok(vmVitalsOutput);
     }
 
     private int getIntOption(Map<String, Object> options, String key, int defaultValue) {
