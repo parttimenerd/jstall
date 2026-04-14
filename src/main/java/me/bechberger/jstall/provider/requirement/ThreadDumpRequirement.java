@@ -68,7 +68,20 @@ public class ThreadDumpRequirement extends JcmdRequirement {
         List<ThreadDumpSnapshot> dumps = new ArrayList<>();
         for (Path file : files) {
             String content = Files.readString(file);
-            dumps.add(new ThreadDumpSnapshot(ThreadDumpParser.parse(content), content, null, null));
+            if (content.isBlank()) {
+                throw new IOException("Could not parse thread dump from " + file + ": file is empty");
+            }
+            try {
+                var parsed = ThreadDumpParser.parse(content);
+                if (parsed.timestamp() == null) {
+                    throw new IOException("Could not parse thread dump from " + file + ": no valid thread dump header found");
+                }
+                dumps.add(new ThreadDumpSnapshot(parsed, content, null, null));
+            } catch (IOException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new IOException("Could not parse thread dump from " + file + ": " + e.getMessage(), e);
+            }
         }
         dumps.sort(Comparator.comparing(d -> d.parsed().timestamp()));
         return dumps;

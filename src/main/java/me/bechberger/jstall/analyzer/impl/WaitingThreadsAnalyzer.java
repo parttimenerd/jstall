@@ -20,7 +20,11 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
 
     /** Threads that are ignored because they belong to the JVM and should not make any progress. */
     private final Set<String> IGNORED_THREAD_NAMES = Set.of(
-        "Finalizer"
+        "Finalizer",
+        "Common-Cleaner",
+        "Reference Handler",
+        "Notification Thread",
+        "GC Notification Thread"
     );
 
     /**
@@ -35,7 +39,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of("dumps", "interval", "keep", "no-native", "stack-depth", "intelligent-filter");
+        return Set.of("dump-count", "interval", "keep", "no-native", "stack-depth", "intelligent-filter");
     }
 
     @Override
@@ -65,7 +69,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
 
         // Filter for threads that are waiting without CPU progress
         List<WaitingThreadActivity> waitingThreads = threadActivities.values().stream()
-            .filter(activity -> !IGNORED_THREAD_NAMES.contains(activity.getThreadName()))
+            .filter(activity -> !IGNORED_THREAD_NAMES.contains(activity.getThreadName()) && !activity.getThreadName().startsWith("JMX server connection timeout "))
             .filter(activity -> isWaitingWithoutProgress(activity, totalDumps))
             .sorted(Comparator.comparing(ThreadActivityBase::getThreadName))
             .collect(Collectors.toList());

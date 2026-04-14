@@ -33,6 +33,12 @@ public class MostWorkCommand extends BaseAnalyzerCommand {
 
     @Override
     protected Map<String, Object> getAdditionalOptions() {
+        // Validate --top parameter
+        if (top != -1 && top <= 0) {
+            throw new IllegalArgumentException(
+                "--top must be a positive integer (>= 1) or -1 to show all threads");
+        }
+        
         Map<String, Object> options = new HashMap<>();
         options.put("top", top);
         options.put("no-native", noNative);

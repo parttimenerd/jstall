@@ -36,12 +36,12 @@ public class RecordCommand implements Callable<Integer> {
             arity = "0..1",
         description = "Target: all | PID | filter"
     )
-    private String target = "all";
+    private String target;
 
-    @Option(names = {"-o", "--output"}, required = true, description = "Output ZIP file")
+    @Option(names = {"-o", "--output"}, description = "Output ZIP file")
     private Path output;
 
-    @Option(names = "--count", defaultValue = "2", description = "Number of samples for interval-based data")
+    @Option(names = {"--dump-count", "--count"}, defaultValue = "2", description = "Number of samples for interval-based data")
     private int count;
 
     @Option(names = "--interval", defaultValue = "5s", description = "Interval between samples")
@@ -53,24 +53,30 @@ public class RecordCommand implements Callable<Integer> {
     @Option(names = "--full", description = "Include expensive diagnostics (VM.classes, VM.class_hierarchy, GC.class_histogram, flame graph and JFR recording)")
     private boolean full;
 
-    @Option(names = "--list-jcmd", description = "List common jcmd commands and exit")
-    private boolean listJcmd;
 
     @Option(names = "--no-parallel", description = "Disable parallel recording across JVMs")
     private boolean noParallel;
 
     @Option(names = {"-v", "--verbose"}, description = "Enable verbose logging")
     private boolean verbose;
+    
+    @Option(names = "--force", description = "Force overwrite of existing recordings without warning")
+    private boolean force;
 
     @Override
     public Integer call() throws Exception {
-        if (listJcmd) {
-            System.out.println(JcmdCommands.formatCommandList());
-            return 0;
+        if (target == null || target.isBlank()) {
+            System.err.println("Error: No target specified. Use: all | PID | filter");
+            return 1;
+        }
+
+        if (output == null) {
+            System.err.println("Error: Missing required option: --output");
+            return 1;
         }
 
         if (count < 1) {
-            System.err.println("Error: --count must be >= 1");
+            System.err.println("Error: --dump-count must be >= 1");
             return 1;
         }
 
@@ -84,6 +90,15 @@ public class RecordCommand implements Callable<Integer> {
         if (targets.isEmpty()) {
             System.err.println("No JVM targets found for: " + target);
             return 1;
+        }
+
+        if (java.nio.file.Files.exists(output)) {
+            if (!force) {
+                System.err.println("Error: File already exists: " + output);
+                System.err.println("       Use --force to overwrite or choose a different output path");
+                return 1;
+            }
+            System.err.println("Warning: overwriting existing file " + output);
         }
 
         if (verbose) {
@@ -117,7 +132,10 @@ public class RecordCommand implements Callable<Integer> {
             " JVM(s) to " + summary.outputFile());
         if (summary.failureCount() > 0) {
             System.err.println("Warning: " + summary.failureCount() + " JVM(s) failed to record. Check metadata.json for details.");
-            return 2;
+            if (!noParallel && summary.targetCount() > 1) {
+                System.err.println("Hint: rerun with --no-parallel to avoid parallel collection races on some JVMs.");
+            }
+            return 1;
         }
 
         return 0;
@@ -125,7 +143,7 @@ public class RecordCommand implements Callable<Integer> {
 
     private DataRequirements collectRequirements(int count, long intervalMs, boolean full) {
         Map<String, Object> options = Map.of(
-            "dumps", count,
+            "dump-count", count,
             "interval", intervalMs
         );
 

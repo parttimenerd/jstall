@@ -29,6 +29,6 @@ public class StatusCommand extends BaseAnalyzerCommand {
 
     @Override
     protected Map<String, Object> getAdditionalOptions() {
-        return Map.of("top", top, "no-native", noNative);
+        return Map.of("top", getTop(top), "no-native", noNative);
     }
 }

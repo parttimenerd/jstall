@@ -78,7 +78,14 @@ class ReplayExtendedTest {
     void testDependencyGraphCommandWithReplay() throws Exception {
         Path recording = createStandardRecording();
         RunResultAssert result = RunCommandUtil.run("-f", recording.toString(), "dependency-tree", "10000");
-        // dependency-tree may return non-zero if graph is empty; just verify it doesn't report unknown option
+        result.errorOutput().doesNotContain("Unknown option");
+    }
+
+    @Test
+    void testDependencyGraphCommandWithReplayFlagAfterSubcommand() throws Exception {
+        Path recording = createStandardRecording();
+        RunResultAssert result = RunCommandUtil.run("dependency-tree", "-f", recording.toString(), "10000");
+        result.hasNoError();
         result.errorOutput().doesNotContain("Unknown option");
     }
 
@@ -261,17 +268,27 @@ class ReplayExtendedTest {
     }
 
     @Test
+    void testStatusWithInvalidTopOption() throws Exception {
+        Path recording = createStandardRecording();
+        RunCommandUtil.run("-f", recording.toString(), "status", "--top", "-5", "10000")
+            .hasError()
+            .errorOutput().contains("--top must be a positive integer");
+    }
+
+    @Test
     void testStatusWithNoNativeOption() throws Exception {
         Path recording = createStandardRecording();
         RunCommandUtil.run("-f", recording.toString(), "status", "--no-native", "10000").hasNoError().output().isNotBlank();
     }
 
-    // ================== replay with --dumps and --interval ==================
+    // ================== replay with --dump-count and --interval ==================
 
     @Test
     void testThreadsWithDumpsOption() throws Exception {
         Path recording = createStandardRecording();
-        RunCommandUtil.run("-f", recording.toString(), "threads", "--dumps", "1", "10000").hasNoError().output().isNotBlank();
+        RunCommandUtil.run("-f", recording.toString(), "threads", "--dump-count", "1", "10000")
+            .hasError()
+            .errorOutput().contains("analyzer 'threads' requires at least 2 dumps");
     }
 
     // ================== status output contains expected sections ==================

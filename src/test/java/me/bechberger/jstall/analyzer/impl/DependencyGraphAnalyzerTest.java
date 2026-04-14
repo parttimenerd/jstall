@@ -30,10 +30,11 @@ class DependencyGraphAnalyzerTest {
         DependencyGraphAnalyzer analyzer = new DependencyGraphAnalyzer();
         Set<String> supported = analyzer.supportedOptions();
 
-        assertTrue(supported.contains("dumps"));
+        assertTrue(supported.contains("dump-count"));
         assertTrue(supported.contains("interval"));
         assertTrue(supported.contains("keep"));
-        assertEquals(3, supported.size());
+                assertTrue(supported.contains("graph-format"));
+                assertEquals(4, supported.size());
     }
 
     @Test
@@ -76,7 +77,7 @@ class DependencyGraphAnalyzerTest {
         AnalyzerResult result = analyzer.analyze(ResolvedData.fromDumps(List.of(snapshot)), Map.of());
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.output().isEmpty());
+        assertTrue(result.output().contains("No lock-based thread dependencies found"));
     }
 
     @Test
@@ -143,9 +144,8 @@ class DependencyGraphAnalyzerTest {
         assertTrue(output.contains("thread-2"));
         assertTrue(output.contains("thread-1"));
         assertTrue(output.contains("0x12345")); // Lock ID in root locks section
-        assertTrue(output.contains("1 potential bottleneck(s)"));
-        assertTrue(output.contains("1 blocked thread(s)")); // In tree root header
-        assertTrue(output.contains("Total blocked threads: 1"));
+        assertTrue(output.contains("Total waiting threads: 1"));
+        assertTrue(output.contains("Total dependencies: 1"));
     }
 
     @Test
@@ -229,18 +229,18 @@ class DependencyGraphAnalyzerTest {
         assertEquals(0, result.exitCode());
         String output = result.output();
 
-        // Should show the tree structure
+        // Should show dependency graph structure
         assertTrue(output.contains("Thread Dependency Graph"));
-        assertTrue(output.contains("Total blocked threads: 2"));
+        assertTrue(output.contains("Total waiting threads: 2"));
 
         // Should include category prefixes
         assertTrue(output.contains("[I/O Read]") || output.contains("I/O Read"));
         assertTrue(output.contains("[Network]") || output.contains("Network"));
         assertTrue(output.contains("[Computation]") || output.contains("Computation"));
 
-        // Root should be compute-thread-3 (only thread that owns locks but doesn't wait)
+        // owner thread should be part of the dependency relation
         assertTrue(output.contains("compute-thread-3"));
-        assertTrue(output.contains("2 blocked thread(s)"));
+        assertTrue(output.contains("Total dependencies: 2"));
     }
 
     @Test
@@ -323,7 +323,7 @@ class DependencyGraphAnalyzerTest {
         String output = result.output();
 
         // Should show both waiters blocked by the same owner
-        assertTrue(output.contains("Total blocked threads: 2"));
+        assertTrue(output.contains("Total waiting threads: 2"));
         assertTrue(output.contains("Total dependencies: 2"));
         assertTrue(output.contains("waiter-thread-1"));
         assertTrue(output.contains("waiter-thread-2"));
@@ -439,12 +439,11 @@ class DependencyGraphAnalyzerTest {
         assertEquals(0, result.exitCode());
         String output = result.output();
 
-        // Should aggregate: same root across 2 dumps
+        // Graph mode reflects the latest dump in the merged implementation
         assertTrue(output.contains("owner-thread"), "Should contain root thread");
         assertTrue(output.contains("waiter-thread"), "Should contain blocked thread");
-        assertTrue(output.contains("2 dump(s)"), "Should show persistence across 2 dumps");
-        assertTrue(output.contains("[+5s]"), "Should show time diff of 5 seconds for second dump");
-        assertTrue(output.contains("Bottleneck roots: 1"), "Should have 1 bottleneck root");
+        assertTrue(output.contains("Total waiting threads: 1"), "Should count one waiting thread");
+        assertTrue(output.contains("Total dependencies: 1"), "Should count one dependency");
     }
 
     @Test
@@ -522,7 +521,7 @@ class DependencyGraphAnalyzerTest {
 
         // Check for summary
         assertTrue(output.contains("Summary:"), "Should contain summary section");
-        assertTrue(output.contains("Total blocked threads: 1"), "Should show blocked thread count");
+        assertTrue(output.contains("Total waiting threads: 1"), "Should show waiting thread count");
         assertTrue(output.contains("Total dependencies: 1"), "Should show dependency count");
 
         // Verify the categorized thread names in output
@@ -584,14 +583,11 @@ class DependencyGraphAnalyzerTest {
         assertEquals(0, result.exitCode());
         String output = result.output();
 
-        // waiter-B disappeared from dump2 but should still appear in the merged tree
-        assertTrue(output.contains("waiter-B"), "Disappeared thread should still appear in tree");
-        assertTrue(output.contains("[disappeared]"), "Disappeared thread should be annotated");
-        // waiter-A persists and should NOT be marked as disappeared
+        // Graph mode reflects only the latest dump
+        assertFalse(output.contains("waiter-B"), "Latest-dump graph should not include disappeared thread");
         assertTrue(output.contains("waiter-A"), "Persistent thread should appear");
-        // The merged tree should count both blocked threads
-        assertTrue(output.contains("Total blocked threads: 2"),
-                "Should count both persistent and disappeared threads");
+        assertTrue(output.contains("Total waiting threads: 1"),
+                "Latest-dump graph should count only currently waiting thread");
     }
 
     @Test

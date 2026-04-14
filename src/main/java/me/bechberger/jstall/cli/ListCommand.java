@@ -25,10 +25,10 @@ import java.util.concurrent.Callable;
 public class ListCommand implements Callable<Integer> {
 
     @Parameters(
-            arity = "0..1",
-        description = "Optional filter - only show JVMs whose main class contains this text"
+            arity = "0..*",
+        description = "Optional filter(s) - only show JVMs whose main class contains any of these texts"
     )
-    private String filter;
+    private List<String> filters;
 
     @Option(
             names = "--no-truncate",
@@ -44,16 +44,34 @@ public class ListCommand implements Callable<Integer> {
             List<JVMDiscovery.JVMProcess> jvms;
             Main main = spec != null ? spec.getParent(Main.class) : null;
             Path replayFile = main != null ? main.getReplayFile() : null;
-            if (replayFile != null) {
-                ReplayProvider provider = new ReplayProvider(replayFile);
-                jvms = provider.listRecordedJvms(filter);
+            boolean hasFilters = filters != null && !filters.isEmpty();
+            
+            if (hasFilters && filters.size() == 1) {
+                // Single filter — pass through for efficient filtering
+                String filter = filters.get(0);
+                if (replayFile != null) {
+                    jvms = new ReplayProvider(replayFile).listRecordedJvms(filter);
+                } else {
+                    jvms = new JVMDiscovery(main.executor()).listJVMs(filter);
+                }
             } else {
-                jvms = new JVMDiscovery(main.executor()).listJVMs(filter);
+                // No filter or multiple filters — get all, then filter
+                if (replayFile != null) {
+                    jvms = new ReplayProvider(replayFile).listRecordedJvms(null);
+                } else {
+                    jvms = new JVMDiscovery(main.executor()).listJVMs(null);
+                }
+                if (hasFilters) {
+                    jvms = jvms.stream()
+                        .filter(jvm -> filters.stream().anyMatch(f -> 
+                            jvm.mainClass().toLowerCase().contains(f.toLowerCase())))
+                        .toList();
+                }
             }
 
             if (jvms.isEmpty()) {
-                if (filter != null && !filter.isBlank()) {
-                    System.err.println("No JVMs found matching filter: " + filter);
+                if (hasFilters) {
+                    System.err.println("No JVMs found matching filter(s): " + String.join(", ", filters));
                 } else {
                     System.out.println("No running JVMs found.");
                 }

@@ -30,10 +30,11 @@ class DependencyTreeAnalyzerTest {
         DependencyTreeAnalyzer analyzer = new DependencyTreeAnalyzer();
         Set<String> supported = analyzer.supportedOptions();
 
-        assertTrue(supported.contains("dumps"));
+        assertTrue(supported.contains("dump-count"));
         assertTrue(supported.contains("interval"));
         assertTrue(supported.contains("keep"));
-        assertEquals(3, supported.size());
+                assertTrue(supported.contains("graph-format"));
+                assertEquals(4, supported.size());
     }
 
     @Test
@@ -76,7 +77,7 @@ class DependencyTreeAnalyzerTest {
         AnalyzerResult result = analyzer.analyze(ResolvedData.fromDumps(List.of(snapshot)), Map.of());
 
         assertEquals(0, result.exitCode());
-        assertTrue(result.output().isEmpty());
+        assertTrue(result.output().contains("No lock-based dependency trees found"));
     }
 
     @Test

@@ -29,7 +29,7 @@ class MostWorkAnalyzerTest {
         MostWorkAnalyzer analyzer = new MostWorkAnalyzer();
         Set<String> supported = analyzer.supportedOptions();
 
-        assertTrue(supported.contains("dumps"));
+        assertTrue(supported.contains("dump-count"));
         assertTrue(supported.contains("interval"));
         assertTrue(supported.contains("keep"));
         assertTrue(supported.contains("top"));

@@ -32,7 +32,7 @@ public class ClassHistogramDiffAnalyzer extends BaseAnalyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of("top", "sort", "dumps", "interval");
+        return Set.of("top", "sort", "dump-count", "interval");
     }
 
     @Override
@@ -52,7 +52,7 @@ public class ClassHistogramDiffAnalyzer extends BaseAnalyzer {
     
     @Override
     public DataRequirements getDataRequirements(Map<String, Object> options) {
-        int count = getIntOption(options, "dumps", defaultDumpCount());
+        int count = getIntOption(options, "dump-count", defaultDumpCount());
         
         Object intervalObj = options.get("interval");
         long intervalMs = defaultIntervalMs();

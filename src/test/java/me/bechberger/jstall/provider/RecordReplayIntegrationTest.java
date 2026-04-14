@@ -62,7 +62,7 @@ class RecordReplayIntegrationTest {
 
         // Create resolved data and analyze
         ResolvedData data = ResolvedData.fromDumps(snapshots);
-        Map<String, Object> options = Map.of("dumps", 2);
+        Map<String, Object> options = Map.of("dump-count", 2);
 
         // Test with different analyzers
         Analyzer statusAnalyzer = new StatusAnalyzer();

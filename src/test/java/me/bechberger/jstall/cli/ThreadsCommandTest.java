@@ -68,7 +68,7 @@ class ThreadsCommandTest {
         ThreadsCommand command = new ThreadsCommand();
 
         // Test inherited options from BaseAnalyzerCommand
-        var result = RunCommandUtil.run(command, "12345", "--dumps", "3", "--interval", "10s", "--keep");
+        var result = RunCommandUtil.run(command, "12345", "--dump-count", "3", "--interval", "10s", "--keep");
 
         assertNotEquals(2, result.exitCode());
     }

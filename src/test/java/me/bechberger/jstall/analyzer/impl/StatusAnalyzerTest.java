@@ -111,7 +111,7 @@ class StatusAnalyzerTest {
 
         // Should include options from MostWorkAnalyzer
         assertTrue(supported.contains("top"));
-        assertTrue(supported.contains("dumps"));
+        assertTrue(supported.contains("dump-count"));
         assertTrue(supported.contains("interval"));
 
         // Verify it's the union of both analyzers' options
@@ -131,7 +131,7 @@ class StatusAnalyzerTest {
         Map<String, Object> options = Map.of(
             "keep", false,
             "top", 3,
-            "dumps", 3,
+            "dump-count", 3,
             "interval", "5s"
         );
 
@@ -164,7 +164,7 @@ class StatusAnalyzerTest {
 
         Set<String> expectedRequirementTypes = expectedContributors.stream()
             .flatMap(contributor -> contributor.getDataRequirements(Map.of(
-                    "dumps", 2,
+                    "dump-count", 2,
                     "interval", 5000L
                 )).getRequirements().stream())
             .map(DataRequirement::getType)
@@ -172,7 +172,7 @@ class StatusAnalyzerTest {
         expectedRequirementTypes.add("vm-uptime");
 
         Set<String> requirementTypes = analyzer.getDataRequirements(Map.of(
-                "dumps", 2,
+                "dump-count", 2,
                 "interval", 5000L
             )).getRequirements().stream()
             .map(DataRequirement::getType)
@@ -210,7 +210,7 @@ class StatusAnalyzerTest {
         AnalyzerResult result = analyzer.analyze(data, Map.of(
             "keep", false,
             "top", 3,
-            "dumps", 2,
+            "dump-count", 2,
             "interval", 5000L
         ));
 

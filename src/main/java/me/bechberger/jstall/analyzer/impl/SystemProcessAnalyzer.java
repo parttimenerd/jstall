@@ -31,7 +31,7 @@ public class SystemProcessAnalyzer implements Analyzer {
 
     @Override
     public String name() {
-        return "";
+        return "system-processes";
     }
 
     @Override
@@ -46,7 +46,7 @@ public class SystemProcessAnalyzer implements Analyzer {
 
     @Override
     public DataRequirements getDataRequirements(Map<String, Object> options) {
-        int count = getIntOption(options, "dumps", defaultDumpCount());
+        int count = getIntOption(options, "dump-count", defaultDumpCount());
         long intervalMs = getLongOption(options, "interval", defaultIntervalMs());
         return DataRequirements.builder()
             .withDefaults(count, intervalMs)
@@ -112,6 +112,12 @@ public class SystemProcessAnalyzer implements Analyzer {
         double availableCpuCores = Runtime.getRuntime().availableProcessors();
         double availableCpuTime = availableCpuCores *
                                   Duration.between(dumpsWithRaw.get(0).parsed().timestamp(), dumpsWithRaw.get(dumpsWithRaw.size() - 1).parsed().timestamp()).toNanos() / 1_000_000_000.0;
+        
+        // Prevent division by zero (or negative values) if elapsed time is too small
+        if (availableCpuTime <= 0) {
+            return AnalyzerResult.nothing(); // Not enough time elapsed between dumps
+        }
+        
         boolean totalCPUUsageOk = totalCpuUsage / availableCpuTime < ALL_PROCESSES_CPU_USAGE_THRESHOLD;
         boolean singleProcessUsageOk = processUsages.stream()
                 .allMatch(usage -> (usage.cpuUsageSeconds() / availableCpuTime) < PROCESS_CPU_USAGE_THRESHOLD);

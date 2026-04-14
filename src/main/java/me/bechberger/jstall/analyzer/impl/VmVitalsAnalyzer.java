@@ -59,7 +59,7 @@ public class VmVitalsAnalyzer implements Analyzer {
         }
 
         if (output.isEmpty()) {
-            return AnalyzerResult.nothing();
+            return AnalyzerResult.ok("VM.vitals not available (requires SapMachine JVM)");
         }
 
         return AnalyzerResult.ok(output.toString());

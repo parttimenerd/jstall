@@ -52,7 +52,7 @@ public class DependencyTreeAnalyzer extends BaseAnalyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of("dumps", "interval", "keep");
+        return Set.of("dump-count", "interval", "keep", "graph-format");
     }
 
     @Override
@@ -65,6 +65,10 @@ public class DependencyTreeAnalyzer extends BaseAnalyzer {
         List<ThreadDump> dumps = data.dumps().stream().map(ThreadDumpSnapshot::parsed).toList();
         if (dumps.isEmpty()) {
             return AnalyzerResult.nothing();
+        }
+
+        if (getBooleanOption(options, "graph-format", false)) {
+            return analyzeGraphFormat(dumps);
         }
 
         List<DependencyGraph> allGraphs = new ArrayList<>();
@@ -80,8 +84,14 @@ public class DependencyTreeAnalyzer extends BaseAnalyzer {
             }
         }
 
+        String deadlockSummary = extractDeadlockSummary(data.dumps());
         if (allGraphs.isEmpty()) {
-            return AnalyzerResult.nothing();
+            if (!deadlockSummary.isBlank()) {
+                return AnalyzerResult.ok(deadlockSummary);
+            }
+            return AnalyzerResult.ok("Thread Dependency Graph\n"
+                + "======================\n\n"
+                + "No lock-based dependency trees found across collected dumps.");
         }
 
         List<RootGroup> groups = aggregateGraphs(allGraphs);
@@ -99,8 +109,154 @@ public class DependencyTreeAnalyzer extends BaseAnalyzer {
             mergedGraphs.put(group.root().threadId(), mergeDisappearingNodes(biggest, group, disappeared));
         }
 
-        return AnalyzerResult.ok(formatDependencyTree(groups, mergedGraphs, disappearingByRoot,
-                firstSeenTimes, heavyNodes));
+        String graphOutput = formatDependencyTree(groups, mergedGraphs, disappearingByRoot,
+                firstSeenTimes, heavyNodes);
+        if (!deadlockSummary.isBlank()) {
+            return AnalyzerResult.ok(deadlockSummary + "\n\n" + graphOutput);
+        }
+        return AnalyzerResult.ok(graphOutput);
+    }
+
+    private AnalyzerResult analyzeGraphFormat(List<ThreadDump> dumps) {
+        ThreadDump latestDump = dumps.get(dumps.size() - 1);
+
+        Map<String, ThreadInfo> lockOwners = new HashMap<>();
+        Map<ThreadInfo, String> threadWaitingOn = new HashMap<>();
+
+        for (ThreadInfo thread : latestDump.threads()) {
+            for (LockInfo lock : thread.locks()) {
+                if (lock.operation() == LockInfo.LockOperation.LOCKED) {
+                    lockOwners.put(lock.lockId(), thread);
+                }
+            }
+            getWaitedOnLock(thread).ifPresent(lock -> threadWaitingOn.put(thread, lock.lockId()));
+        }
+
+        Map<ThreadInfo, Set<ThreadInfo>> dependencies = new HashMap<>();
+        Map<ThreadInfo, String> waitReasons = new HashMap<>();
+        for (Map.Entry<ThreadInfo, String> entry : threadWaitingOn.entrySet()) {
+            ThreadInfo waiter = entry.getKey();
+            String lockId = entry.getValue();
+            ThreadInfo owner = lockOwners.get(lockId);
+
+            if (owner != null && !owner.equals(waiter)) {
+                dependencies.computeIfAbsent(waiter, k -> new HashSet<>()).add(owner);
+                waitReasons.put(waiter, lockId);
+            }
+        }
+
+        if (dependencies.isEmpty()) {
+            return AnalyzerResult.ok("Thread Dependency Graph\n"
+                + "======================\n\n"
+                + "No lock-based thread dependencies found in the latest dump.");
+        }
+
+        boolean deadlock = hasCycle(dependencies);
+        return AnalyzerResult.ok(formatSimpleGraph(dependencies, waitReasons, deadlock));
+    }
+
+    private boolean hasCycle(Map<ThreadInfo, Set<ThreadInfo>> dependencies) {
+        Map<Long, Set<Long>> graph = new HashMap<>();
+        for (Map.Entry<ThreadInfo, Set<ThreadInfo>> e : dependencies.entrySet()) {
+            if (e.getKey().threadId() == null) {
+                continue;
+            }
+            Set<Long> ownerIds = new HashSet<>();
+            for (ThreadInfo owner : e.getValue()) {
+                if (owner.threadId() != null) {
+                    ownerIds.add(owner.threadId());
+                }
+            }
+            graph.put(e.getKey().threadId(), ownerIds);
+        }
+        Set<Long> visited = new HashSet<>();
+        Set<Long> inStack = new HashSet<>();
+        for (Long node : graph.keySet()) {
+            if (!visited.contains(node) && dfsHasCycle(node, graph, visited, inStack)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean dfsHasCycle(Long node, Map<Long, Set<Long>> graph, Set<Long> visited, Set<Long> inStack) {
+        visited.add(node);
+        inStack.add(node);
+        for (Long neighbor : graph.getOrDefault(node, Set.of())) {
+            if (!visited.contains(neighbor)) {
+                if (dfsHasCycle(neighbor, graph, visited, inStack)) {
+                    return true;
+                }
+            } else if (inStack.contains(neighbor)) {
+                return true;
+            }
+        }
+        inStack.remove(node);
+        return false;
+    }
+
+    private String formatSimpleGraph(Map<ThreadInfo, Set<ThreadInfo>> dependencies,
+                                     Map<ThreadInfo, String> waitReasons,
+                                     boolean deadlock) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Thread Dependency Graph\n");
+        sb.append("======================\n\n");
+        if (deadlock) {
+            sb.append("⚠ DEADLOCK detected! Threads form a circular lock dependency.\n");
+            sb.append("Use the 'deadlock' command for the JVM's precise deadlock report.\n\n");
+        }
+        sb.append("Shows which threads are waiting on locks held by other threads.\n");
+        sb.append("Format: [Category] Thread Name -> [Category] Owner Thread Name (lock: <lockId>)\n\n");
+
+        List<Map.Entry<ThreadInfo, Set<ThreadInfo>>> sortedDeps = dependencies.entrySet().stream()
+            .sorted(Comparator.comparing(e -> e.getKey().name()))
+            .toList();
+
+        for (Map.Entry<ThreadInfo, Set<ThreadInfo>> entry : sortedDeps) {
+            ThreadInfo waiter = entry.getKey();
+            Set<ThreadInfo> owners = entry.getValue();
+
+            String waiterCategory = getCategoryPrefix(waiter);
+            String lockId = waitReasons.get(waiter);
+
+            for (ThreadInfo owner : owners) {
+                String ownerCategory = getCategoryPrefix(owner);
+
+                sb.append(waiterCategory)
+                    .append(" ")
+                    .append(waiter.name())
+                    .append("\n  -> ")
+                    .append(ownerCategory)
+                    .append(" ")
+                    .append(owner.name());
+
+                if (lockId != null) {
+                    sb.append(" (lock: <").append(lockId).append(">)");
+                }
+
+                sb.append("\n");
+
+                sb.append("     Waiter state: ").append(waiter.state());
+                if (waiter.cpuTimeSec() != null) {
+                    sb.append(String.format(Locale.US, ", CPU: %.2fs", waiter.cpuTimeSec()));
+                }
+                sb.append("\n");
+
+                sb.append("     Owner state:  ").append(owner.state());
+                if (owner.cpuTimeSec() != null) {
+                    sb.append(String.format(Locale.US, ", CPU: %.2fs", owner.cpuTimeSec()));
+                }
+                sb.append("\n\n");
+            }
+        }
+
+        sb.append("\nSummary:\n");
+        sb.append("--------\n");
+        sb.append("Total waiting threads: ").append(dependencies.size()).append("\n");
+
+        int totalDependencies = dependencies.values().stream().mapToInt(Set::size).sum();
+        sb.append("Total dependencies: ").append(totalDependencies).append("\n");
+        return sb.toString();
     }
 
     LockDependencies buildLockDependencies(List<ThreadInfo> threads) {
@@ -120,9 +276,23 @@ public class DependencyTreeAnalyzer extends BaseAnalyzer {
     }
 
     List<ThreadInfo> findRootThreads(LockDependencies dependencies) {
-        return dependencies.owners().keySet().stream()
+        Comparator<ThreadInfo> rootOrder = Comparator
+            .comparing(ThreadInfo::threadId, Comparator.nullsLast(Long::compareTo))
+            .thenComparing(ThreadInfo::name, Comparator.nullsLast(String::compareTo));
+
+        List<ThreadInfo> roots = dependencies.owners().keySet().stream()
                 .filter(owner -> !dependencies.waiters().containsKey(owner))
+            .sorted(rootOrder)
                 .toList();
+        if (!roots.isEmpty()) {
+            return roots;
+        }
+
+        // In full dependency cycles (e.g. deadlocks), every owner is also a waiter.
+        // Fall back to all owners so we can still render the cycle relationships.
+        return dependencies.owners().keySet().stream()
+            .sorted(rootOrder)
+            .toList();
     }
 
     DependencyGraph buildGraph(LockDependencies dependencies, ThreadInfo root, Instant timestamp) {
@@ -188,8 +358,11 @@ public class DependencyTreeAnalyzer extends BaseAnalyzer {
         }
 
         return byRootId.values().stream()
-                .sorted(Comparator.comparingInt((RootGroup rg) -> rg.graphs().size()).reversed())
-                .toList();
+            .sorted(Comparator
+                .comparingInt((RootGroup rg) -> rg.graphs().size()).reversed()
+                .thenComparing(rg -> rg.root().threadId(), Comparator.nullsLast(Long::compareTo))
+                .thenComparing(rg -> rg.root().name(), Comparator.nullsLast(String::compareTo)))
+            .toList();
     }
 
     Map<Long, Instant> computeFirstSeenTimes(List<RootGroup> groups) {
@@ -372,6 +545,28 @@ public class DependencyTreeAnalyzer extends BaseAnalyzer {
         sb.append("Total dependencies: ").append(totalDependencies).append("\n");
 
         return sb.toString();
+    }
+
+    private String extractDeadlockSummary(List<ThreadDumpSnapshot> dumps) {
+        for (ThreadDumpSnapshot dump : dumps) {
+            String raw = dump.raw();
+            if (raw == null || raw.isBlank()) {
+                continue;
+            }
+            int idx = raw.indexOf("Found one Java-level deadlock:");
+            if (idx < 0) {
+                idx = raw.indexOf("Found Java-level deadlock:");
+            }
+            if (idx < 0) {
+                continue;
+            }
+            int end = raw.indexOf("\n\n\n", idx);
+            if (end < 0) {
+                end = raw.length();
+            }
+            return "Deadlock dependency cycle detected:\n\n" + raw.substring(idx, end).trim();
+        }
+        return "";
     }
 
     private void renderTree(StringBuilder sb, DependencyGraph graph, ThreadInfo root,

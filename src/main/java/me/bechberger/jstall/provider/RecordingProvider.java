@@ -127,7 +127,7 @@ public class RecordingProvider {
         if (!parallel || targets.size() == 1) {
             List<CollectedJvmData> results = new ArrayList<>();
             for (JVMDiscovery.JVMProcess process : targets) {
-                results.add(collectOneTarget(process, requirements));
+                results.add(collectOneTarget(process, requirements.copy()));
             }
             return results;
         }
@@ -136,7 +136,7 @@ public class RecordingProvider {
         ExecutorService executor = Executors.newFixedThreadPool(threads);
         try {
             List<CompletableFuture<CollectedJvmData>> futures = targets.stream()
-                .map(target -> CompletableFuture.supplyAsync(() -> collectOneTarget(target, requirements), executor))
+                .map(target -> CompletableFuture.supplyAsync(() -> collectOneTarget(target, requirements.copy()), executor))
                 .toList();
 
             return futures.stream().map(f -> {

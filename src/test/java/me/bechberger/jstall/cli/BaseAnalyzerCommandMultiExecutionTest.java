@@ -27,7 +27,7 @@ class BaseAnalyzerCommandMultiExecutionTest {
 
         @Override
             public Set<String> supportedOptions() {
-                return Set.of("dumps", "interval", "keep");
+                return Set.of("dump-count", "interval", "keep");
             }
 
             @Override

@@ -98,7 +98,8 @@ public class VmVitalsAnalyzerTest {
         
         AnalyzerResult result = analyzer.analyze(data, Map.of());
         
-        assertFalse(result.shouldDisplay(), "Should display nothing when neither VM.vitals nor GC.heap_info data is available");
+        assertTrue(result.shouldDisplay(), "Should display when VM.vitals is not available");
+        assertTrue(result.output().contains("not available"), "Should mention VM.vitals is not available");
     }
 
     @Test

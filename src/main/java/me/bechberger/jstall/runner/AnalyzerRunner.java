@@ -97,7 +97,8 @@ public class AnalyzerRunner {
             case MANY -> {
                 if (dumps.size() < 2) {
                     throw new IllegalArgumentException(
-                        String.format("Analyzer '%s' requires at least 2 dumps, but got %d",
+                        String.format(
+                            "Analyzer '%s' requires at least 2 dumps for delta-based analysis, but got %d",
                             analyzer.name(), dumps.size())
                     );
                 }

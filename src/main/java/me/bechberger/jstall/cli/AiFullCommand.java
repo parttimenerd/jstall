@@ -44,8 +44,8 @@ public class AiFullCommand implements Callable<Integer> {
     @Option(names = "--cpu-threshold", description = "CPU threshold percentage (default: ${DEFAULT-VALUE}%)")
     private double cpuThreshold = 1.0;
 
-    @Option(names = {"-n", "--dumps"}, description = "Number of dumps per JVM (default: ${DEFAULT-VALUE})")
-    private int dumps = 2;
+    @Option(names = {"-n", "--dump-count"}, description = "Number of dumps per JVM (default: ${DEFAULT-VALUE})")
+    private int count = 2;
 
     @Option(names = {"-i", "--interval"}, description = "Interval between dumps in seconds (default: ${DEFAULT-VALUE})")
     private double interval = 1.0;
@@ -85,7 +85,7 @@ public class AiFullCommand implements Callable<Integer> {
 
             // Run full system analysis
             long intervalMs = (long) (interval * 1000);
-            AnalyzerResult result = analyzer.analyzeFullSystem(dumps, intervalMs, options);
+            AnalyzerResult result = analyzer.analyzeFullSystem(count, intervalMs, options);
 
             // Print output if not already printed by streaming
             if (raw || dryRun) {
@@ -134,7 +134,7 @@ public class AiFullCommand implements Callable<Integer> {
         }
 
         // Status options
-        options.put("top", top);
+        options.put("top", BaseAnalyzerCommand.getTop(top));
         options.put("no-native", noNative);
         options.put("stack-depth", stackDepth);
 

@@ -21,6 +21,7 @@ import java.util.Map;
 @Command(
     name = "ai",
     description = "AI-powered thread dump analysis using LLM",
+    hidden = true,
     subcommands = {
         AiFullCommand.class
     }
@@ -114,7 +115,7 @@ public class AiCommand extends BaseAnalyzerCommand {
         }
 
         // Status options
-        options.put("top", top);
+        options.put("top", getTop(top));
         options.put("no-native", noNative);
         options.put("stack-depth", stackDepth);
 

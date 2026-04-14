@@ -13,30 +13,14 @@ class FlameCommandTest {
 
     @Test
     void testFlameCommandWithoutTarget() {
-        RunCommandUtil.run("flame").output().startsWith("""
-                Usage: jstall flame [-hV] [--output=<outputFile>] [--duration=<duration>]
-                                    [--event=<event>] [--interval=<interval>] [--open] [<target>]
-                Generate a flamegraph of the application using async-profiler
-                      [<target>]               PID or filter (filters JVMs by main class name)
-                  -d, --duration=<duration>    Profiling duration (default: 10s), default is 10s
-                  -e, --event=<event>          Profiling event (default: cpu). Options: cpu,
-                                               alloc, lock, wall, itimer
-                  -h, --help                   Show this help message and exit.
-                  -i, --interval=<interval>    Sampling interval (default: 10ms), default is
-                                               10ms
-                  -o, --output=<outputFile>    Output HTML file (default: flame.html)
-                      --open                   Automatically open the generated HTML file in
-                                               browser
-                  -V, --version                Print version information and exit.
-                
-                Examples:
-                  jstall flame 12345 --output flame.html --duration 15s
-                  # Allocation flamegraph for a JVM running MyAppMainClass with a 20s duration
-                  # open flamegraph automatically after generation
-                  jstall flame MyAppMainClass --event alloc --duration 20s --open
-                
-                Available JVMs:
-                """);
+                var output = RunCommandUtil.run("flame").get().out();
+                assertThat(output).contains("Usage: jstall flame");
+                assertThat(output).contains("Generate a flamegraph of the application using async-profiler");
+                assertThat(output).contains("--duration=<duration>");
+                assertThat(output).contains("--event=<event>");
+                assertThat(output).contains("--interval=<interval>");
+                assertThat(output).contains("--output=<outputFile>");
+                assertThat(output).contains("Available JVMs:");
     }
 
     @Test

@@ -21,7 +21,7 @@ public interface Analyzer {
     /**
      * Returns the set of options this analyzer supports.
      * <p>
-     * Common options: "dumps", "interval", "keep", "top"
+     * Common options: "dump-count", "interval", "keep", "top"
      */
     Set<String> supportedOptions();
 
@@ -40,7 +40,7 @@ public interface Analyzer {
      * @return Data requirements for this analyzer
      */
     default DataRequirements getDataRequirements(Map<String, Object> options) {
-        int count = getIntOption(options, "dumps", defaultDumpCount());
+        int count = getIntOption(options, "dump-count", defaultDumpCount());
         long intervalMs = getLongOption(options, "interval", defaultIntervalMs());
         
         DataRequirements.Builder builder = DataRequirements.builder();

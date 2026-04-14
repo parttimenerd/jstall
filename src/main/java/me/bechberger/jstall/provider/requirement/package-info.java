@@ -25,8 +25,8 @@
  * 
  * <h3>Basic Recording (with CLI options)</h3>
  * <pre>{@code
- * // In RecordCommand, count and interval come from --count and --interval options:
- * int count = 5;              // from --count option
+ * // In RecordCommand, count and interval come from --dump-count and --interval options:
+ * int count = 5;              // from --dump-count option
  * long intervalMs = 1000;     // from --interval option
  * 
  * DataRequirements requirements = DataRequirements.builder()
@@ -39,7 +39,7 @@
  * 
  * <h3>Custom jcmd Commands</h3>
  * <pre>{@code
- * // User runs: jstall record --include GC.class_histogram --count 10 --interval 500ms
+ * // User runs: jstall record --include GC.class_histogram --dump-count 10 --interval 500ms
  * 
  * DataRequirements requirements = DataRequirements.builder()
  *     .withDefaults(10, 500)           // From CLI options
@@ -54,12 +54,12 @@
  * public class MyAnalyzer extends BaseAnalyzer {
  *     @Override
  *     public DataRequirements getDataRequirements(Map<String, Object> options) {
- *         int count = getIntOption(options, "dumps", 3);
+ *         int count = getIntOption(options, "dump-count", 3);
  *         long interval = getLongOption(options, "interval", 1000);
  *         
  *         return DataRequirements.builder()
  *             .withDefaults(count, interval)
- *             .addThreadDumps()              // Respects user's --count and --interval
+ *             .addThreadDumps()              // Respects user's --dump-count and --interval
  *             .addSystemProps()
  *             .build();
  *     }
@@ -128,10 +128,10 @@
  * Example:
  * <pre>{@code
  * // Track heap usage every second for 30 seconds
- * jstall record 12345 -o heap-tracking.zip --include GC.heap_info --count 30 --interval 1s
+ * jstall record 12345 -o heap-tracking.zip --include GC.heap_info --dump-count 30 --interval 1s
  * 
  * // Monitor native memory every 100ms for 10 seconds
- * jstall record 12345 -o native-mem.zip --include VM.native_memory --count 100 --interval 100ms
+ * jstall record 12345 -o native-mem.zip --include VM.native_memory --dump-count 100 --interval 100ms
  * }</pre>
  * 
  * <h2>Recording Format</h2>

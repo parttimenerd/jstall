@@ -25,7 +25,7 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of("dumps", "interval", "keep", "no-native");
+        return Set.of("dump-count", "interval", "keep", "no-native");
     }
 
     @Override
@@ -44,6 +44,9 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
             noNative,
             ThreadActivity::new
         );
+
+        // Filter out JMX/RMI infrastructure threads injected by jstall's own connection
+        threadActivities.values().removeIf(a -> isJmxInfrastructureThread(a.threadName));
 
         // Calculate total CPU time
         double totalCpuTimeSec = threadActivities.values().stream()
@@ -71,12 +74,12 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
         sb.append("Threads (").append(totalDumps).append(" dumps):\n");
 
         // Display overall CPU time and elapsed time at the top
-        if (totalCpuTimeSec > 0) {
+        if (totalCpuTimeSec >= 0.001) {
             sb.append("Combined CPU time: ").append(String.format(Locale.US, "%.2fs", totalCpuTimeSec));
             if (elapsedTimeSec > 0) {
                 sb.append(", Elapsed time: ").append(String.format(Locale.US, "%.2fs", elapsedTimeSec));
                 double overallUtilization = (totalCpuTimeSec * 100.0) / elapsedTimeSec;
-                sb.append(String.format(Locale.US, " (%.1f%% overall utilization)", overallUtilization));
+                sb.append(String.format(Locale.US, " (%.1f%% total CPU / wall-clock, sums all cores)", overallUtilization));
             }
             sb.append("\n");
         }
@@ -97,7 +100,7 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
             String cpuTime = activity.hasCpuTime()
                 ? String.format(Locale.US, "%.2fs", activity.getTotalCpuTimeSec())
                 : "N/A";
-            String cpuPercentage = (activity.hasCpuTime() && totalCpuTimeSec > 0)
+            String cpuPercentage = (activity.hasCpuTime() && totalCpuTimeSec >= 0.001)
                 ? String.format(Locale.US, "%.1f%%", (activity.getTotalCpuTimeSec() * 100.0) / totalCpuTimeSec)
                 : "N/A";
 
@@ -119,6 +122,16 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
         return sb.toString();
     }
 
+
+    /**
+     * Returns true for JMX/RMI threads that jstall itself injects into the target JVM.
+     */
+    private static boolean isJmxInfrastructureThread(String name) {
+        return name.startsWith("RMI TCP Connection")
+            || name.startsWith("JMX server connection timeout")
+            || name.startsWith("RMI Scheduler")
+            || name.startsWith("RMI TCP Accept");
+    }
 
     /**
      * Tracks activity of a single thread across multiple dumps.

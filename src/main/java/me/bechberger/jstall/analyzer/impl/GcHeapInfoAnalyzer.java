@@ -8,6 +8,7 @@ import me.bechberger.jstall.provider.requirement.CollectedData;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
 import me.bechberger.jstall.util.TablePrinter;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -39,7 +40,7 @@ public class GcHeapInfoAnalyzer implements Analyzer {
 
     @Override
     public DataRequirements getDataRequirements(Map<String, Object> options) {
-        int count = Math.max(2, getIntOption(options, "dumps", 2));
+        int count = Math.max(2, getIntOption(options, "dump-count", 2));
         long intervalMs = getLongOption(options, "interval", 5000L);
         return DataRequirements.builder()
             .addThreadDump()
@@ -91,18 +92,40 @@ public class GcHeapInfoAnalyzer implements Analyzer {
             previous = parseGcHeapInfo(samples.get(samples.size() - 2).rawData());
         }
 
-        List<Row> rows = List.of(
-            new Row("Heap total", formatKib(latest.heapTotalK()), formatHumanKib(latest.heapTotalK()), formatDelta(latest.heapTotalK(), previous == null ? null : previous.heapTotalK())),
-            new Row("Heap used", formatKib(latest.heapUsedK()), formatHumanKib(latest.heapUsedK()) + " | " + String.format(Locale.ROOT, "%.1f%%", latest.heapUsagePercent()), formatDelta(latest.heapUsedK(), previous == null ? null : previous.heapUsedK())),
-            new Row("Young regions", latest.youngRegionCount() + " regions, " + formatKib(latest.youngRegionTotalK()), formatHumanKib(latest.youngRegionTotalK()), formatDelta(latest.youngRegionTotalK(), previous == null ? null : previous.youngRegionTotalK())),
-            new Row("Survivor regions", latest.survivorRegionCount() + " regions, " + formatKib(latest.survivorRegionTotalK()), formatHumanKib(latest.survivorRegionTotalK()), formatDelta(latest.survivorRegionTotalK(), previous == null ? null : previous.survivorRegionTotalK())),
-            new Row("Metaspace used", formatKib(latest.metaspaceUsedK()), formatHumanKib(latest.metaspaceUsedK()), formatDelta(latest.metaspaceUsedK(), previous == null ? null : previous.metaspaceUsedK())),
-            new Row("Metaspace committed", formatKib(latest.metaspaceCommittedK()), formatHumanKib(latest.metaspaceCommittedK()), formatDelta(latest.metaspaceCommittedK(), previous == null ? null : previous.metaspaceCommittedK())),
-            new Row("Metaspace reserved", formatKib(latest.metaspaceReservedK()), formatHumanKib(latest.metaspaceReservedK()), formatDelta(latest.metaspaceReservedK(), previous == null ? null : previous.metaspaceReservedK())),
-            new Row("Class space used", formatKib(latest.classSpaceUsedK()), formatHumanKib(latest.classSpaceUsedK()), formatDelta(latest.classSpaceUsedK(), previous == null ? null : previous.classSpaceUsedK())),
-            new Row("Class space committed", formatKib(latest.classSpaceCommittedK()), formatHumanKib(latest.classSpaceCommittedK()), formatDelta(latest.classSpaceCommittedK(), previous == null ? null : previous.classSpaceCommittedK())),
-            new Row("Class space reserved", formatKib(latest.classSpaceReservedK()), formatHumanKib(latest.classSpaceReservedK()), formatDelta(latest.classSpaceReservedK(), previous == null ? null : previous.classSpaceReservedK()))
-        );
+        List<Row> rows = new ArrayList<>();
+        final HeapInfo prev = previous;
+        rows.add(new Row("Heap total", formatKib(latest.heapTotalK()), formatHumanKib(latest.heapTotalK()),
+            formatDelta(latest.heapTotalK(), prev == null ? null : prev.heapTotalK())));
+        rows.add(new Row("Heap used",
+            formatKib(latest.heapUsedK()) + " | " + String.format(Locale.ROOT, "%.1f%%", latest.heapUsagePercent()),
+            formatHumanKib(latest.heapUsedK()),
+            formatDelta(latest.heapUsedK(), prev == null ? null : prev.heapUsedK())));
+        if (latest.youngRegionCount() != null && latest.youngRegionTotalK() != null) {
+            rows.add(new Row("Young regions",
+                latest.youngRegionCount() + " regions, " + formatKib(latest.youngRegionTotalK()),
+                formatHumanKib(latest.youngRegionTotalK()),
+                formatDelta(latest.youngRegionTotalK(), prev == null ? null : prev.youngRegionTotalK())));
+            rows.add(new Row("Survivor regions",
+                latest.survivorRegionCount() + " regions, " + formatKib(latest.survivorRegionTotalK()),
+                formatHumanKib(latest.survivorRegionTotalK()),
+                formatDelta(latest.survivorRegionTotalK(), prev == null ? null : prev.survivorRegionTotalK())));
+        }
+        if (latest.metaspaceCommittedK() != null) {
+            rows.add(new Row("Metaspace used", formatKib(latest.metaspaceUsedK()), formatHumanKib(latest.metaspaceUsedK()),
+                formatDelta(latest.metaspaceUsedK(), prev == null ? null : prev.metaspaceUsedK())));
+            rows.add(new Row("Metaspace committed", formatKib(latest.metaspaceCommittedK()), formatHumanKib(latest.metaspaceCommittedK()),
+                formatDelta(latest.metaspaceCommittedK(), prev == null ? null : prev.metaspaceCommittedK())));
+            rows.add(new Row("Metaspace reserved", formatKib(latest.metaspaceReservedK()), formatHumanKib(latest.metaspaceReservedK()),
+                formatDelta(latest.metaspaceReservedK(), prev == null ? null : prev.metaspaceReservedK())));
+        }
+        if (latest.classSpaceCommittedK() != null) {
+            rows.add(new Row("Class space used", formatKib(latest.classSpaceUsedK()), formatHumanKib(latest.classSpaceUsedK()),
+                formatDelta(latest.classSpaceUsedK(), prev == null ? null : prev.classSpaceUsedK())));
+            rows.add(new Row("Class space committed", formatKib(latest.classSpaceCommittedK()), formatHumanKib(latest.classSpaceCommittedK()),
+                formatDelta(latest.classSpaceCommittedK(), prev == null ? null : prev.classSpaceCommittedK())));
+            rows.add(new Row("Class space reserved", formatKib(latest.classSpaceReservedK()), formatHumanKib(latest.classSpaceReservedK()),
+                formatDelta(latest.classSpaceReservedK(), prev == null ? null : prev.classSpaceReservedK())));
+        }
 
         TablePrinter table = new TablePrinter()
             .addColumn("Metric", TablePrinter.Alignment.LEFT)
@@ -117,9 +140,17 @@ public class GcHeapInfoAnalyzer implements Analyzer {
         return "GC.heap_info (last dump absolute + change):\n" + table.render();
     }
 
+        private String formatKib(Long kib) {
+            return kib == null ? "" : formatKib((long) kib);
+        }
+
     private String formatKib(long kib) {
         return String.format(Locale.ROOT, "%,dK", kib);
     }
+
+        private String formatHumanKib(Long kib) {
+            return kib == null ? "" : formatHumanKib((long) kib);
+        }
 
     private String formatHumanKib(long kib) {
         double value = kib;
@@ -135,14 +166,15 @@ public class GcHeapInfoAnalyzer implements Analyzer {
         return String.format(Locale.ROOT, "%.1f %s", value, units[unitIndex]);
     }
 
-    private String formatDelta(long latest, Long previous) {
-        if (previous == null) {
+    private String formatDelta(Long latest, Long previous) {
+        if (previous == null || latest == null) {
             return "n/a";
         }
         long delta = latest - previous;
-        String sign = delta >= 0 ? "+" : "";
         long absDelta = Math.abs(delta);
-        return "Δ " + sign + String.format(Locale.ROOT, "%,d", delta) + "K / " + sign + formatHumanKib(absDelta);
+        String signedK = (delta >= 0 ? "+" : "") + String.format(Locale.ROOT, "%,d", delta) + "K";
+        String signedHuman = (delta >= 0 ? "+" : "-") + formatHumanKib(absDelta);
+        return "Δ " + signedK + " / " + signedHuman;
     }
 
     private HeapInfo parseGcHeapInfo(String raw) {
@@ -150,8 +182,14 @@ public class GcHeapInfoAnalyzer implements Analyzer {
             return null;
         }
 
-        Pattern heapPattern = Pattern.compile(".*heap\\s+total\\s+(\\d+)K,\\s+used\\s+(\\d+)K.*");
-        Pattern regionPattern = Pattern.compile("region size\\s+\\d+K,\\s+(\\d+) young \\((\\d+)K\\),\\s+(\\d+) survivors \\((\\d+)K\\).*");
+        // Old G1GC format: "heap total 12345K, used 123K"
+        Pattern heapPatternOld = Pattern.compile(".*\\bheap\\s+total\\s+(\\d+)K,\\s+used\\s+(\\d+)K.*");
+        // New G1GC format (JDK 21+): "garbage-first heap   total reserved NxK, committed NxK, used NxK"
+        Pattern heapPatternNew = Pattern.compile(".*\\bheap\\s+total\\s+reserved\\s+\\d+K,\\s+committed\\s+(\\d+)K,\\s+used\\s+(\\d+)K.*");
+        // Old region format: "region size 1024K, 5 young (5120K), 1 survivors (1024K)"
+        Pattern regionPatternOld = Pattern.compile("region size\\s+\\d+K,\\s+(\\d+) young \\((\\d+)K\\),\\s+(\\d+) survivors \\((\\d+)K\\).*");
+        // New region format (JDK 21+): "region size 8M, 1 eden (8M), 1 survivor (8M), ..."
+        Pattern regionPatternNew = Pattern.compile("region size\\s+\\d+[KMG],\\s+(\\d+)\\s+eden\\s+\\((\\d+)([KMG])\\),\\s+(\\d+)\\s+survivor\\s+\\((\\d+)([KMG])\\).*");
         Pattern metaspacePattern = Pattern.compile("Metaspace\\s+used\\s+(\\d+)K,\\s+committed\\s+(\\d+)K,\\s+reserved\\s+(\\d+)K.*");
         Pattern classSpacePattern = Pattern.compile("class space\\s+used\\s+(\\d+)K,\\s+committed\\s+(\\d+)K,\\s+reserved\\s+(\\d+)K.*");
 
@@ -170,19 +208,33 @@ public class GcHeapInfoAnalyzer implements Analyzer {
 
         for (String line : raw.lines().toList()) {
             String trimmed = line.trim();
-            Matcher heapMatcher = heapPattern.matcher(trimmed);
+            Matcher heapMatcher = heapPatternOld.matcher(trimmed);
             if (heapMatcher.matches()) {
                 heapTotal = Long.parseLong(heapMatcher.group(1));
                 heapUsed = Long.parseLong(heapMatcher.group(2));
                 continue;
             }
+            Matcher heapMatcherNew = heapPatternNew.matcher(trimmed);
+            if (heapMatcherNew.matches()) {
+                heapTotal = Long.parseLong(heapMatcherNew.group(1));
+                heapUsed = Long.parseLong(heapMatcherNew.group(2));
+                continue;
+            }
 
-            Matcher regionMatcher = regionPattern.matcher(trimmed);
+            Matcher regionMatcher = regionPatternOld.matcher(trimmed);
             if (regionMatcher.matches()) {
                 youngRegionCount = Integer.parseInt(regionMatcher.group(1));
                 youngRegionTotal = Long.parseLong(regionMatcher.group(2));
                 survivorRegionCount = Integer.parseInt(regionMatcher.group(3));
                 survivorRegionTotal = Long.parseLong(regionMatcher.group(4));
+                continue;
+            }
+            Matcher regionMatcherNew = regionPatternNew.matcher(trimmed);
+            if (regionMatcherNew.matches()) {
+                youngRegionCount = Integer.parseInt(regionMatcherNew.group(1));
+                youngRegionTotal = toKilobytes(Long.parseLong(regionMatcherNew.group(2)), regionMatcherNew.group(3));
+                survivorRegionCount = Integer.parseInt(regionMatcherNew.group(4));
+                survivorRegionTotal = toKilobytes(Long.parseLong(regionMatcherNew.group(5)), regionMatcherNew.group(6));
                 continue;
             }
 
@@ -202,36 +254,37 @@ public class GcHeapInfoAnalyzer implements Analyzer {
             }
         }
 
-        if (heapTotal == null || youngRegionCount == null || youngRegionTotal == null || survivorRegionTotal == null || metaspaceCommitted == null || classSpaceCommitted == null) {
+        if (heapTotal == null || heapUsed == null) {
             return null;
         }
 
-        return new HeapInfo(heapTotal,
-            heapUsed,
-            youngRegionCount,
-            youngRegionTotal,
-            survivorRegionCount,
-            survivorRegionTotal,
-            metaspaceUsed,
-            metaspaceCommitted,
-            metaspaceReserved,
-            classSpaceUsed,
-            classSpaceCommitted,
-            classSpaceReserved);
+        return new HeapInfo(heapTotal, heapUsed,
+            youngRegionCount, youngRegionTotal,
+            survivorRegionCount, survivorRegionTotal,
+            metaspaceUsed, metaspaceCommitted, metaspaceReserved,
+            classSpaceUsed, classSpaceCommitted, classSpaceReserved);
     }
+
+        private static long toKilobytes(long value, String unit) {
+            return switch (unit.toUpperCase()) {
+                case "G" -> value * 1024 * 1024;
+                case "M" -> value * 1024;
+                default  -> value; // K
+            };
+        }
 
     private record HeapInfo(long heapTotalK,
                             long heapUsedK,
-                            int youngRegionCount,
-                            long youngRegionTotalK,
-                            int survivorRegionCount,
-                            long survivorRegionTotalK,
-                            long metaspaceUsedK,
-                            long metaspaceCommittedK,
-                            long metaspaceReservedK,
-                            long classSpaceUsedK,
-                            long classSpaceCommittedK,
-                            long classSpaceReservedK) {
+                            Integer youngRegionCount,
+                            Long youngRegionTotalK,
+                            Integer survivorRegionCount,
+                            Long survivorRegionTotalK,
+                            Long metaspaceUsedK,
+                            Long metaspaceCommittedK,
+                            Long metaspaceReservedK,
+                            Long classSpaceUsedK,
+                            Long classSpaceCommittedK,
+                            Long classSpaceReservedK) {
         double heapUsagePercent() {
             if (heapTotalK == 0) {
                 return 0;

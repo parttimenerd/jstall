@@ -19,7 +19,7 @@ Features:
 * **Multi-execution**: Analyze multiple JVMs in parallel for faster results
 * **JVM support checks**: Warn if the target JVM is likely out of support (based on `java.version.date` from `jcmd VM.system_properties`)
 * **Supports Java 11+**: Works with all modern Java versions as a target, but requires Java 17+ to run
-* **AI-powered analysis**: Get intelligent insights from thread dumps using LLMs (supports local models via Ollama)
+* **AI-powered analysis (experimental)**: LLM-backed insights from thread dumps (currently hidden from default command listings)
 * **Record & Replay**: Record diagnostic data for later analysis or sharing as a zip file
 * **Minimal Builds Available**: There are minimal builds (< 250 KB) available that exclude the bundled async-profiler ([SapMachine](https://sap.github.io/SapMachine/) ships with it anyway) and are optimized via [femtojar](https://github.com/parttimenerd/femtojar).
 * **Remote JVMs**: via `-s "ssh user@host" COMMAND` or via `--cf APP COMMAND` for cloud-foundry
@@ -40,12 +40,6 @@ jstall 12345
 
 # Or explicitly run the status command, that also supports using JVM name filters
 jstall status MyApplication
-
-# AI-powered analysis with intelligent insights
-jstall ai 12345
-
-# Analyze all JVMs on the system with AI
-jstall ai full
 
 # Find threads consuming most CPU
 jstall most-work 12345
@@ -70,6 +64,16 @@ jstall status myapp-diagnostics.zip
 ```
 
 All analysis commands also support the special target `all` to analyze every discovered JVM (or every recorded JVM in replay mode): `jstall status all` or `jstall -f myapp-diagnostics.zip status all`.
+
+### Experimental AI commands
+
+The AI commands are still experimental and are intentionally hidden from the default help/command list for now.
+You can still invoke them directly if you want to try them:
+
+```bash
+jstall ai <pid|filter>
+jstall ai full
+```
 
 ### JVM support check (part of `status`)
 
@@ -121,7 +125,6 @@ Commands:
   vm-classloader-stats  Show VM.classloader_stats grouped by classloader type
   vm-metaspace          Show VM.metaspace summary and trend
   compiler-queue        Analyze compiler queue state showing active compilations and queued tasks
-  ai                    AI-powered thread dump analysis using LLM
   list                  List running JVM processes (excluding this tool)
   processes             Detect other processes running on the system that consume high CPU time
   jvm-support           Check whether the target JVM is likely still supported (based on java.version.date)

@@ -7,12 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
 ### Changed
-### Deprecated
-### Removed
-### Fixed
-### Security
+- Hide `ai` commands from default CLI help/listings for now; they remain available as experimental commands via direct invocation
 
 ## [0.6.0] - 2026-04-09
 

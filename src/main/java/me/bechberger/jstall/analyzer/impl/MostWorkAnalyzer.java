@@ -25,7 +25,7 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of("dumps", "interval", "keep", "top", "no-native", "stack-depth");
+        return Set.of("dump-count", "interval", "keep", "top", "no-native", "stack-depth");
     }
 
     @Override
@@ -46,6 +46,9 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
             ignoreEmptyStacks,
             ThreadActivity::new
         );
+
+        // Filter out JMX/RMI infrastructure threads injected by jstall's own connection
+        threadActivities.values().removeIf(a -> isJmxInfrastructureThread(a.threadName));
 
         // Calculate total CPU time for percentage calculations
         double totalCpuTimeSec = threadActivities.values().stream()
@@ -70,12 +73,12 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
         sb.append("Top threads by activity (").append(totalDumps).append(" dumps):\n");
 
         // Display combined metrics at the top
-        if (totalCpuTimeSec > 0) {
+        if (totalCpuTimeSec >= 0.001) {
             sb.append("Combined CPU time: ").append(String.format(Locale.US, "%.2fs", totalCpuTimeSec));
             if (elapsedTimeSec > 0) {
                 sb.append(", Elapsed time: ").append(String.format(Locale.US, "%.2fs", elapsedTimeSec));
                 double overallUtilization = (totalCpuTimeSec * 100.0) / elapsedTimeSec;
-                sb.append(String.format(Locale.US, " (%.1f%% overall utilization)", overallUtilization));
+                sb.append(String.format(Locale.US, " (%.1f%% total CPU / wall-clock, sums all cores)", overallUtilization));
             }
             sb.append("\n");
         }
@@ -91,7 +94,7 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
                 sb.append("   CPU time: ").append(String.format(Locale.US, "%.2fs", activity.getTotalCpuTimeSec()));
 
                 // Display CPU percentage if there's total CPU time
-                if (totalCpuTimeSec > 0) {
+                if (totalCpuTimeSec >= 0.001) {
                     double cpuPercentage = (activity.getTotalCpuTimeSec() * 100.0) / totalCpuTimeSec;
                     sb.append(String.format(Locale.US, " (%.1f%% of total)", cpuPercentage));
                 }
@@ -133,6 +136,17 @@ public class MostWorkAnalyzer extends BaseAnalyzer {
         }
 
         return sb.toString().trim();
+    }
+
+    /**
+     * Returns true for JMX/RMI threads that jstall itself injects into the target JVM
+     * when it connects via JMX. These threads would otherwise skew CPU analysis.
+     */
+    private static boolean isJmxInfrastructureThread(String name) {
+        return name.startsWith("RMI TCP Connection")
+            || name.startsWith("JMX server connection timeout")
+            || name.startsWith("RMI Scheduler")
+            || name.startsWith("RMI TCP Accept");
     }
 
     /**

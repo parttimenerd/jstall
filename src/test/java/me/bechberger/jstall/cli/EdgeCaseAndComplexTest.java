@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * - Recording with system environment data
  * - Recording with failed JVM entry
  * - Recording with zero thread dumps
- * - Analyzer options (--top, --no-native, --stack-depth, --intelligent-filter, --keep, --dumps)
+ * - Analyzer options (--top, --no-native, --stack-depth, --intelligent-filter, --keep, --dump-count)
  * - Empty recording file
  * - List command with filters in replay mode
  * - Cross-analyzer replays (same recording, multiple analyzer commands)
@@ -371,20 +371,22 @@ class EdgeCaseAndComplexTest {
         RunCommandUtil.run("-f", file.toString(), "status", "--keep", "1000").hasNoError();
     }
 
-    // ================== --dumps option to limit dump count ==================
+    // ================== --dump-count option to limit dump count ==================
 
     @Test
     void statusWithDumpsLimiter() throws Exception {
         Path file = createRichRecording(); // BusyApp has 3 dumps
 
-        RunCommandUtil.run("-f", file.toString(), "status", "--dumps", "2", "1000").hasNoError();
+        RunCommandUtil.run("-f", file.toString(), "status", "--dump-count", "2", "1000").hasNoError();
     }
 
     @Test
     void threadsWithDumpsLimiter() throws Exception {
         Path file = createRichRecording();
 
-        RunCommandUtil.run("-f", file.toString(), "threads", "--dumps", "1", "1000").hasNoError();
+        RunCommandUtil.run("-f", file.toString(), "threads", "--dump-count", "1", "1000")
+            .hasError()
+            .errorOutput().contains("analyzer 'threads' requires at least 2 dumps");
     }
 
     // ================== cross-analyzer verification: same recording, many commands ==================
@@ -428,7 +430,7 @@ class EdgeCaseAndComplexTest {
         Path file = createRichRecording();
 
         RunCommandUtil.run("-f", file.toString(), "threads",
-            "--no-native", "--dumps", "2", "--intelligent-filter", "1000").hasNoError();
+            "--no-native", "--dump-count", "2", "--intelligent-filter", "1000").hasNoError();
     }
 
     // ================== most-work options combinations ==================
@@ -448,7 +450,7 @@ class EdgeCaseAndComplexTest {
         Path file = createRichRecording();
 
         RunCommandUtil.run("-f", file.toString(), "status",
-            "--top", "1", "--no-native", "--dumps", "2", "--intelligent-filter", "1000").hasNoError();
+            "--top", "1", "--no-native", "--dump-count", "2", "--intelligent-filter", "1000").hasNoError();
     }
 
     // ================== no target in replay mode → usage + recorded JVMs ==================
@@ -522,8 +524,8 @@ class EdgeCaseAndComplexTest {
             .build(file);
         file.toFile().deleteOnExit();
 
-        // --dumps 3 should limit to 3
-        RunCommandUtil.run("-f", file.toString(), "status", "--dumps", "3", "8000").hasNoError();
+        // --dump-count 3 should limit to 3
+        RunCommandUtil.run("-f", file.toString(), "status", "--dump-count", "3", "8000").hasNoError();
     }
 
     // ================== recording timestamp ordering ==================

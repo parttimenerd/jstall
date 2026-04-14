@@ -145,6 +145,17 @@ _java_thread_list=0x0000000949213020, length=16, elements={
 	at java.lang.Thread.runWith(java.base@26-ea/Thread.java:1529)
 	at java.lang.Thread.run(java.base@26-ea/Thread.java:1516)
 
+
+"WaiterThread" #32 [99001] prio=5 os_prio=31 cpu=0.01ms elapsed=3.40s tid=0x0000000948d99000 nid=99001 in Object.wait()  [0x0000000173000000]
+   java.lang.Thread.State: WAITING (on object monitor)
+		at java.lang.Object.wait0(java.base@26-ea/Native Method)
+		- waiting on <0x0000000300abcdef> (a java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject)
+		at java.lang.Object.wait(java.base@26-ea/Object.java:391)
+		at me.bechberger.jstall.testapp.WaitApp.waitOnLock(WaitApp.java:50)
+		- locked <0x0000000300abcdef> (a java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject)
+		at me.bechberger.jstall.testapp.WaitApp.run(WaitApp.java:40)
+		at java.lang.Thread.runWith(java.base@26-ea/Thread.java:1529)
+		at java.lang.Thread.run(java.base@26-ea/Thread.java:1516)
 "Attach Listener" #31 [41987] daemon prio=9 os_prio=31 cpu=0.62ms elapsed=2.25s tid=0x0000000948d22000 nid=41987 waiting on condition  [0x0000000000000000]
    java.lang.Thread.State: RUNNABLE
 

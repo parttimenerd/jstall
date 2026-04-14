@@ -30,7 +30,19 @@ public class DataRequirements {
      * Returns all requirements in this collection.
      */
     public Set<DataRequirement> getRequirements() {
-        return requirements;
+        return Set.copyOf(requirements);
+    }
+
+    /**
+     * Creates a defensive copy of this requirements set with fresh requirement instances.
+     * Useful for parallel collection where requirement implementations might hold mutable state.
+     */
+    public DataRequirements copy() {
+        Set<DataRequirement> copied = new HashSet<>();
+        for (DataRequirement requirement : requirements) {
+            copied.add(copyRequirement(requirement));
+        }
+        return new DataRequirements(copied);
     }
     
     /**
@@ -96,6 +108,31 @@ public class DataRequirements {
         // Keep original for requirements that don't support schedule changes
         return req;
     }
+
+    private DataRequirement copyRequirement(DataRequirement req) {
+        if (req instanceof ThreadDumpRequirement threadDumpRequirement) {
+            return new ThreadDumpRequirement(threadDumpRequirement.getSchedule());
+        }
+        if (req instanceof SystemEnvironmentRequirement systemEnvironmentRequirement) {
+            return new SystemEnvironmentRequirement(systemEnvironmentRequirement.getSchedule());
+        }
+        if (req instanceof AsyncProfilerWindowRequirement asyncProfilerWindowRequirement) {
+            return new AsyncProfilerWindowRequirement(
+                asyncProfilerWindowRequirement.getSchedule(),
+                asyncProfilerWindowRequirement.getEvent(),
+                true
+            );
+        }
+        if (req instanceof JcmdRequirement jcmdRequirement) {
+            String[] args = jcmdRequirement.getArgs();
+            return new JcmdRequirement(
+                jcmdRequirement.getCommand(),
+                args == null ? null : args.clone(),
+                jcmdRequirement.getSchedule()
+            );
+        }
+        return req;
+    }
     
     /**
      * Creates a new builder.
@@ -121,9 +158,9 @@ public class DataRequirements {
         
         /**
          * Sets default count and interval for interval-based requirements.
-         * These defaults are typically derived from CLI options like --count and --interval.
+         * These defaults are typically derived from CLI options like --dump-count and --interval.
          * 
-         * @param count Default number of samples (from --count option)
+         * @param count Default number of samples (from --dump-count option)
          * @param intervalMs Default interval in milliseconds (from --interval option)
          */
         public Builder withDefaults(int count, long intervalMs) {

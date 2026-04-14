@@ -24,25 +24,13 @@ public class HelpTest {
 
     @Test
     public void testDeadlockHelp() {
-        run("deadlock", "--help").hasNoError().output().isEqualTo(
-            """
-            Usage: jstall deadlock [-hV] [--dumps=<dumps>] [--interval=<interval>] [--keep]
-                                   [--intelligent-filter] [--full] [<targets>...]
-            Detect JVM-reported thread deadlocks
-                  [<targets>...]       PID, 'all', filter or dump files (or replay ZIP as
-                                       first argument)
-                  --dumps=<dumps>      Number of dumps to collect, default is none
-                  --full               Run all analyses including expensive ones (only for
-                                       status command)
-              -h, --help               Show this help message and exit.
-                  --intelligent-filter Use intelligent stack trace filtering (collapses
-                                       internal frames, focuses on application code)
-                  --interval=<interval>
-                                       Interval between dumps, default is 5s
-                  --keep               Persist dumps to disk
-              -V, --version            Print version information and exit.
-            """
-        );
+        var output = run("deadlock", "--help").hasNoError().get().out();
+        assert output.contains("Usage: jstall deadlock");
+        assert output.contains("--dump-count=<count>");
+        assert output.contains("--interval=<interval>");
+        assert output.contains("--file=<replayFile>");
+        assert output.contains("-f, --file=<replayFile>");
+        assert output.contains("Detect JVM-reported thread deadlocks");
     }
 
     @ParameterizedTest

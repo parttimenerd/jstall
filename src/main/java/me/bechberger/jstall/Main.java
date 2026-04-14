@@ -61,9 +61,9 @@ public class Main implements Runnable {
     @Option(names = {"-v", "--verbose"}, description = "Enable verbose logging of remote SSH commands and their outputs")
     private boolean verbose;
 
-    private CommandExecutor cachedExecutor;
+    private volatile CommandExecutor cachedExecutor;
 
-    public @NotNull CommandExecutor executor() {
+    public @NotNull synchronized CommandExecutor executor() {
         if (cachedExecutor == null) {
             if (sshCommandPrefix != null) {
                 var remote = new CommandExecutor.RemoteCommandExecutor(sshCommandPrefix);
@@ -128,14 +128,10 @@ public class Main implements Runnable {
         System.out.println("  vm-vitals         - Show VM.vitals (if available)");
         System.out.println("  gc-heap-info      - Show GC.heap_info last absolute values and deltas");
         System.out.println("  compiler-queue    - Show compiler queue");
-        System.out.println("  vm-vitals         - Show VM.vitals (if available)");
-        System.out.println("  gc-heap-info      - Show GC.heap_info last absolute values and deltas");
         System.out.println("  vm-classloader-stats - Show VM classloader statistics");
         System.out.println("  vm-metaspace      - Show VM metaspace info");
         System.out.println("  jvm-support       - Check whether the target JVM is likely still supported");
         System.out.println("  processes         - Show system processes");
-        System.out.println("  ai                - AI-powered analysis using LLM");
-        System.out.println("  ai full           - AI-powered analysis of all JVMs on the system");
         System.out.println();
 
         if (replayFile != null) {

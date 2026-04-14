@@ -46,8 +46,8 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
     )
     protected List<String> targets;
 
-    @Option(names = "--dumps", description = "Number of dumps to collect, default is ${DEFAULT-VALUE}")
-    protected Integer dumps;
+    @Option(names = "--dump-count", description = "Number of dumps to collect, default is ${DEFAULT-VALUE}")
+    protected Integer count;
 
     @Option(names = "--interval", defaultValue = "5s", description = "Interval between dumps, default is ${DEFAULT-VALUE}")
     protected Duration interval;
@@ -60,6 +60,9 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
 
     @Option(names = "--full", description = "Run all analyses including expensive ones (only for status command)")
     protected boolean full = false;
+
+    @Option(names = {"-f", "--file"}, description = "Replay ZIP file to analyze (works before or after subcommand)")
+    protected Path replayFile;
 
     Spec spec;
     private Path positionalReplayFile;
@@ -86,11 +89,25 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
     }
 
     /**
+     * Validates and returns the --top option value.
+     */
+    protected static int getTop(int top) {
+        if (top != -1 && top <= 0) {
+            throw new IllegalArgumentException(
+                "--top must be a positive integer (>= 1) or -1 to show all threads");
+        }
+        return top;
+    }
+
+    /**
      * Safely retrieves the replay file path from the parent Main command.
      * Returns null if spec is not injected (e.g. direct instantiation in tests)
      * or if no replay file was specified.
      */
     private Path getReplayFilePath() {
+        if (replayFile != null) {
+            return replayFile;
+        }
         if (spec == null) return null;
         Main main = spec.getParent(Main.class);
         return main != null ? main.getReplayFile() : null;
@@ -103,9 +120,21 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
     @Override
     public Integer call() throws Exception {
         setupReplayFile();
+        // Validate common options
+        if (count != null && count < 1) {
+            System.err.println("Error: --dump-count must be >= 1");
+            return 1;
+        }
+        if (interval != null && interval.toMillis() <= 0) {
+            System.err.println("Error: --interval must be positive");
+            return 1;
+        }
         AnalysisContext context;
         try {
             context = createContext();
+        } catch (IllegalArgumentException e) {
+            System.err.println("Error: " + e.getMessage());
+            return 1;
         } catch (SSHCommandException e) {
             System.err.println("ERROR: " + e.getMessage());
             return 2;
@@ -190,7 +219,9 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             if (positionalReplayFile != null) {
                 return resolveTargetsFromReplay(List.of());
             } else {
-                spec.usage();
+                if (spec != null) {
+                    spec.usage();
+                }
                 System.out.println();
                 if (replayMode) {
                     new ReplayProvider(getEffectiveReplayFilePath()).printReplayTargets(System.out);
@@ -270,6 +301,9 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
         if (targetData.error() != null) {
             return 1;
         }
+        if (!validateDumpRequirement(targetData.threadDumps(), context.analyzer)) {
+            return 1;
+        }
 
         ResolvedData data = ResolvedData.fromDumpsAndCollectedData(targetData.threadDumps(), targetData.collectedDataByType());
         return analyzeAndPrintResult(data, context);
@@ -321,6 +355,10 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             if (targetData.error() != null) {
                 return new TargetResult(target, null, targetData.error());
             }
+            if (!validateDumpRequirement(targetData.threadDumps(), context.analyzer)) {
+                return new TargetResult(target, null,
+                    new IllegalArgumentException("Invalid dump count for analyzer '" + context.analyzer.name() + "'"));
+            }
 
             ResolvedData data = ResolvedData.fromDumpsAndCollectedData(targetData.threadDumps(), targetData.collectedDataByType());
             AnalyzerResult result = context.analyzer.analyze(data, context.options);
@@ -344,7 +382,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             System.out.println();
 
             if (targetResult.error != null) {
-                System.err.println("Error analyzing target: " + targetResult.error.getMessage());
+                System.err.println("Error analyzing target: " + (targetResult.error.getMessage() != null ? targetResult.error.getMessage() : targetResult.error.toString()));
                 maxExitCode = Math.max(maxExitCode, 1);
             } else {
                 System.out.println(targetResult.result.output());
@@ -361,7 +399,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
     }
 
     private int computeDumpCount(Analyzer analyzer) {
-        return dumps != null ? dumps : analyzer.defaultDumpCount();
+        return count != null ? count : analyzer.defaultDumpCount();
     }
 
     private long computeIntervalMs(Analyzer analyzer) {
@@ -370,7 +408,8 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
 
     private boolean validateDumpRequirement(List<ThreadDumpSnapshot> threadDumps, Analyzer analyzer) {
         if (analyzer.dumpRequirement() == DumpRequirement.MANY && threadDumps.size() < 2) {
-            System.err.println("Error: " + analyzer.name() + " requires at least 2 dumps, got " + threadDumps.size());
+            System.err.println("Error: analyzer '" + analyzer.name() + "' requires at least 2 dumps (got "
+                + threadDumps.size() + "). Increase --dump-count to 2 or higher.");
             return false;
         }
         return true;
@@ -429,7 +468,8 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             List<ThreadDumpSnapshot> threadDumps = ThreadDumpRequirement.loadFromFiles(List.of(file.path()));
             if (!validateDumpRequirement(threadDumps, analyzer)) {
                 return new LoadedTargetData(new IllegalArgumentException(
-                    "Analyzer " + analyzer.name() + " requires at least 2 dumps, got " + threadDumps.size()));
+                    "Analyzer '" + analyzer.name() + "' requires at least 2 dumps (got "
+                        + threadDumps.size() + ")."));
             }
             return new LoadedTargetData(threadDumps, Map.of());
         } catch (Exception e) {
@@ -467,7 +507,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
 
     private Map<String, Object> buildOptions(int dumpCount, long intervalMs) {
         Map<String, Object> options = new HashMap<>();
-        options.put("dumps", dumpCount);
+        options.put("dump-count", dumpCount);
         options.put("interval", intervalMs);
         options.put("keep", keep);
         if (intelligentFilter != null) {

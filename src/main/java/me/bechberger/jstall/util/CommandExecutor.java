@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -44,8 +45,8 @@ public abstract class CommandExecutor {
     }
 
     private final boolean remote;
-    private final Map<Long, JMXDiagnosticHelper> diagnosticHelpers = new HashMap<>();
-    private boolean hasShutdownHook = false;
+    private final Map<Long, JMXDiagnosticHelper> diagnosticHelpers = new ConcurrentHashMap<>();
+    private volatile boolean hasShutdownHook = false;
 
     CommandExecutor(boolean remote) {
         this.remote = remote;
@@ -77,8 +78,12 @@ public abstract class CommandExecutor {
      */
     public JMXDiagnosticHelper diagnosticHelper(long pid) {
         if (!hasShutdownHook) {
-            Runtime.getRuntime().addShutdownHook(new Thread(this::cleanupDiagnosticHelpers));
-            hasShutdownHook = true;
+            synchronized (this) {
+                if (!hasShutdownHook) {
+                    Runtime.getRuntime().addShutdownHook(new Thread(this::cleanupDiagnosticHelpers));
+                    hasShutdownHook = true;
+                }
+            }
         }
         return diagnosticHelpers.computeIfAbsent(pid, p -> {
             try {
@@ -113,7 +118,23 @@ public abstract class CommandExecutor {
             try {
                 process.waitFor();
             } catch (InterruptedException e) {
+                outputT.interrupt();
+                errorT.interrupt();
+                try {
+                    outputT.join();
+                    errorT.join();
+                } catch (InterruptedException joinInterrupted) {
+                    Thread.currentThread().interrupt();
+                }
+                Thread.currentThread().interrupt();
                 throw new IOException(command + " execution interrupted", e);
+            }
+            try {
+                outputT.join();
+                errorT.join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException(command + " output capture interrupted", e);
             }
             return new CommandResult(outputT.getString(), errorT.getString(), process.exitValue(), process.pid());
         }

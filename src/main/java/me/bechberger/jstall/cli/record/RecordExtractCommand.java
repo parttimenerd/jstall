@@ -45,20 +45,31 @@ public class RecordExtractCommand implements Callable<Integer> {
     }
 
     private void extractZip(Path sourceZip, Path destination) throws IOException {
-        Files.createDirectories(destination);
+        Path normalizedDestination = destination.toAbsolutePath().normalize();
+        Files.createDirectories(normalizedDestination);
 
         try (InputStream fileIn = Files.newInputStream(sourceZip);
              ZipInputStream zipIn = new ZipInputStream(fileIn)) {
             ZipEntry entry;
-            String sourcePrefix = sourceZip.getFileName().toString().replace(".zip", "") + "/"; // ZIP entries are typically prefixed with the ZIP file name 
+            String sourcePrefix = null; // will be detected from first ZIP entry 
             while ((entry = zipIn.getNextEntry()) != null) {
-                if (!entry.getName().startsWith(sourcePrefix)) {
+                if (sourcePrefix == null) {
+                    String n = entry.getName();
+                    int sl = n.indexOf('/');
+                    String candidate = (sl >= 0) ? n.substring(0, sl + 1) : "";
+                    // Only use prefix if it is safe (no path traversal)
+                    sourcePrefix = (!candidate.contains("..") && !candidate.startsWith("/")) ? candidate : "";
+                }
+                if (!sourcePrefix.isEmpty() && !entry.getName().startsWith(sourcePrefix)) {
                     throw new IOException("Unexpected ZIP entry outside of expected prefix: " + entry.getName());
                 }
-                Path target = destination.resolve(entry.getName().substring(sourcePrefix.length())).normalize();
-                if (!target.startsWith(destination.normalize())) {
+                String entryName = sourcePrefix.isEmpty() ? entry.getName() : entry.getName().substring(sourcePrefix.length());
+                Path target = normalizedDestination.resolve(entryName).normalize();
+                if (!target.startsWith(normalizedDestination)) {
                     throw new IOException("ZIP entry escapes output folder: " + entry.getName());
                 }
+
+                ensureNoSymlinkInPath(normalizedDestination, target);
 
                 if (entry.isDirectory()) {
                     Files.createDirectories(target);
@@ -66,12 +77,24 @@ public class RecordExtractCommand implements Callable<Integer> {
                     Path parent = target.getParent();
                     if (parent != null) {
                         Files.createDirectories(parent);
+                        ensureNoSymlinkInPath(normalizedDestination, parent);
                     }
                     try (OutputStream out = Files.newOutputStream(target)) {
                         zipIn.transferTo(out);
                     }
                 }
                 zipIn.closeEntry();
+            }
+        }
+    }
+
+    private void ensureNoSymlinkInPath(Path root, Path path) throws IOException {
+        Path relative = root.relativize(path);
+        Path current = root;
+        for (Path part : relative) {
+            current = current.resolve(part);
+            if (Files.exists(current) && Files.isSymbolicLink(current)) {
+                throw new IOException("ZIP extraction blocked due to symlink in output path: " + current);
             }
         }
     }
