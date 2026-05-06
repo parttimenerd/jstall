@@ -95,6 +95,18 @@ public abstract class CommandExecutor {
     }
 
     /**
+     * Evicts the cached JMXDiagnosticHelper for the given PID, cleans it up,
+     * and creates a fresh connection. Use after a transient connection failure.
+     */
+    public JMXDiagnosticHelper reconnectDiagnosticHelper(long pid) {
+        JMXDiagnosticHelper old = diagnosticHelpers.remove(pid);
+        if (old != null) {
+            old.cleanup();
+        }
+        return diagnosticHelper(pid);
+    }
+
+    /**
      * Default implementation of CommandExecutor that executes commands on the local machine using ProcessBuilder.
      */
     public static class LocalCommandExecutor extends CommandExecutor {

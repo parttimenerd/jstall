@@ -1,12 +1,14 @@
 package me.bechberger.jstall.analyzer.impl;
 
 import me.bechberger.jstall.analyzer.Analyzer;
+import me.bechberger.jstall.analyzer.AnalyzerOutput;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
+import me.bechberger.jstall.analyzer.Cell;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.analyzer.ResolvedData;
+import me.bechberger.jstall.analyzer.TableModel;
 import me.bechberger.jstall.provider.requirement.CollectedData;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
-import me.bechberger.jstall.util.TablePrinter;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -87,12 +89,12 @@ public class VmClassloaderStatsAnalyzer implements Analyzer {
             latest.getOrDefault(a, AggregateRow.ZERO).classes
         ));
 
-        TablePrinter table = new TablePrinter()
-            .addColumn("Type", TablePrinter.Alignment.LEFT)
-            .addColumn("Classes", TablePrinter.Alignment.RIGHT)
-            .addColumn("ChunkSz", TablePrinter.Alignment.RIGHT)
-            .addColumn("BlockSz", TablePrinter.Alignment.RIGHT)
-            .addColumn("Trend", TablePrinter.Alignment.LEFT);
+        TableModel.Builder table = TableModel.builder()
+            .addColumn("Type", TableModel.Alignment.LEFT)
+            .addColumn("Classes", TableModel.Alignment.RIGHT)
+            .addColumn("ChunkSz", TableModel.Alignment.RIGHT)
+            .addColumn("BlockSz", TableModel.Alignment.RIGHT)
+            .addColumn("Trend", TableModel.Alignment.LEFT);
 
         long totalClassesLatest = 0;
         long totalChunkLatest = 0;
@@ -113,34 +115,34 @@ public class VmClassloaderStatsAnalyzer implements Analyzer {
             totalBlockFirst += firstRow.blockSz;
 
             table.addRow(
-                type,
-                formatNumber(latestRow.classes),
-                formatNumber(latestRow.chunkSz),
-                formatNumber(latestRow.blockSz),
-                hasTrend
+                Cell.text(type),
+                Cell.number(formatNumber(latestRow.classes), latestRow.classes),
+                Cell.number(formatNumber(latestRow.chunkSz), latestRow.chunkSz),
+                Cell.number(formatNumber(latestRow.blockSz), latestRow.blockSz),
+                Cell.text(hasTrend
                     ? formatTrend(latestRow.classes - firstRow.classes,
                         latestRow.chunkSz - firstRow.chunkSz,
                         latestRow.blockSz - firstRow.blockSz)
-                    : "-"
+                    : "-")
             );
         }
 
         table.addRow(
-            "Total",
-            formatNumber(totalClassesLatest),
-            formatNumber(totalChunkLatest),
-            formatNumber(totalBlockLatest),
-            hasTrend
+            Cell.text("Total"),
+            Cell.number(formatNumber(totalClassesLatest), totalClassesLatest),
+            Cell.number(formatNumber(totalChunkLatest), totalChunkLatest),
+            Cell.number(formatNumber(totalBlockLatest), totalBlockLatest),
+            Cell.text(hasTrend
                 ? formatTrend(totalClassesLatest - totalClassesFirst,
                     totalChunkLatest - totalChunkFirst,
                     totalBlockLatest - totalBlockFirst)
-                : "-"
+                : "-")
         );
 
         return String.format("VM.classloader_stats (%d sample%s):\n%s",
             parsedSamples.size(),
             parsedSamples.size() == 1 ? "" : "s",
-            table.render());
+            table.build().render());
     }
 
     private Map<String, AggregateRow> parseByType(String raw) {

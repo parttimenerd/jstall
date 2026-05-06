@@ -42,4 +42,9 @@ public class HelpTest {
         run(argsWithHelp).hasNoError().hasOutputContaining("Usage: ");
     }
 
+    @Test
+    public void testColorOptionInHelp() {
+        var output = run("status", "--help").hasNoError().get().out();
+        assert output.contains("--color") : "status help should show --color option";
+    }
 }

@@ -22,6 +22,8 @@ Features:
 * **Record & Replay**: Record diagnostic data for later analysis or sharing as a zip file
 * **Minimal Builds Available**: There are minimal builds (< 250 KB) available that exclude the bundled async-profiler ([SapMachine](https://sap.github.io/SapMachine/) ships with it anyway) and are optimized via [femtojar](https://github.com/parttimenerd/femtojar).
 * **Remote JVMs**: via `-s "ssh user@host" COMMAND` or via `--cf APP COMMAND` for cloud-foundry
+* **Live Mode**: Interactive TUI with `--live` for continuous monitoring with sorting, filtering, and color
+* **Top threads filtering**: Use `--top=<n>` to show only the top N threads by CPU time (e.g., `jstall threads --top=5 --live <pid>`)
 
 Requires Java 17+ to run.
 
@@ -49,6 +51,12 @@ jstall status MyApplication
 # Find threads consuming most CPU
 jstall most-work 12345
 
+# Monitor all threads in live mode
+jstall threads --live 12345
+
+# Monitor top 5 threads in live mode
+jstall threads --top=5 --live 12345
+
 # Detect threads stuck waiting on locks
 jstall waiting-threads 12345
 
@@ -73,7 +81,7 @@ All analysis commands also support the special target `all` to analyze every dis
 ### Global Options
 
 | Option | Description |
-|--------|-------------|
+|--------|----------|
 | `-f, --file=<zip>` | Replay mode from a recording ZIP |
 | `-s, --ssh=<prefix>` | Run commands on remote host via SSH (e.g., `ssh user@host`) |
 | `--cf=<app>` | Cloud Foundry remote execution (shortcut for `--ssh 'cf ssh <app> -c'`) |
@@ -120,6 +128,8 @@ For full command reference with all options, see [docs/COMMANDS.md](docs/COMMAND
 **Common options** (available on most commands):
 - `--dump-count=<n>` / `--interval=<t>` — Control dump collection
 - `--intelligent-filter` — Collapse framework internals, focus on app code
+- `-l, --live` — Live mode: interactive TUI with continuous monitoring
+- `--color` — Enable colored output in live mode
 - `-f, --file=<zip>` — Replay mode from a recording ZIP
 - `--no-native` — Ignore threads without stack traces
 
@@ -206,6 +216,27 @@ Analyzes JIT compiler queue state over time using `jcmd Compiler.queue`.
 ```bash
 jstall compiler-queue 12345
 ```
+
+---
+
+### Live Mode
+
+Monitor a JVM continuously with an interactive TUI:
+
+```bash
+jstall status 12345 --live
+jstall status MyApp --live --color
+jstall threads 12345 --live --color
+```
+
+**Features:**
+- Async data collection (UI stays responsive)
+- Tab navigation between analyzers (Tab/Shift-Tab)
+- Sort by column (`1-9`), secondary sort (`s` then `1-9`)
+- Filter rows (`/`)
+- Adjust collection interval (`+`/`-`), force refresh (`r`)
+- Colored output with `--color` (green=RUNNABLE, red=BLOCKED, yellow=WAITING, CPU% intensity)
+- Scroll (`j`/`k` or arrows), horizontal pan (`h`/`l`)
 
 ---
 

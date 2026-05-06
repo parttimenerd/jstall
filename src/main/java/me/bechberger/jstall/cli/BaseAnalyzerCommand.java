@@ -61,8 +61,16 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
     @Option(names = "--full", description = "Run all analyses including expensive ones (only for status command)")
     protected boolean full = false;
 
+    @Option(names = {"-l", "--live"}, description = "Live mode: repeatedly collect and display, like watch")
+    protected boolean live = false;
+
+    @Option(names = "--keep-samples", defaultValue = "0", description = "Number of last samples to persist as recording ZIP on quit of live mode (0 = don't persist)")
+    protected int keepSamples = 0;
     @Option(names = {"-f", "--file"}, description = "Replay ZIP file to analyze (works before or after subcommand)")
     protected Path replayFile;
+
+    @Option(names = "--color", description = "Enable colored output in live mode")
+    protected boolean color = false;
 
     Spec spec;
     private Path positionalReplayFile;
@@ -129,6 +137,14 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             System.err.println("Error: --interval must be positive");
             return 1;
         }
+        if (live && getEffectiveReplayFilePath() != null) {
+            System.err.println("Error: --live is not compatible with replay mode (-f/--file)");
+            return 1;
+        }
+        if (live && keepSamples < 0) {
+            System.err.println("Error: --keep-samples must be >= 0");
+            return 1;
+        }
         AnalysisContext context;
         try {
             context = createContext();
@@ -153,6 +169,26 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
         if (!resolution.isSuccess()) {
             printResolutionError(resolution, context);
             return 1;
+        }
+
+        // Live mode: single target only, delegate to LiveModeRunner
+        if (live) {
+            List<ResolvedTarget> resolvedTargets = resolution.targets();
+            if (resolvedTargets.size() != 1) {
+                System.err.println("Error: --live requires exactly one target (got " + resolvedTargets.size() + ")");
+                return 1;
+            }
+            ResolvedTarget target = resolvedTargets.get(0);
+            if (!(target instanceof ResolvedTarget.Pid pidTarget)) {
+                System.err.println("Error: --live requires a running JVM target (not a file)");
+                return 1;
+            }
+            LiveModeRunner runner = new LiveModeRunner(
+                    context.executor(), pidTarget.pid(), pidTarget.mainClass(),
+                    context.analyzer(), context.options(),
+                    interval != null ? interval : Duration.ofSeconds(5),
+                    keepSamples, color);
+            return runner.run();
         }
 
         return processTargets(resolution.targets(), context);
@@ -473,7 +509,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
         Map<String, List<CollectedData>> collectedDataByType = collectAll(executor, pid.pid(), analyzer, options);
         List<CollectedData> dumpData = collectedDataByType.getOrDefault(ThreadDumpRequirement.TYPE, List.of());
         List<ThreadDumpSnapshot> threadDumps = ThreadDumpRequirement.toSnapshots(dumpData,
-                extractSystemProps(collectedDataByType), SystemEnvironment.create(executor));
+                CollectedDataHelper.extractSystemProps(collectedDataByType), SystemEnvironment.create(executor));
         if (keep && !dumpData.isEmpty()) {
             ThreadDumpRequirement.persistToDirectory(dumpData, Path.of("dumps"));
         }
@@ -541,24 +577,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
         DataRequirements requirements = analyzer.getDataRequirements(options);
         DataCollector collector = new DataCollector(executor.diagnosticHelper(pid), requirements);
         Map<DataRequirement, List<CollectedData>> collected = collector.collectAll();
-
-        Map<String, List<CollectedData>> byType = new HashMap<>();
-        for (Map.Entry<DataRequirement, List<CollectedData>> entry : collected.entrySet()) {
-            String type = entry.getKey().getType();
-            if (type != null && !type.isBlank()) {
-                byType.computeIfAbsent(type, __ -> new ArrayList<>()).addAll(entry.getValue());
-            }
-        }
-        byType.replaceAll((__, samples) -> samples.stream()
-                .sorted(java.util.Comparator.comparingLong(CollectedData::timestamp))
-                .toList());
-        return byType;
-    }
-
-    private static Map<String, String> extractSystemProps(Map<String, List<CollectedData>> byType) {
-        List<CollectedData> props = byType.getOrDefault("system-properties", List.of());
-        if (props.isEmpty()) return null;
-        return me.bechberger.jstall.util.JcmdOutputParsers.parseVmSystemProperties(props.get(0).rawData());
+        return CollectedDataHelper.toByTypeMap(collected);
     }
 
     private JVMDiscovery.ResolutionResult resolveTargetsFromReplay(List<String> requestedTargets) {

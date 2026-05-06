@@ -8,11 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Live mode (`--live`): interactive TUI with async data collection, tab navigation, sorting, filtering, and scroll
+- `--color` flag for colored output in live mode (thread states, CPU % intensity)
+- Secondary sort in live mode: press `s` then `1-9` to add tiebreaker columns
+- Interval adjustment (`+`/`-`) and force refresh (`r`) in live mode
+- Collection/analysis timing display in live mode status bar
+- Scroll position indicator in footer bar
+- `--top=<n>` option for `threads` command to show only top N threads by CPU time (works with `--live` mode)
+
 ### Changed
-### Deprecated
-### Removed
+- CPU time formatting: values below 10ms now display as milliseconds (e.g., `3ms`) instead of `0.00s`
+
 ### Fixed
-### Security
+- Comma-grouped numbers (e.g., `15,177`) now sort correctly in tables
 
 ## [0.6.2] - 2026-05-05
 

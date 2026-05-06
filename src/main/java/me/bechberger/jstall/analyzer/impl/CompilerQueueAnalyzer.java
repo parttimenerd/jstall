@@ -1,15 +1,17 @@
 package me.bechberger.jstall.analyzer.impl;
 
 import me.bechberger.jstall.analyzer.Analyzer;
+import me.bechberger.jstall.analyzer.AnalyzerOutput;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
+import me.bechberger.jstall.analyzer.Cell;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.analyzer.ResolvedData;
+import me.bechberger.jstall.analyzer.TableModel;
 import me.bechberger.jstall.provider.requirement.CollectedData;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
 import me.bechberger.jstall.util.CompilerQueueParser;
 import me.bechberger.jstall.util.CompilerQueueParser.CompilerQueueSnapshot;
 import me.bechberger.jstall.util.CompilerQueueParser.CompileTask;
-import me.bechberger.jstall.util.TablePrinter;
 
 import java.time.Instant;
 import java.util.*;
@@ -114,21 +116,26 @@ public class CompilerQueueAnalyzer implements Analyzer {
 
         // Per-sample trend table
         output.append("Per-sample breakdown:\n");
-        TablePrinter table = new TablePrinter()
-                .addColumn("Time", TablePrinter.Alignment.LEFT)
-                .addColumn("Active", TablePrinter.Alignment.RIGHT)
-                .addColumn("Queued", TablePrinter.Alignment.RIGHT)
-                .addColumn("Queues Detail", TablePrinter.Alignment.LEFT);
+        TableModel.Builder table = TableModel.builder()
+                .addColumn("Time", TableModel.Alignment.LEFT)
+                .addColumn("Active", TableModel.Alignment.RIGHT)
+                .addColumn("Queued", TableModel.Alignment.RIGHT)
+                .addColumn("Queues Detail", TableModel.Alignment.LEFT);
 
         for (TimestampedSnapshot ts : parsed) {
             String time = formatTimestamp(ts.timestamp);
-            String active = String.valueOf(ts.snapshot.totalActiveCount());
-            String queued = String.valueOf(ts.snapshot.totalQueuedCount());
+            int active = ts.snapshot.totalActiveCount();
+            int queued = ts.snapshot.totalQueuedCount();
             String detail = formatQueueDetail(ts.snapshot);
-            table.addRow(time, active, queued, detail);
+            table.addRow(
+                Cell.text(time),
+                Cell.integer(active),
+                Cell.integer(queued),
+                Cell.text(detail)
+            );
         }
 
-        output.append(table.render());
+        output.append(table.build().render());
 
         // Latest snapshot details
         if (latest.snapshot.totalActiveCount() > 0 || latest.snapshot.totalQueuedCount() > 0) {

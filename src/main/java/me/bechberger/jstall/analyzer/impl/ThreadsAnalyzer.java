@@ -1,12 +1,14 @@
 package me.bechberger.jstall.analyzer.impl;
 
 import me.bechberger.jstall.analyzer.AnalyzerResult;
+import me.bechberger.jstall.analyzer.AnalyzerOutput;
 import me.bechberger.jstall.analyzer.BaseAnalyzer;
+import me.bechberger.jstall.analyzer.Cell;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.analyzer.ResolvedData;
+import me.bechberger.jstall.analyzer.TableModel;
 import me.bechberger.jstall.analyzer.ThreadActivityCategorizer;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
-import me.bechberger.jstall.util.TablePrinter;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.model.ThreadInfo;
 
@@ -25,7 +27,7 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of("dump-count", "interval", "keep", "no-native");
+        return Set.of("dump-count", "interval", "keep", "no-native", "top");
     }
 
     @Override
@@ -56,52 +58,53 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
         // Calculate elapsed time from first vs last dump using base class method
         double elapsedTimeSec = calculateElapsedTime(dumps);
 
-        // Sort threads using base class method
-        List<ThreadActivity> sortedThreads = sortThreadsByCpuTime(threadActivities.values(), -1);
+        // Get top N parameter from options
+        int topN = getIntOption(options, "top", -1);
 
-        return AnalyzerResult.ok(formatAsTable(sortedThreads, dumps.size(), totalCpuTimeSec, elapsedTimeSec));
+        // Sort threads using base class method
+        List<ThreadActivity> sortedThreads = sortThreadsByCpuTime(threadActivities.values(), topN);
+
+        return AnalyzerResult.ok(buildOutput(sortedThreads, dumps.size(), totalCpuTimeSec, elapsedTimeSec));
     }
 
-    /**
-     * Formats the thread list as a table.
-     */
-    private String formatAsTable(List<ThreadActivity> threads, int totalDumps, double totalCpuTimeSec, double elapsedTimeSec) {
+    private AnalyzerOutput buildOutput(List<ThreadActivity> threads, int totalDumps, double totalCpuTimeSec, double elapsedTimeSec) {
         if (threads.isEmpty()) {
-            return "No threads found";
+            return new AnalyzerOutput.TextOutput("No threads found");
         }
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("Threads (").append(totalDumps).append(" dumps):\n");
+        List<String> preamble = new ArrayList<>();
+        preamble.add("Threads (" + totalDumps + " dumps):");
 
-        // Display overall CPU time and elapsed time at the top
         if (totalCpuTimeSec >= 0.001) {
-            sb.append("Combined CPU time: ").append(String.format(Locale.US, "%.2fs", totalCpuTimeSec));
+            StringBuilder cpuLine = new StringBuilder();
+            cpuLine.append("Combined CPU time: ").append(formatCpuTime(totalCpuTimeSec));
             if (elapsedTimeSec > 0) {
-                sb.append(", Elapsed time: ").append(String.format(Locale.US, "%.2fs", elapsedTimeSec));
+                cpuLine.append(", Elapsed time: ").append(formatCpuTime(elapsedTimeSec));
                 double overallUtilization = (totalCpuTimeSec * 100.0) / elapsedTimeSec;
-                sb.append(String.format(Locale.US, " (%.1f%% total CPU / wall-clock, sums all cores)", overallUtilization));
+                cpuLine.append(String.format(Locale.US, " (%.1f%% total CPU / wall-clock, sums all cores)", overallUtilization));
             }
-            sb.append("\n");
+            preamble.add(cpuLine.toString());
         }
-        sb.append("\n");
 
-        // Create table
-        TablePrinter table = new TablePrinter()
+        TableModel.Builder table = TableModel.builder()
             .setMaxCellWidth(50)
-            .addColumn("THREAD", TablePrinter.Alignment.LEFT)
-            .addColumn("CPU TIME", TablePrinter.Alignment.RIGHT)
-            .addColumn("CPU %", TablePrinter.Alignment.RIGHT)
-            .addColumn("STATES", TablePrinter.Alignment.LEFT)
-            .addColumn("ACTIVITY", TablePrinter.Alignment.LEFT)
-            .addColumn("TOP STACK FRAME", TablePrinter.Alignment.LEFT);
+            .addColumn("THREAD", TableModel.Alignment.LEFT)
+            .addColumn("CPU TIME", TableModel.Alignment.RIGHT)
+            .addColumn("CPU %", TableModel.Alignment.RIGHT)
+            .addColumn("STATES", TableModel.Alignment.LEFT)
+            .addColumn("ACTIVITY", TableModel.Alignment.LEFT)
+            .addColumn("TOP STACK FRAME", TableModel.Alignment.LEFT);
 
-        // Add rows
         for (ThreadActivity activity : threads) {
-            String cpuTime = activity.hasCpuTime()
-                ? String.format(Locale.US, "%.2fs", activity.getTotalCpuTimeSec())
+            double cpuTimeSec = activity.getTotalCpuTimeSec();
+            String cpuTimeStr = activity.hasCpuTime()
+                ? formatCpuTime(cpuTimeSec)
                 : "N/A";
-            String cpuPercentage = (activity.hasCpuTime() && totalCpuTimeSec >= 0.001)
-                ? String.format(Locale.US, "%.1f%%", (activity.getTotalCpuTimeSec() * 100.0) / totalCpuTimeSec)
+            double cpuPct = (activity.hasCpuTime() && totalCpuTimeSec >= 0.001)
+                ? (cpuTimeSec * 100.0) / totalCpuTimeSec
+                : -1;
+            String cpuPercentageStr = cpuPct >= 0
+                ? String.format(Locale.US, "%.1f%%", cpuPct)
                 : "N/A";
 
             String states = activity.getStateDistribution();
@@ -109,19 +112,50 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
             String topFrame = activity.getTopStackFrame();
 
             table.addRow(
-                activity.threadName,
-                cpuTime,
-                cpuPercentage,
-                states,
-                activityDist,
-                topFrame
+                Cell.text(activity.threadName),
+                activity.hasCpuTime() ? Cell.number(cpuTimeStr, cpuTimeSec) : Cell.text("N/A"),
+                cpuPct >= 0 ? Cell.number(cpuPercentageStr, cpuPct, cpuColor(cpuPct)) : Cell.text("N/A"),
+                Cell.text(states, stateColor(activity)),
+                Cell.text(activityDist),
+                Cell.text(topFrame)
             );
         }
 
-        sb.append(table.render());
-        return sb.toString();
+        return new AnalyzerOutput.TableOutput(preamble, table.build());
     }
 
+
+    /**
+     * Formats CPU time with appropriate precision: ms for small values, s for larger.
+     */
+    private static String formatCpuTime(double seconds) {
+        if (seconds < 0.01) {
+            return String.format(Locale.US, "%.0fms", seconds * 1000.0);
+        }
+        return String.format(Locale.US, "%.2fs", seconds);
+    }
+
+    private static Cell.Color cpuColor(double cpuPct) {
+        if (cpuPct >= 50) return Cell.Color.RED;
+        if (cpuPct >= 20) return Cell.Color.YELLOW;
+        if (cpuPct >= 5) return Cell.Color.GREEN;
+        return null;
+    }
+
+    private static Cell.Color stateColor(ThreadActivity activity) {
+        // Use dominant state for color
+        Thread.State dominant = activity.stateCounts.entrySet().stream()
+            .max(Map.Entry.comparingByValue())
+            .map(Map.Entry::getKey)
+            .orElse(null);
+        if (dominant == null) return null;
+        return switch (dominant) {
+            case RUNNABLE -> Cell.Color.GREEN;
+            case BLOCKED -> Cell.Color.RED;
+            case WAITING, TIMED_WAITING -> Cell.Color.YELLOW;
+            default -> null;
+        };
+    }
 
     /**
      * Returns true for JMX/RMI threads that jstall itself injects into the target JVM.

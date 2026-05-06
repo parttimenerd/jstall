@@ -1,17 +1,20 @@
 package me.bechberger.jstall.analyzer.impl;
 
+import me.bechberger.jstall.analyzer.AnalyzerOutput;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.BaseAnalyzer;
+import me.bechberger.jstall.analyzer.Cell;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.analyzer.ResolvedData;
+import me.bechberger.jstall.analyzer.TableModel;
 import me.bechberger.jstall.model.ClassHistogram;
 import me.bechberger.jstall.model.ClassHistogramEntry;
 import me.bechberger.jstall.parser.ClassHistogramParser;
 import me.bechberger.jstall.provider.requirement.CollectedData;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
-import me.bechberger.jstall.util.TablePrinter;
 
 import java.text.NumberFormat;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -117,42 +120,49 @@ public class ClassHistogramDiffAnalyzer extends BaseAnalyzer {
 
         NumberFormat nf = NumberFormat.getIntegerInstance();
 
-        TablePrinter tp = new TablePrinter()
-            .addColumn("Δbytes", TablePrinter.Alignment.RIGHT)
-            .addColumn("Δinst", TablePrinter.Alignment.RIGHT)
-            .addColumn("class", TablePrinter.Alignment.LEFT)
-            .addColumn("module", TablePrinter.Alignment.LEFT);
+        TableModel.Builder deltaTable = TableModel.builder()
+            .addColumn("Δbytes", TableModel.Alignment.RIGHT)
+            .addColumn("Δinst", TableModel.Alignment.RIGHT)
+            .addColumn("class", TableModel.Alignment.LEFT)
+            .addColumn("module", TableModel.Alignment.LEFT);
 
         for (var d : topGrowers) {
-            tp.addRow(nf.format(d.deltaBytes()), nf.format(d.deltaInstances()), d.className, d.module == null ? "" : d.module);
+            deltaTable.addRow(
+                Cell.number(nf.format(d.deltaBytes()), d.deltaBytes()),
+                Cell.number(nf.format(d.deltaInstances()), d.deltaInstances()),
+                Cell.text(d.className),
+                Cell.text(d.module == null ? "" : d.module)
+            );
         }
 
         long bytesBefore = before.totalBytes();
         long bytesAfter = after.totalBytes();
         
-        // Top 20 classes by bytes in last dump
-        TablePrinter topClassesTable = new TablePrinter()
-            .addColumn("bytes", TablePrinter.Alignment.RIGHT)
-            .addColumn("instances", TablePrinter.Alignment.RIGHT)
-            .addColumn("class", TablePrinter.Alignment.LEFT)
-            .addColumn("module", TablePrinter.Alignment.LEFT);
+        // Top classes by bytes in last dump
+        TableModel.Builder topClassesTable = TableModel.builder()
+            .addColumn("bytes", TableModel.Alignment.RIGHT)
+            .addColumn("instances", TableModel.Alignment.RIGHT)
+            .addColumn("class", TableModel.Alignment.LEFT)
+            .addColumn("module", TableModel.Alignment.LEFT);
         
         for (var entry : after.topByBytes(top)) {
             topClassesTable.addRow(
-                nf.format(entry.bytes()), 
-                nf.format(entry.instances()), 
-                entry.className(), 
-                entry.module() == null ? "" : entry.module()
+                Cell.number(nf.format(entry.bytes()), entry.bytes()),
+                Cell.number(nf.format(entry.instances()), entry.instances()),
+                Cell.text(entry.className()),
+                Cell.text(entry.module() == null ? "" : entry.module())
             );
         }
-        
-        String out = "Class histogram delta (first -> last dump)\n" +
-            tp.render() + "\n\n" +
-            "Total bytes: " + nf.format(bytesBefore) + " -> " + nf.format(bytesAfter) + " (Δ " + nf.format(bytesAfter - bytesBefore) + ")\n\n" +
-            "Top 20 allocated classes in last dump:\n" +
-            topClassesTable.render();
 
-        return AnalyzerResult.ok(out);
+        String totalLine = "Total bytes: " + nf.format(bytesBefore) + " -> " + nf.format(bytesAfter) + " (Δ " + nf.format(bytesAfter - bytesBefore) + ")";
+
+        List<AnalyzerOutput.CompositeOutput.Section> sections = new ArrayList<>();
+        sections.add(new AnalyzerOutput.CompositeOutput.Section("Delta",
+            new AnalyzerOutput.TableOutput(List.of("Class histogram delta (first -> last dump)"), deltaTable.build())));
+        sections.add(new AnalyzerOutput.CompositeOutput.Section("Top Classes",
+            new AnalyzerOutput.TableOutput(List.of(totalLine, "", "Top " + top + " allocated classes in last dump:"), topClassesTable.build())));
+
+        return AnalyzerResult.ok(new AnalyzerOutput.CompositeOutput(sections));
     }
 
     private static Map<String, Agg> aggregate(ClassHistogram h) {

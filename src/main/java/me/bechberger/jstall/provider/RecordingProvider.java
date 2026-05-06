@@ -372,25 +372,45 @@ public class RecordingProvider {
         return ReplayProvider.loadMetadata(recordingZip);
     }
 
+    /**
+     * Writes a recording ZIP for a single target with pre-collected data.
+     * Used by live mode to persist buffered samples on shutdown.
+     */
+    public void writeSingleTargetRecording(CollectedJvmData targetData,
+                                           DataRequirements requirements,
+                                           Path outputFile) throws IOException {
+        Path parent = outputFile.toAbsolutePath().getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        String recordingRoot = recordingRootFromOutput(outputFile);
+
+        try (ZipOutputStream zipOut = new ZipOutputStream(Files.newOutputStream(outputFile))) {
+            writeMetadata(zipOut, recordingRoot, List.of(targetData), requirements);
+            writeReadme(zipOut, recordingRoot, List.of(targetData), requirements);
+            writeJvmData(zipOut, recordingRoot, targetData, requirements);
+        }
+    }
+
     public record RecordingSummary(Path outputFile,
                                    int targetCount,
                                    int successCount,
                                    int failureCount) {
     }
 
-    record CollectedJvmData(JVMDiscovery.JVMProcess process,
+    public record CollectedJvmData(JVMDiscovery.JVMProcess process,
                                     Map<DataRequirement, List<CollectedData>> data,
                                     long startedAt,
                                     long finishedAt,
                                     String errorMessage) {
-        static CollectedJvmData success(JVMDiscovery.JVMProcess process,
+        public static CollectedJvmData success(JVMDiscovery.JVMProcess process,
                                         Map<DataRequirement, List<CollectedData>> data,
                                         long startedAt,
                                         long finishedAt) {
             return new CollectedJvmData(process, data, startedAt, finishedAt, null);
         }
 
-        static CollectedJvmData failure(JVMDiscovery.JVMProcess process,
+        public static CollectedJvmData failure(JVMDiscovery.JVMProcess process,
                                         long startedAt,
                                         long finishedAt,
                                         String errorMessage) {
@@ -398,7 +418,7 @@ public class RecordingProvider {
                 errorMessage == null ? "Unknown error" : errorMessage);
         }
 
-        boolean successful() {
+        public boolean successful() {
             return errorMessage == null;
         }
     }

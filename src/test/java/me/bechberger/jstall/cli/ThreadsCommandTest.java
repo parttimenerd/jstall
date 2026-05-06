@@ -54,13 +54,44 @@ class ThreadsCommandTest {
     }
 
     @Test
-    void testNoTopOption() {
+    void testDefaultTopOption() {
         ThreadsCommand command = new ThreadsCommand();
 
         RunCommandUtil.run(command, "12345");
 
         var options = command.getAdditionalOptions();
-        assertFalse(options.containsKey("top"));
+        assertEquals(-1, options.get("top"));
+    }
+
+    @Test
+    void testTopOption() {
+        ThreadsCommand command = new ThreadsCommand();
+
+        RunCommandUtil.run(command, "12345", "--top=5");
+
+        var options = command.getAdditionalOptions();
+        assertEquals(5, options.get("top"));
+    }
+
+    @Test
+    void testTopOptionInvalid() {
+        ThreadsCommand command = new ThreadsCommand();
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            RunCommandUtil.run(command, "12345", "--top=0");
+            command.getAdditionalOptions();
+        });
+    }
+
+    @Test
+    void testTopAndNoNativeOptions() {
+        ThreadsCommand command = new ThreadsCommand();
+
+        RunCommandUtil.run(command, "12345", "--top=3", "--no-native");
+
+        var options = command.getAdditionalOptions();
+        assertEquals(3, options.get("top"));
+        assertEquals(true, options.get("no-native"));
     }
 
     @Test

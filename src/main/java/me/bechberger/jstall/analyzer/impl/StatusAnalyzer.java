@@ -1,14 +1,15 @@
 package me.bechberger.jstall.analyzer.impl;
 
 import me.bechberger.jstall.analyzer.Analyzer;
+import me.bechberger.jstall.analyzer.AnalyzerOutput;
 import me.bechberger.jstall.analyzer.BaseAnalyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.analyzer.ResolvedData;
 import me.bechberger.jstall.provider.requirement.CollectedData;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
-import me.bechberger.jstall.runner.AnalyzerRunner;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -79,23 +80,89 @@ public class StatusAnalyzer extends BaseAnalyzer {
 
     @Override
     public AnalyzerResult analyze(ResolvedData data, Map<String, Object> options) {
-        AnalyzerRunner runner = new AnalyzerRunner();
-
-        var runResult = runner.runAnalyzers(getAnalyzers(options), data, options);
-
-        StringBuilder output = new StringBuilder();
+        List<Analyzer> analyzers = getAnalyzers(options);
+        int dumpCount = data.dumps().size();
         String uptime = resolveVmUptime(data);
-        if (uptime != null) {
-            output.append("VM uptime: ").append(uptime).append("\n");
-        }
-        if (!runResult.output().isBlank()) {
-            if (!output.isEmpty()) {
-                output.append("\n");
+
+        List<AnalyzerOutput.CompositeOutput.Section> sections = new ArrayList<>();
+        int maxExitCode = 0;
+
+        for (Analyzer sub : analyzers) {
+            Map<String, Object> subOptions = filterOptions(sub, options);
+            AnalyzerOutput sectionContent;
+
+            if (sub.dumpRequirement() == DumpRequirement.MANY && dumpCount < 2) {
+                // Not enough dumps yet — show placeholder
+                sectionContent = new AnalyzerOutput.TextOutput("Collecting data... (need 2 samples)");
+            } else {
+                try {
+                    ResolvedData subData = new ResolvedData(
+                        filterDumps(sub, data.dumps()),
+                        data.systemProperties(),
+                        data.environment(),
+                        data.collectedDataByType()
+                    );
+                    AnalyzerResult result = sub.analyze(subData, subOptions);
+                    if (!result.shouldDisplay() || result.output().isBlank()) {
+                        continue;
+                    }
+                    maxExitCode = Math.max(maxExitCode, result.exitCode());
+                    sectionContent = result.structured();
+                } catch (Exception e) {
+                    sectionContent = new AnalyzerOutput.TextOutput("Error: " + e.getMessage());
+                }
             }
-            output.append(runResult.output());
+
+            sections.add(new AnalyzerOutput.CompositeOutput.Section(sub.name(), sectionContent));
         }
 
-        return AnalyzerResult.withExitCode(output.toString().trim(), runResult.exitCode());
+        // Add uptime as preamble to first section or as its own section
+        AnalyzerOutput output;
+        if (sections.isEmpty()) {
+            output = new AnalyzerOutput.TextOutput(uptime != null ? "VM uptime: " + uptime : "No data available");
+        } else {
+            if (uptime != null) {
+                // Prepend uptime section
+                sections.add(0, new AnalyzerOutput.CompositeOutput.Section("uptime",
+                    new AnalyzerOutput.TextOutput("VM uptime: " + uptime)));
+            }
+            output = new AnalyzerOutput.CompositeOutput(sections);
+        }
+
+        return AnalyzerResult.withExitCode(output, maxExitCode);
+    }
+
+    /**
+     * Builds a placeholder output showing all tabs with "Collecting data..." content.
+     * Used in live mode to show the tab bar immediately before data collection starts.
+     */
+    public AnalyzerOutput buildPlaceholderOutput(Map<String, Object> options) {
+        List<Analyzer> analyzers = getAnalyzers(options);
+        List<AnalyzerOutput.CompositeOutput.Section> sections = new ArrayList<>();
+        for (Analyzer sub : analyzers) {
+            sections.add(new AnalyzerOutput.CompositeOutput.Section(sub.name(),
+                new AnalyzerOutput.TextOutput("Collecting data...")));
+        }
+        return new AnalyzerOutput.CompositeOutput(sections);
+    }
+
+    private Map<String, Object> filterOptions(Analyzer analyzer, Map<String, Object> options) {
+        Map<String, Object> filtered = new java.util.HashMap<>();
+        for (String supportedOption : analyzer.supportedOptions()) {
+            if (options.containsKey(supportedOption)) {
+                filtered.put(supportedOption, options.get(supportedOption));
+            }
+        }
+        return filtered;
+    }
+
+    private List<me.bechberger.jstall.model.ThreadDumpSnapshot> filterDumps(Analyzer analyzer,
+            List<me.bechberger.jstall.model.ThreadDumpSnapshot> dumps) {
+        return switch (analyzer.dumpRequirement()) {
+            case ONE -> dumps.isEmpty() ? List.of() : List.of(dumps.get(0));
+            case MANY -> dumps;
+            case ANY -> dumps;
+        };
     }
 
     private String resolveVmUptime(ResolvedData data) {

@@ -1,12 +1,14 @@
 package me.bechberger.jstall.analyzer.impl;
 
 import me.bechberger.jstall.analyzer.Analyzer;
+import me.bechberger.jstall.analyzer.AnalyzerOutput;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
+import me.bechberger.jstall.analyzer.Cell;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.analyzer.ResolvedData;
+import me.bechberger.jstall.analyzer.TableModel;
 import me.bechberger.jstall.provider.requirement.CollectedData;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
-import me.bechberger.jstall.util.TablePrinter;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -88,7 +90,10 @@ public class VmMetaspaceAnalyzer implements Analyzer {
             return AnalyzerResult.ok("VM.metaspace not available (or no parseable summary lines)");
         }
 
-        return AnalyzerResult.ok(format(parsed));
+        AnalyzerOutput structured = formatStructured(parsed);
+        // Use flat text for CLI output but attach structured output for live mode
+        String flatOutput = renderFlat(parsed);
+        return new AnalyzerResult(flatOutput, 0, true, structured);
     }
 
     // -------------------------------------------------------------------------
@@ -209,97 +214,164 @@ public class VmMetaspaceAnalyzer implements Analyzer {
     // Formatting
     // -------------------------------------------------------------------------
 
-    private String format(List<MetaspaceSnapshot> parsed) {
+    private AnalyzerOutput formatStructured(List<MetaspaceSnapshot> parsed) {
         MetaspaceSnapshot first  = parsed.get(0);
         MetaspaceSnapshot latest = parsed.get(parsed.size() - 1);
         boolean hasTrend = parsed.size() > 1;
 
-        StringBuilder sb = new StringBuilder();
+        List<String> preamble = new ArrayList<>();
+        preamble.add(String.format("VM.metaspace (%d sample%s):",
+            parsed.size(), parsed.size() == 1 ? "" : "s"));
+        if (latest.header() != null) {
+            MetaspaceHeader h = latest.header();
+            preamble.add(String.format("%d loaders, %d classes (%d shared)",
+                h.loaders(), h.classes(), h.sharedClasses()));
+        }
 
-        // Title
+        // If we have only a usage table (most common), return TableOutput directly
+        if (!latest.usage().isEmpty() && latest.virtualSpace().isEmpty()) {
+            TableModel usageTable = buildUsageTable(first, latest, hasTrend);
+            return appendSettingsAndWaste(new AnalyzerOutput.TableOutput(preamble, usageTable), latest);
+        }
+
+        // Multiple tables → CompositeOutput
+        List<AnalyzerOutput.CompositeOutput.Section> sections = new ArrayList<>();
+
+        if (!latest.usage().isEmpty()) {
+            TableModel usageTable = buildUsageTable(first, latest, hasTrend);
+            sections.add(new AnalyzerOutput.CompositeOutput.Section("Usage",
+                new AnalyzerOutput.TableOutput(preamble, usageTable)));
+        }
+
+        if (!latest.virtualSpace().isEmpty()) {
+            TableModel vsTable = buildVirtualSpaceTable(latest);
+            List<String> vsPreamble = sections.isEmpty() ? preamble : List.of();
+            sections.add(new AnalyzerOutput.CompositeOutput.Section("Virtual Space",
+                new AnalyzerOutput.TableOutput(vsPreamble, vsTable)));
+        }
+
+        // Waste + settings as text section
+        String footer = buildFooter(latest);
+        if (!footer.isEmpty()) {
+            sections.add(new AnalyzerOutput.CompositeOutput.Section("Summary",
+                new AnalyzerOutput.TextOutput(footer)));
+        }
+
+        if (sections.size() == 1) {
+            return sections.get(0).content();
+        }
+        return new AnalyzerOutput.CompositeOutput(sections);
+    }
+
+    private TableModel buildUsageTable(MetaspaceSnapshot first, MetaspaceSnapshot latest, boolean hasTrend) {
+        TableModel.Builder usageTable = TableModel.builder()
+            .addColumn("Type",      TableModel.Alignment.LEFT)
+            .addColumn("Chunks",    TableModel.Alignment.RIGHT)
+            .addColumn("Capacity",  TableModel.Alignment.RIGHT)
+            .addColumn("Used",      TableModel.Alignment.RIGHT)
+            .addColumn("Committed", TableModel.Alignment.RIGHT)
+            .addColumn("Free",      TableModel.Alignment.RIGHT);
+        if (hasTrend) {
+            usageTable.addColumn("Trend", TableModel.Alignment.LEFT);
+        }
+
+        for (String label : List.of("Non-Class", "Class", "Both")) {
+            UsageRow latestRow = latest.usage().get(label);
+            if (latestRow == null) continue;
+
+            if (hasTrend) {
+                UsageRow firstRow = first.usage().getOrDefault(label, UsageRow.ZERO);
+                long delta = latestRow.usedBytes() - firstRow.usedBytes();
+                String arrow = delta > 0 ? "↑" : delta < 0 ? "↓" : "→";
+                usageTable.addRow(
+                    Cell.text(label),
+                    Cell.integer(latestRow.chunks()),
+                    Cell.bytes(latestRow.capacityBytes()),
+                    Cell.bytes(latestRow.usedBytes()),
+                    Cell.bytes(latestRow.committedBytes()),
+                    Cell.bytes(latestRow.freeBytes()),
+                    Cell.text(arrow + " " + formatSignedBytes(delta) + " used"));
+            } else {
+                usageTable.addRow(
+                    Cell.text(label),
+                    Cell.integer(latestRow.chunks()),
+                    Cell.bytes(latestRow.capacityBytes()),
+                    Cell.bytes(latestRow.usedBytes()),
+                    Cell.bytes(latestRow.committedBytes()),
+                    Cell.bytes(latestRow.freeBytes()));
+            }
+        }
+        return usageTable.build();
+    }
+
+    private TableModel buildVirtualSpaceTable(MetaspaceSnapshot latest) {
+        TableModel.Builder vsTable = TableModel.builder()
+            .addColumn("Space",     TableModel.Alignment.LEFT)
+            .addColumn("Reserved",  TableModel.Alignment.RIGHT)
+            .addColumn("Committed", TableModel.Alignment.RIGHT);
+
+        for (String label : List.of("Non-class space", "Class space", "Both")) {
+            VirtualSpaceRow row = latest.virtualSpace().get(label);
+            if (row == null) continue;
+            vsTable.addRow(
+                Cell.text(label),
+                Cell.bytes(row.reservedBytes()),
+                Cell.bytes(row.committedBytes()));
+        }
+        return vsTable.build();
+    }
+
+    private String buildFooter(MetaspaceSnapshot latest) {
+        StringBuilder sb = new StringBuilder();
+        UsageRow both = latest.usage().get("Both");
+        if (both != null) {
+            sb.append(String.format("Waste: %s", formatBytes(both.wasteBytes())));
+        }
+        if (latest.settings() != null) {
+            MetaspaceSettings s = latest.settings();
+            if (sb.length() > 0) sb.append("\n");
+            sb.append(String.format("MaxMetaspaceSize: %s", s.maxMetaspaceSize()));
+            sb.append(String.format("  CompressedClassSpaceSize: %s", s.compressedClassSpaceSize()));
+            sb.append(String.format("  Initial GC threshold: %s", s.initialGcThreshold()));
+            sb.append(String.format("  Current GC threshold: %s", s.currentGcThreshold()));
+            sb.append(String.format("  CDS: %s", s.cdsOn() ? "on" : "off"));
+        }
+        return sb.toString();
+    }
+
+    private AnalyzerOutput appendSettingsAndWaste(AnalyzerOutput.TableOutput base, MetaspaceSnapshot latest) {
+        String footer = buildFooter(latest);
+        if (footer.isEmpty()) return base;
+        // Wrap in composite: table + footer text
+        List<AnalyzerOutput.CompositeOutput.Section> sections = new ArrayList<>();
+        sections.add(new AnalyzerOutput.CompositeOutput.Section("Usage", base));
+        sections.add(new AnalyzerOutput.CompositeOutput.Section("Summary",
+            new AnalyzerOutput.TextOutput(footer)));
+        return new AnalyzerOutput.CompositeOutput(sections);
+    }
+
+    /** Produces flat text render (same as old format) for non-interactive CLI output. */
+    private String renderFlat(List<MetaspaceSnapshot> parsed) {
+        MetaspaceSnapshot latest = parsed.get(parsed.size() - 1);
+        MetaspaceSnapshot first = parsed.get(0);
+        boolean hasTrend = parsed.size() > 1;
+
+        StringBuilder sb = new StringBuilder();
         sb.append(String.format("VM.metaspace (%d sample%s):\n",
             parsed.size(), parsed.size() == 1 ? "" : "s"));
-
-        // Loader/class summary from header
         if (latest.header() != null) {
             MetaspaceHeader h = latest.header();
             sb.append(String.format("%d loaders, %d classes (%d shared)\n",
                 h.loaders(), h.classes(), h.sharedClasses()));
         }
-
-        // Usage table: Non-Class, Class, Both
         if (!latest.usage().isEmpty()) {
-            TablePrinter usageTable = new TablePrinter()
-                .addColumn("Type",      TablePrinter.Alignment.LEFT)
-                .addColumn("Chunks",    TablePrinter.Alignment.RIGHT)
-                .addColumn("Capacity",  TablePrinter.Alignment.RIGHT)
-                .addColumn("Used",      TablePrinter.Alignment.RIGHT)
-                .addColumn("Committed", TablePrinter.Alignment.RIGHT)
-                .addColumn("Free",      TablePrinter.Alignment.RIGHT);
-            if (hasTrend) {
-                usageTable.addColumn("Trend", TablePrinter.Alignment.LEFT);
-            }
-
-            for (String label : List.of("Non-Class", "Class", "Both")) {
-                UsageRow latestRow = latest.usage().get(label);
-                if (latestRow == null) continue;
-
-                if (hasTrend) {
-                    UsageRow firstRow = first.usage().getOrDefault(label, UsageRow.ZERO);
-                    long delta = latestRow.usedBytes() - firstRow.usedBytes();
-                    String arrow = delta > 0 ? "↑" : delta < 0 ? "↓" : "→";
-                    usageTable.addRow(label,
-                        String.valueOf(latestRow.chunks()),
-                        formatBytes(latestRow.capacityBytes()),
-                        formatBytes(latestRow.usedBytes()),
-                        formatBytes(latestRow.committedBytes()),
-                        formatBytes(latestRow.freeBytes()),
-                        arrow + " " + formatSignedBytes(delta) + " used");
-                } else {
-                    usageTable.addRow(label,
-                        String.valueOf(latestRow.chunks()),
-                        formatBytes(latestRow.capacityBytes()),
-                        formatBytes(latestRow.usedBytes()),
-                        formatBytes(latestRow.committedBytes()),
-                        formatBytes(latestRow.freeBytes()));
-                }
-            }
-            sb.append(usageTable.render()).append("\n");
+            sb.append(buildUsageTable(first, latest, hasTrend).render()).append("\n");
         }
-
-        // Virtual space table
         if (!latest.virtualSpace().isEmpty()) {
-            TablePrinter vsTable = new TablePrinter()
-                .addColumn("Space",     TablePrinter.Alignment.LEFT)
-                .addColumn("Reserved",  TablePrinter.Alignment.RIGHT)
-                .addColumn("Committed", TablePrinter.Alignment.RIGHT);
-
-            for (String label : List.of("Non-class space", "Class space", "Both")) {
-                VirtualSpaceRow row = latest.virtualSpace().get(label);
-                if (row == null) continue;
-                vsTable.addRow(label,
-                    formatBytes(row.reservedBytes()),
-                    formatBytes(row.committedBytes()));
-            }
-            sb.append(vsTable.render()).append("\n");
+            sb.append(buildVirtualSpaceTable(latest).render()).append("\n");
         }
-
-        // Waste one-liner from Both usage row
-        UsageRow both = latest.usage().get("Both");
-        if (both != null) {
-            sb.append(String.format("Waste: %s\n", formatBytes(both.wasteBytes())));
-        }
-
-        // Settings
-        if (latest.settings() != null) {
-            MetaspaceSettings s = latest.settings();
-            sb.append(String.format("MaxMetaspaceSize: %s", s.maxMetaspaceSize()));
-            sb.append(String.format("  CompressedClassSpaceSize: %s", s.compressedClassSpaceSize()));
-            sb.append(String.format("  Initial GC threshold: %s", s.initialGcThreshold()));
-            sb.append(String.format("  Current GC threshold: %s", s.currentGcThreshold()));
-            sb.append(String.format("  CDS: %s\n", s.cdsOn() ? "on" : "off"));
-        }
-
+        String footer = buildFooter(latest);
+        if (!footer.isEmpty()) sb.append(footer);
         return sb.toString().stripTrailing();
     }
 
@@ -323,18 +395,11 @@ public class VmMetaspaceAnalyzer implements Analyzer {
 
     /** Format bytes to two-decimal human-readable string (GB / MB / KB / bytes). */
     static String formatBytes(long bytes) {
-        if (bytes < 0) return "0 bytes";
-        if (bytes >= 1_024L * 1_024 * 1_024)
-            return String.format(Locale.ROOT, "%.2f GB", bytes / (1_024.0 * 1_024 * 1_024));
-        if (bytes >= 1_024L * 1_024)
-            return String.format(Locale.ROOT, "%.2f MB", bytes / (1_024.0 * 1_024));
-        if (bytes >= 1_024L)
-            return String.format(Locale.ROOT, "%.2f KB", bytes / 1_024.0);
-        return bytes + " bytes";
+        return Cell.formatBytes(bytes);
     }
 
     private static String formatSignedBytes(long bytes) {
-        return (bytes >= 0 ? "+" : "-") + formatBytes(Math.abs(bytes));
+        return (bytes >= 0 ? "+" : "-") + Cell.formatBytes(Math.abs(bytes));
     }
 
     private int getIntOption(Map<String, Object> options, String key, int defaultValue) {

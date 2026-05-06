@@ -207,8 +207,9 @@ Requires at least 2 thread dumps.
 <!-- BEGIN help_threads -->
 ```
 Usage: jstall threads [-hV] [--dump-count=<count>] [--interval=<interval>]
-                      [--keep] [--intelligent-filter] [--full]
-                      [--file=<replayFile>] [--no-native] [<targets>...]
+                      [--keep] [--intelligent-filter] [--full] [--live]
+                      [--keep-samples=<keepSamples>] [--file=<replayFile>]
+                      [--no-native] [--top=<top>] [<targets>...]
 List all threads sorted by CPU time
       [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
                              first argument)
@@ -222,8 +223,12 @@ List all threads sorted by CPU time
                              internal frames, focuses on application code)
       --interval=<interval>  Interval between dumps, default is 5s
       --keep                 Persist dumps to disk
+      --keep-samples=<keepSamples>
+                             Number of samples to keep per thread (default: 5)
+      --live                 Watch mode: keep collecting and analyzing dumps
       --no-native            Ignore threads without stack traces (typically
                              native/system threads)
+      --top=<top>            Number of top threads to show (default: -1 for all)
   -V, --version              Print version information and exit.
 ```
 <!-- END help_threads -->
@@ -520,7 +525,24 @@ Shows VM.vitals output (if available on the target JVM, e.g. SapMachine).
 
 <!-- BEGIN help_vm_vitals -->
 ```
-(Run jstall vm-vitals --help for full usage)
+Usage: jstall vm-vitals [-hV] [--dump-count=<count>] [--interval=<interval>]
+                        [--keep] [--intelligent-filter] [--full]
+                        [--file=<replayFile>] [--top=<top>] [<targets>...]
+Show VM.vitals (if available)
+      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
+                             first argument)
+      --dump-count=<count>   Number of dumps to collect, default is none
+  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
+                             subcommand)
+      --full                 Run all analyses including expensive ones (only for
+                             status command)
+  -h, --help                 Show this help message and exit.
+      --intelligent-filter   Use intelligent stack trace filtering (collapses
+                             internal frames, focuses on application code)
+      --interval=<interval>  Interval between dumps, default is 5s
+      --keep                 Persist dumps to disk
+      --top=<top>            Number of VM.vitals rows to show (default: 5)
+  -V, --version              Print version information and exit.
 ```
 <!-- END help_vm_vitals -->
 
@@ -532,7 +554,23 @@ Shows GC.heap_info last absolute values and change between samples.
 
 <!-- BEGIN help_gc_heap_info -->
 ```
-(Run jstall gc-heap-info --help for full usage)
+Usage: jstall gc-heap-info [-hV] [--dump-count=<count>] [--interval=<interval>]
+                           [--keep] [--intelligent-filter] [--full]
+                           [--file=<replayFile>] [<targets>...]
+Show GC.heap_info last absolute values and change
+      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
+                             first argument)
+      --dump-count=<count>   Number of dumps to collect, default is none
+  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
+                             subcommand)
+      --full                 Run all analyses including expensive ones (only for
+                             status command)
+  -h, --help                 Show this help message and exit.
+      --intelligent-filter   Use intelligent stack trace filtering (collapses
+                             internal frames, focuses on application code)
+      --interval=<interval>  Interval between dumps, default is 5s
+      --keep                 Persist dumps to disk
+  -V, --version              Print version information and exit.
 ```
 <!-- END help_gc_heap_info -->
 
@@ -544,7 +582,24 @@ Shows VM.classloader_stats grouped by classloader type.
 
 <!-- BEGIN help_vm_classloader_stats -->
 ```
-(Run jstall vm-classloader-stats --help for full usage)
+Usage: jstall vm-classloader-stats [-hV] [--dump-count=<count>]
+                                   [--interval=<interval>] [--keep]
+                                   [--intelligent-filter] [--full]
+                                   [--file=<replayFile>] [<targets>...]
+Show VM.classloader_stats grouped by classloader type
+      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
+                             first argument)
+      --dump-count=<count>   Number of dumps to collect, default is none
+  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
+                             subcommand)
+      --full                 Run all analyses including expensive ones (only for
+                             status command)
+  -h, --help                 Show this help message and exit.
+      --intelligent-filter   Use intelligent stack trace filtering (collapses
+                             internal frames, focuses on application code)
+      --interval=<interval>  Interval between dumps, default is 5s
+      --keep                 Persist dumps to disk
+  -V, --version              Print version information and exit.
 ```
 <!-- END help_vm_classloader_stats -->
 
@@ -556,6 +611,22 @@ Shows VM.metaspace summary and trend.
 
 <!-- BEGIN help_vm_metaspace -->
 ```
-(Run jstall vm-metaspace --help for full usage)
+Usage: jstall vm-metaspace [-hV] [--dump-count=<count>] [--interval=<interval>]
+                           [--keep] [--intelligent-filter] [--full]
+                           [--file=<replayFile>] [<targets>...]
+Show VM.metaspace summary and trend
+      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
+                             first argument)
+      --dump-count=<count>   Number of dumps to collect, default is none
+  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
+                             subcommand)
+      --full                 Run all analyses including expensive ones (only for
+                             status command)
+  -h, --help                 Show this help message and exit.
+      --intelligent-filter   Use intelligent stack trace filtering (collapses
+                             internal frames, focuses on application code)
+      --interval=<interval>  Interval between dumps, default is 5s
+      --keep                 Persist dumps to disk
+  -V, --version              Print version information and exit.
 ```
 <!-- END help_vm_metaspace -->
