@@ -72,26 +72,34 @@ Requires at least 2 thread dumps (collected automatically from live JVMs, or pas
 <!-- BEGIN help_status -->
 ```
 Usage: jstall status [-hV] [--dump-count=<count>] [--interval=<interval>]
-                     [--keep] [--intelligent-filter] [--full]
-                     [--file=<replayFile>] [--top=<top>] [--no-native]
-                     [<targets>...]
+                     [--keep] [--intelligent-filter] [--full] [--live]
+                     [--keep-samples=<keepSamples>] [--file=<replayFile>]
+                     [--color] [--top=<top>] [--no-native] [<targets>...]
 Run multiple analyzers over thread dumps (default command)
-      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
-                             first argument)
-      --dump-count=<count>   Number of dumps to collect, default is none
-  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
-                             subcommand)
-      --full                 Run all analyses including expensive ones (only for
-                             status command)
-  -h, --help                 Show this help message and exit.
-      --intelligent-filter   Use intelligent stack trace filtering (collapses
-                             internal frames, focuses on application code)
-      --interval=<interval>  Interval between dumps, default is 5s
-      --keep                 Persist dumps to disk
-      --no-native            Ignore threads without stack traces (typically
-                             native/system threads)
-      --top=<top>            Number of top threads (default: 3)
-  -V, --version              Print version information and exit.
+      [<targets>...]              PID, 'all', filter or dump files (or replay
+                                  ZIP as first argument)
+      --color                     Enable colored output in live mode
+      --dump-count=<count>        Number of dumps to collect, default is none
+  -f, --file=<replayFile>         Replay ZIP file to analyze (works before or
+                                  after subcommand)
+      --full                      Run all analyses including expensive ones
+                                  (only for status command)
+  -h, --help                      Show this help message and exit.
+      --intelligent-filter        Use intelligent stack trace filtering
+                                  (collapses internal frames, focuses on
+                                  application code)
+      --interval=<interval>       Interval between dumps, default is 5s
+      --keep                      Persist dumps to disk
+      --keep-samples=<keepSamples>
+                                  Number of last samples to persist as recording
+                                  ZIP on quit of live mode (0 = don't persist),
+                                  default is 0
+  -l, --live                      Live mode: repeatedly collect and display,
+                                  like watch (Linux/macOS only)
+      --no-native                 Ignore threads without stack traces (typically
+                                  native/system threads)
+      --top=<top>                 Number of top threads (default: 3)
+  -V, --version                   Print version information and exit.
 ```
 <!-- END help_status -->
 
@@ -109,22 +117,31 @@ Checks whether the target JVM is reasonably up-to-date based on `java.version.da
 <!-- BEGIN help_jvm_support -->
 ```
 Usage: jstall jvm-support [-hV] [--dump-count=<count>] [--interval=<interval>]
-                          [--keep] [--intelligent-filter] [--full]
-                          [--file=<replayFile>] [<targets>...]
+                          [--keep] [--intelligent-filter] [--full] [--live]
+                          [--keep-samples=<keepSamples>] [--file=<replayFile>]
+                          [--color] [<targets>...]
 Check whether the target JVM is likely still supported (based on java.version.date)
-      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
-                             first argument)
-      --dump-count=<count>   Number of dumps to collect, default is none
-  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
-                             subcommand)
-      --full                 Run all analyses including expensive ones (only for
-                             status command)
-  -h, --help                 Show this help message and exit.
-      --intelligent-filter   Use intelligent stack trace filtering (collapses
-                             internal frames, focuses on application code)
-      --interval=<interval>  Interval between dumps, default is 5s
-      --keep                 Persist dumps to disk
-  -V, --version              Print version information and exit.
+      [<targets>...]              PID, 'all', filter or dump files (or replay
+                                  ZIP as first argument)
+      --color                     Enable colored output in live mode
+      --dump-count=<count>        Number of dumps to collect, default is none
+  -f, --file=<replayFile>         Replay ZIP file to analyze (works before or
+                                  after subcommand)
+      --full                      Run all analyses including expensive ones
+                                  (only for status command)
+  -h, --help                      Show this help message and exit.
+      --intelligent-filter        Use intelligent stack trace filtering
+                                  (collapses internal frames, focuses on
+                                  application code)
+      --interval=<interval>       Interval between dumps, default is 5s
+      --keep                      Persist dumps to disk
+      --keep-samples=<keepSamples>
+                                  Number of last samples to persist as recording
+                                  ZIP on quit of live mode (0 = don't persist),
+                                  default is 0
+  -l, --live                      Live mode: repeatedly collect and display,
+                                  like watch (Linux/macOS only)
+  -V, --version                   Print version information and exit.
 ```
 <!-- END help_jvm_support -->
 
@@ -141,29 +158,37 @@ Requires at least 2 thread dumps.
 <!-- BEGIN help_most_work -->
 ```
 Usage: jstall most-work [-hV] [--dump-count=<count>] [--interval=<interval>]
-                        [--keep] [--intelligent-filter] [--full]
-                        [--file=<replayFile>] [--top=<top>] [--no-native]
+                        [--keep] [--intelligent-filter] [--full] [--live]
+                        [--keep-samples=<keepSamples>] [--file=<replayFile>]
+                        [--color] [--top=<top>] [--no-native]
                         [--stack-depth=<stackDepth>] [<targets>...]
 Identify threads doing the most work across dumps
-      [<targets>...]            PID, 'all', filter or dump files (or replay ZIP
-                                as first argument)
-      --dump-count=<count>      Number of dumps to collect, default is none
-  -f, --file=<replayFile>       Replay ZIP file to analyze (works before or
-                                after subcommand)
-      --full                    Run all analyses including expensive ones (only
-                                for status command)
-  -h, --help                    Show this help message and exit.
-      --intelligent-filter      Use intelligent stack trace filtering (collapses
-                                internal frames, focuses on application code)
-      --interval=<interval>     Interval between dumps, default is 5s
-      --keep                    Persist dumps to disk
-      --no-native               Ignore threads without stack traces (typically
-                                native/system threads)
-      --stack-depth=<stackDepth>
-                                Stack trace depth to show (default: 10, 0=all,
-                                in intelligent mode: max relevant frames)
-      --top=<top>               Number of top threads to show (default: 3)
-  -V, --version                 Print version information and exit.
+      [<targets>...]              PID, 'all', filter or dump files (or replay
+                                  ZIP as first argument)
+      --color                     Enable colored output in live mode
+      --dump-count=<count>        Number of dumps to collect, default is none
+  -f, --file=<replayFile>         Replay ZIP file to analyze (works before or
+                                  after subcommand)
+      --full                      Run all analyses including expensive ones
+                                  (only for status command)
+  -h, --help                      Show this help message and exit.
+      --intelligent-filter        Use intelligent stack trace filtering
+                                  (collapses internal frames, focuses on
+                                  application code)
+      --interval=<interval>       Interval between dumps, default is 5s
+      --keep                      Persist dumps to disk
+      --keep-samples=<keepSamples>
+                                  Number of last samples to persist as recording
+                                  ZIP on quit of live mode (0 = don't persist),
+                                  default is 0
+  -l, --live                      Live mode: repeatedly collect and display,
+                                  like watch (Linux/macOS only)
+      --no-native                 Ignore threads without stack traces (typically
+                                  native/system threads)
+      --stack-depth=<stackDepth>  Stack trace depth to show (default: 10, 0=all,
+                                  in intelligent mode: max relevant frames)
+      --top=<top>                 Number of top threads to show (default: 3)
+  -V, --version                   Print version information and exit.
 ```
 <!-- END help_most_work -->
 
@@ -176,22 +201,31 @@ Shows CPU time, CPU percentage, core utilization, state distribution, and activi
 <!-- BEGIN help_deadlock -->
 ```
 Usage: jstall deadlock [-hV] [--dump-count=<count>] [--interval=<interval>]
-                       [--keep] [--intelligent-filter] [--full]
-                       [--file=<replayFile>] [<targets>...]
+                       [--keep] [--intelligent-filter] [--full] [--live]
+                       [--keep-samples=<keepSamples>] [--file=<replayFile>]
+                       [--color] [<targets>...]
 Detect JVM-reported thread deadlocks
-      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
-                             first argument)
-      --dump-count=<count>   Number of dumps to collect, default is none
-  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
-                             subcommand)
-      --full                 Run all analyses including expensive ones (only for
-                             status command)
-  -h, --help                 Show this help message and exit.
-      --intelligent-filter   Use intelligent stack trace filtering (collapses
-                             internal frames, focuses on application code)
-      --interval=<interval>  Interval between dumps, default is 5s
-      --keep                 Persist dumps to disk
-  -V, --version              Print version information and exit.
+      [<targets>...]              PID, 'all', filter or dump files (or replay
+                                  ZIP as first argument)
+      --color                     Enable colored output in live mode
+      --dump-count=<count>        Number of dumps to collect, default is none
+  -f, --file=<replayFile>         Replay ZIP file to analyze (works before or
+                                  after subcommand)
+      --full                      Run all analyses including expensive ones
+                                  (only for status command)
+  -h, --help                      Show this help message and exit.
+      --intelligent-filter        Use intelligent stack trace filtering
+                                  (collapses internal frames, focuses on
+                                  application code)
+      --interval=<interval>       Interval between dumps, default is 5s
+      --keep                      Persist dumps to disk
+      --keep-samples=<keepSamples>
+                                  Number of last samples to persist as recording
+                                  ZIP on quit of live mode (0 = don't persist),
+                                  default is 0
+  -l, --live                      Live mode: repeatedly collect and display,
+                                  like watch (Linux/macOS only)
+  -V, --version                   Print version information and exit.
 ```
 <!-- END help_deadlock -->
 
@@ -209,27 +243,33 @@ Requires at least 2 thread dumps.
 Usage: jstall threads [-hV] [--dump-count=<count>] [--interval=<interval>]
                       [--keep] [--intelligent-filter] [--full] [--live]
                       [--keep-samples=<keepSamples>] [--file=<replayFile>]
-                      [--no-native] [--top=<top>] [<targets>...]
+                      [--color] [--top=<top>] [--no-native] [<targets>...]
 List all threads sorted by CPU time
-      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
-                             first argument)
-      --dump-count=<count>   Number of dumps to collect, default is none
-  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
-                             subcommand)
-      --full                 Run all analyses including expensive ones (only for
-                             status command)
-  -h, --help                 Show this help message and exit.
-      --intelligent-filter   Use intelligent stack trace filtering (collapses
-                             internal frames, focuses on application code)
-      --interval=<interval>  Interval between dumps, default is 5s
-      --keep                 Persist dumps to disk
+      [<targets>...]              PID, 'all', filter or dump files (or replay
+                                  ZIP as first argument)
+      --color                     Enable colored output in live mode
+      --dump-count=<count>        Number of dumps to collect, default is none
+  -f, --file=<replayFile>         Replay ZIP file to analyze (works before or
+                                  after subcommand)
+      --full                      Run all analyses including expensive ones
+                                  (only for status command)
+  -h, --help                      Show this help message and exit.
+      --intelligent-filter        Use intelligent stack trace filtering
+                                  (collapses internal frames, focuses on
+                                  application code)
+      --interval=<interval>       Interval between dumps, default is 5s
+      --keep                      Persist dumps to disk
       --keep-samples=<keepSamples>
-                             Number of samples to keep per thread (default: 5)
-      --live                 Watch mode: keep collecting and analyzing dumps
-      --no-native            Ignore threads without stack traces (typically
-                             native/system threads)
-      --top=<top>            Number of top threads to show (default: -1 for all)
-  -V, --version              Print version information and exit.
+                                  Number of last samples to persist as recording
+                                  ZIP on quit of live mode (0 = don't persist),
+                                  default is 0
+  -l, --live                      Live mode: repeatedly collect and display,
+                                  like watch (Linux/macOS only)
+      --no-native                 Ignore threads without stack traces (typically
+                                  native/system threads)
+      --top=<top>                 Number of top threads to show (default: -1 for
+                                  all)
+  -V, --version                   Print version information and exit.
 ```
 <!-- END help_threads -->
 
@@ -245,29 +285,37 @@ Identifies threads waiting on the same lock instance across all dumps with no CP
 ```
 Usage: jstall waiting-threads [-hV] [--dump-count=<count>]
                               [--interval=<interval>] [--keep]
-                              [--intelligent-filter] [--full]
-                              [--file=<replayFile>] [--no-native]
+                              [--intelligent-filter] [--full] [--live]
+                              [--keep-samples=<keepSamples>]
+                              [--file=<replayFile>] [--color] [--no-native]
                               [--stack-depth=<stackDepth>] [<targets>...]
 Identify threads waiting without progress (potentially starving)
-      [<targets>...]            PID, 'all', filter or dump files (or replay ZIP
-                                as first argument)
-      --dump-count=<count>      Number of dumps to collect, default is none
-  -f, --file=<replayFile>       Replay ZIP file to analyze (works before or
-                                after subcommand)
-      --full                    Run all analyses including expensive ones (only
-                                for status command)
-  -h, --help                    Show this help message and exit.
-      --intelligent-filter      Use intelligent stack trace filtering (collapses
-                                internal frames, focuses on application code)
-      --interval=<interval>     Interval between dumps, default is 5s
-      --keep                    Persist dumps to disk
-      --no-native               Ignore threads without stack traces (typically
-                                native/system threads)
-      --stack-depth=<stackDepth>
-                                Stack trace depth to show (1=inline, 0=all,
-                                default: 1, in intelligent mode: max relevant
-                                frames)
-  -V, --version                 Print version information and exit.
+      [<targets>...]              PID, 'all', filter or dump files (or replay
+                                  ZIP as first argument)
+      --color                     Enable colored output in live mode
+      --dump-count=<count>        Number of dumps to collect, default is none
+  -f, --file=<replayFile>         Replay ZIP file to analyze (works before or
+                                  after subcommand)
+      --full                      Run all analyses including expensive ones
+                                  (only for status command)
+  -h, --help                      Show this help message and exit.
+      --intelligent-filter        Use intelligent stack trace filtering
+                                  (collapses internal frames, focuses on
+                                  application code)
+      --interval=<interval>       Interval between dumps, default is 5s
+      --keep                      Persist dumps to disk
+      --keep-samples=<keepSamples>
+                                  Number of last samples to persist as recording
+                                  ZIP on quit of live mode (0 = don't persist),
+                                  default is 0
+  -l, --live                      Live mode: repeatedly collect and display,
+                                  like watch (Linux/macOS only)
+      --no-native                 Ignore threads without stack traces (typically
+                                  native/system threads)
+      --stack-depth=<stackDepth>  Stack trace depth to show (1=inline, 0=all,
+                                  default: 1, in intelligent mode: max relevant
+                                  frames)
+  -V, --version                   Print version information and exit.
 ```
 <!-- END help_waiting_threads -->
 
@@ -285,22 +333,31 @@ Shows thread dependencies by visualizing which threads wait on locks held by oth
 ```
 Usage: jstall dependency-graph [-hV] [--dump-count=<count>]
                                [--interval=<interval>] [--keep]
-                               [--intelligent-filter] [--full]
-                               [--file=<replayFile>] [<targets>...]
+                               [--intelligent-filter] [--full] [--live]
+                               [--keep-samples=<keepSamples>]
+                               [--file=<replayFile>] [--color] [<targets>...]
 Show thread dependencies
-      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
-                             first argument)
-      --dump-count=<count>   Number of dumps to collect, default is none
-  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
-                             subcommand)
-      --full                 Run all analyses including expensive ones (only for
-                             status command)
-  -h, --help                 Show this help message and exit.
-      --intelligent-filter   Use intelligent stack trace filtering (collapses
-                             internal frames, focuses on application code)
-      --interval=<interval>  Interval between dumps, default is 5s
-      --keep                 Persist dumps to disk
-  -V, --version              Print version information and exit.
+      [<targets>...]              PID, 'all', filter or dump files (or replay
+                                  ZIP as first argument)
+      --color                     Enable colored output in live mode
+      --dump-count=<count>        Number of dumps to collect, default is none
+  -f, --file=<replayFile>         Replay ZIP file to analyze (works before or
+                                  after subcommand)
+      --full                      Run all analyses including expensive ones
+                                  (only for status command)
+  -h, --help                      Show this help message and exit.
+      --intelligent-filter        Use intelligent stack trace filtering
+                                  (collapses internal frames, focuses on
+                                  application code)
+      --interval=<interval>       Interval between dumps, default is 5s
+      --keep                      Persist dumps to disk
+      --keep-samples=<keepSamples>
+                                  Number of last samples to persist as recording
+                                  ZIP on quit of live mode (0 = don't persist),
+                                  default is 0
+  -l, --live                      Live mode: repeatedly collect and display,
+                                  like watch (Linux/macOS only)
+  -V, --version                   Print version information and exit.
 ```
 <!-- END help_dependency_graph -->
 
@@ -347,22 +404,31 @@ over time.
 ```
 Usage: jstall dependency-tree [-hV] [--dump-count=<count>]
                               [--interval=<interval>] [--keep]
-                              [--intelligent-filter] [--full]
-                              [--file=<replayFile>] [<targets>...]
+                              [--intelligent-filter] [--full] [--live]
+                              [--keep-samples=<keepSamples>]
+                              [--file=<replayFile>] [--color] [<targets>...]
 Show non deadlock thread dependencies over time
-      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
-                             first argument)
-      --dump-count=<count>   Number of dumps to collect, default is none
-  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
-                             subcommand)
-      --full                 Run all analyses including expensive ones (only for
-                             status command)
-  -h, --help                 Show this help message and exit.
-      --intelligent-filter   Use intelligent stack trace filtering (collapses
-                             internal frames, focuses on application code)
-      --interval=<interval>  Interval between dumps, default is 5s
-      --keep                 Persist dumps to disk
-  -V, --version              Print version information and exit.
+      [<targets>...]              PID, 'all', filter or dump files (or replay
+                                  ZIP as first argument)
+      --color                     Enable colored output in live mode
+      --dump-count=<count>        Number of dumps to collect, default is none
+  -f, --file=<replayFile>         Replay ZIP file to analyze (works before or
+                                  after subcommand)
+      --full                      Run all analyses including expensive ones
+                                  (only for status command)
+  -h, --help                      Show this help message and exit.
+      --intelligent-filter        Use intelligent stack trace filtering
+                                  (collapses internal frames, focuses on
+                                  application code)
+      --interval=<interval>       Interval between dumps, default is 5s
+      --keep                      Persist dumps to disk
+      --keep-samples=<keepSamples>
+                                  Number of last samples to persist as recording
+                                  ZIP on quit of live mode (0 = don't persist),
+                                  default is 0
+  -l, --live                      Live mode: repeatedly collect and display,
+                                  like watch (Linux/macOS only)
+  -V, --version                   Print version information and exit.
 ```
 <!-- END help_dependency_tree -->
 
@@ -376,22 +442,31 @@ Analyzes JIT compiler queue state over time using `jcmd Compiler.queue`. Shows a
 ```
 Usage: jstall compiler-queue [-hV] [--dump-count=<count>]
                              [--interval=<interval>] [--keep]
-                             [--intelligent-filter] [--full]
-                             [--file=<replayFile>] [<targets>...]
+                             [--intelligent-filter] [--full] [--live]
+                             [--keep-samples=<keepSamples>]
+                             [--file=<replayFile>] [--color] [<targets>...]
 Analyze compiler queue state showing active compilations and queued tasks
-      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
-                             first argument)
-      --dump-count=<count>   Number of dumps to collect, default is none
-  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
-                             subcommand)
-      --full                 Run all analyses including expensive ones (only for
-                             status command)
-  -h, --help                 Show this help message and exit.
-      --intelligent-filter   Use intelligent stack trace filtering (collapses
-                             internal frames, focuses on application code)
-      --interval=<interval>  Interval between dumps, default is 5s
-      --keep                 Persist dumps to disk
-  -V, --version              Print version information and exit.
+      [<targets>...]              PID, 'all', filter or dump files (or replay
+                                  ZIP as first argument)
+      --color                     Enable colored output in live mode
+      --dump-count=<count>        Number of dumps to collect, default is none
+  -f, --file=<replayFile>         Replay ZIP file to analyze (works before or
+                                  after subcommand)
+      --full                      Run all analyses including expensive ones
+                                  (only for status command)
+  -h, --help                      Show this help message and exit.
+      --intelligent-filter        Use intelligent stack trace filtering
+                                  (collapses internal frames, focuses on
+                                  application code)
+      --interval=<interval>       Interval between dumps, default is 5s
+      --keep                      Persist dumps to disk
+      --keep-samples=<keepSamples>
+                                  Number of last samples to persist as recording
+                                  ZIP on quit of live mode (0 = don't persist),
+                                  default is 0
+  -l, --live                      Live mode: repeatedly collect and display,
+                                  like watch (Linux/macOS only)
+  -V, --version                   Print version information and exit.
 ```
 <!-- END help_compiler_queue -->
 
@@ -447,22 +522,31 @@ Helpful to identify e.g. a virus scanner or other interfering processes that use
 <!-- BEGIN help_processes -->
 ```
 Usage: jstall processes [-hV] [--dump-count=<count>] [--interval=<interval>]
-                        [--keep] [--intelligent-filter] [--full]
-                        [--file=<replayFile>] [<targets>...]
+                        [--keep] [--intelligent-filter] [--full] [--live]
+                        [--keep-samples=<keepSamples>] [--file=<replayFile>]
+                        [--color] [<targets>...]
 Detect other processes running on the system that consume high CPU time
-      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
-                             first argument)
-      --dump-count=<count>   Number of dumps to collect, default is none
-  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
-                             subcommand)
-      --full                 Run all analyses including expensive ones (only for
-                             status command)
-  -h, --help                 Show this help message and exit.
-      --intelligent-filter   Use intelligent stack trace filtering (collapses
-                             internal frames, focuses on application code)
-      --interval=<interval>  Interval between dumps, default is 5s
-      --keep                 Persist dumps to disk
-  -V, --version              Print version information and exit.
+      [<targets>...]              PID, 'all', filter or dump files (or replay
+                                  ZIP as first argument)
+      --color                     Enable colored output in live mode
+      --dump-count=<count>        Number of dumps to collect, default is none
+  -f, --file=<replayFile>         Replay ZIP file to analyze (works before or
+                                  after subcommand)
+      --full                      Run all analyses including expensive ones
+                                  (only for status command)
+  -h, --help                      Show this help message and exit.
+      --intelligent-filter        Use intelligent stack trace filtering
+                                  (collapses internal frames, focuses on
+                                  application code)
+      --interval=<interval>       Interval between dumps, default is 5s
+      --keep                      Persist dumps to disk
+      --keep-samples=<keepSamples>
+                                  Number of last samples to persist as recording
+                                  ZIP on quit of live mode (0 = don't persist),
+                                  default is 0
+  -l, --live                      Live mode: repeatedly collect and display,
+                                  like watch (Linux/macOS only)
+  -V, --version                   Print version information and exit.
 ```
 <!-- END help_processes -->
 
@@ -526,23 +610,32 @@ Shows VM.vitals output (if available on the target JVM, e.g. SapMachine).
 <!-- BEGIN help_vm_vitals -->
 ```
 Usage: jstall vm-vitals [-hV] [--dump-count=<count>] [--interval=<interval>]
-                        [--keep] [--intelligent-filter] [--full]
-                        [--file=<replayFile>] [--top=<top>] [<targets>...]
+                        [--keep] [--intelligent-filter] [--full] [--live]
+                        [--keep-samples=<keepSamples>] [--file=<replayFile>]
+                        [--color] [--top=<top>] [<targets>...]
 Show VM.vitals (if available)
-      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
-                             first argument)
-      --dump-count=<count>   Number of dumps to collect, default is none
-  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
-                             subcommand)
-      --full                 Run all analyses including expensive ones (only for
-                             status command)
-  -h, --help                 Show this help message and exit.
-      --intelligent-filter   Use intelligent stack trace filtering (collapses
-                             internal frames, focuses on application code)
-      --interval=<interval>  Interval between dumps, default is 5s
-      --keep                 Persist dumps to disk
-      --top=<top>            Number of VM.vitals rows to show (default: 5)
-  -V, --version              Print version information and exit.
+      [<targets>...]              PID, 'all', filter or dump files (or replay
+                                  ZIP as first argument)
+      --color                     Enable colored output in live mode
+      --dump-count=<count>        Number of dumps to collect, default is none
+  -f, --file=<replayFile>         Replay ZIP file to analyze (works before or
+                                  after subcommand)
+      --full                      Run all analyses including expensive ones
+                                  (only for status command)
+  -h, --help                      Show this help message and exit.
+      --intelligent-filter        Use intelligent stack trace filtering
+                                  (collapses internal frames, focuses on
+                                  application code)
+      --interval=<interval>       Interval between dumps, default is 5s
+      --keep                      Persist dumps to disk
+      --keep-samples=<keepSamples>
+                                  Number of last samples to persist as recording
+                                  ZIP on quit of live mode (0 = don't persist),
+                                  default is 0
+  -l, --live                      Live mode: repeatedly collect and display,
+                                  like watch (Linux/macOS only)
+      --top=<top>                 Number of VM.vitals rows to show (default: 5)
+  -V, --version                   Print version information and exit.
 ```
 <!-- END help_vm_vitals -->
 
@@ -555,22 +648,31 @@ Shows GC.heap_info last absolute values and change between samples.
 <!-- BEGIN help_gc_heap_info -->
 ```
 Usage: jstall gc-heap-info [-hV] [--dump-count=<count>] [--interval=<interval>]
-                           [--keep] [--intelligent-filter] [--full]
-                           [--file=<replayFile>] [<targets>...]
+                           [--keep] [--intelligent-filter] [--full] [--live]
+                           [--keep-samples=<keepSamples>] [--file=<replayFile>]
+                           [--color] [<targets>...]
 Show GC.heap_info last absolute values and change
-      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
-                             first argument)
-      --dump-count=<count>   Number of dumps to collect, default is none
-  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
-                             subcommand)
-      --full                 Run all analyses including expensive ones (only for
-                             status command)
-  -h, --help                 Show this help message and exit.
-      --intelligent-filter   Use intelligent stack trace filtering (collapses
-                             internal frames, focuses on application code)
-      --interval=<interval>  Interval between dumps, default is 5s
-      --keep                 Persist dumps to disk
-  -V, --version              Print version information and exit.
+      [<targets>...]              PID, 'all', filter or dump files (or replay
+                                  ZIP as first argument)
+      --color                     Enable colored output in live mode
+      --dump-count=<count>        Number of dumps to collect, default is none
+  -f, --file=<replayFile>         Replay ZIP file to analyze (works before or
+                                  after subcommand)
+      --full                      Run all analyses including expensive ones
+                                  (only for status command)
+  -h, --help                      Show this help message and exit.
+      --intelligent-filter        Use intelligent stack trace filtering
+                                  (collapses internal frames, focuses on
+                                  application code)
+      --interval=<interval>       Interval between dumps, default is 5s
+      --keep                      Persist dumps to disk
+      --keep-samples=<keepSamples>
+                                  Number of last samples to persist as recording
+                                  ZIP on quit of live mode (0 = don't persist),
+                                  default is 0
+  -l, --live                      Live mode: repeatedly collect and display,
+                                  like watch (Linux/macOS only)
+  -V, --version                   Print version information and exit.
 ```
 <!-- END help_gc_heap_info -->
 
@@ -584,22 +686,32 @@ Shows VM.classloader_stats grouped by classloader type.
 ```
 Usage: jstall vm-classloader-stats [-hV] [--dump-count=<count>]
                                    [--interval=<interval>] [--keep]
-                                   [--intelligent-filter] [--full]
-                                   [--file=<replayFile>] [<targets>...]
+                                   [--intelligent-filter] [--full] [--live]
+                                   [--keep-samples=<keepSamples>]
+                                   [--file=<replayFile>] [--color]
+                                   [<targets>...]
 Show VM.classloader_stats grouped by classloader type
-      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
-                             first argument)
-      --dump-count=<count>   Number of dumps to collect, default is none
-  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
-                             subcommand)
-      --full                 Run all analyses including expensive ones (only for
-                             status command)
-  -h, --help                 Show this help message and exit.
-      --intelligent-filter   Use intelligent stack trace filtering (collapses
-                             internal frames, focuses on application code)
-      --interval=<interval>  Interval between dumps, default is 5s
-      --keep                 Persist dumps to disk
-  -V, --version              Print version information and exit.
+      [<targets>...]              PID, 'all', filter or dump files (or replay
+                                  ZIP as first argument)
+      --color                     Enable colored output in live mode
+      --dump-count=<count>        Number of dumps to collect, default is none
+  -f, --file=<replayFile>         Replay ZIP file to analyze (works before or
+                                  after subcommand)
+      --full                      Run all analyses including expensive ones
+                                  (only for status command)
+  -h, --help                      Show this help message and exit.
+      --intelligent-filter        Use intelligent stack trace filtering
+                                  (collapses internal frames, focuses on
+                                  application code)
+      --interval=<interval>       Interval between dumps, default is 5s
+      --keep                      Persist dumps to disk
+      --keep-samples=<keepSamples>
+                                  Number of last samples to persist as recording
+                                  ZIP on quit of live mode (0 = don't persist),
+                                  default is 0
+  -l, --live                      Live mode: repeatedly collect and display,
+                                  like watch (Linux/macOS only)
+  -V, --version                   Print version information and exit.
 ```
 <!-- END help_vm_classloader_stats -->
 
@@ -612,21 +724,30 @@ Shows VM.metaspace summary and trend.
 <!-- BEGIN help_vm_metaspace -->
 ```
 Usage: jstall vm-metaspace [-hV] [--dump-count=<count>] [--interval=<interval>]
-                           [--keep] [--intelligent-filter] [--full]
-                           [--file=<replayFile>] [<targets>...]
+                           [--keep] [--intelligent-filter] [--full] [--live]
+                           [--keep-samples=<keepSamples>] [--file=<replayFile>]
+                           [--color] [<targets>...]
 Show VM.metaspace summary and trend
-      [<targets>...]         PID, 'all', filter or dump files (or replay ZIP as
-                             first argument)
-      --dump-count=<count>   Number of dumps to collect, default is none
-  -f, --file=<replayFile>    Replay ZIP file to analyze (works before or after
-                             subcommand)
-      --full                 Run all analyses including expensive ones (only for
-                             status command)
-  -h, --help                 Show this help message and exit.
-      --intelligent-filter   Use intelligent stack trace filtering (collapses
-                             internal frames, focuses on application code)
-      --interval=<interval>  Interval between dumps, default is 5s
-      --keep                 Persist dumps to disk
-  -V, --version              Print version information and exit.
+      [<targets>...]              PID, 'all', filter or dump files (or replay
+                                  ZIP as first argument)
+      --color                     Enable colored output in live mode
+      --dump-count=<count>        Number of dumps to collect, default is none
+  -f, --file=<replayFile>         Replay ZIP file to analyze (works before or
+                                  after subcommand)
+      --full                      Run all analyses including expensive ones
+                                  (only for status command)
+  -h, --help                      Show this help message and exit.
+      --intelligent-filter        Use intelligent stack trace filtering
+                                  (collapses internal frames, focuses on
+                                  application code)
+      --interval=<interval>       Interval between dumps, default is 5s
+      --keep                      Persist dumps to disk
+      --keep-samples=<keepSamples>
+                                  Number of last samples to persist as recording
+                                  ZIP on quit of live mode (0 = don't persist),
+                                  default is 0
+  -l, --live                      Live mode: repeatedly collect and display,
+                                  like watch (Linux/macOS only)
+  -V, --version                   Print version information and exit.
 ```
 <!-- END help_vm_metaspace -->

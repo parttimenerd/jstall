@@ -631,20 +631,24 @@ class VersionBumper:
         try:
             subprocess.run(['gh', '--version'], capture_output=True, check=True)
         except (subprocess.CalledProcessError, FileNotFoundError):
-            print("⚠ GitHub CLI (gh) not found. Skipping GitHub release creation.")
-            print("  Install with: brew install gh  (macOS)")
-            print("  Or visit: https://cli.github.com/")
-            return
+            raise RuntimeError(
+                "GitHub CLI (gh) not found.\n"
+                "  Install with: brew install gh  (macOS)\n"
+                "  Or visit: https://cli.github.com/"
+            )
 
-        # Check authentication
+        # Check authentication (check for "Logged in to github.com" in output, don't rely on exit code)
         try:
             result = subprocess.run(['gh', 'auth', 'status'], capture_output=True, text=True)
-            if result.returncode != 0:
-                print("⚠ GitHub CLI not authenticated. Run: gh auth login")
-                return
-        except:
-            print("⚠ Could not check GitHub CLI auth status")
-            return
+            # Exit code may be non-zero if there are multiple accounts, but that's ok as long as github.com is authenticated
+            if 'Logged in to github.com' not in result.stdout and 'Logged in to github.com' not in result.stderr:
+                raise RuntimeError(
+                    "GitHub CLI not authenticated to github.com.\n"
+                    "  Run: gh auth login\n"
+                    "  Then run: ./release.py github-release"
+                )
+        except subprocess.CalledProcessError:
+            raise RuntimeError("Could not check GitHub CLI auth status")
 
         # Ensure assets exist (especially important on CI automation):
         # If minimal artifacts are missing, generate them now so we never create a release
@@ -955,6 +959,10 @@ def main():
     p_deploy_min.add_argument('--tmp', help='Use this directory as a temporary workspace (it will be deleted and recreated)')
     p_deploy_min.add_argument('--keep-tmp', action='store_true', help='Keep the temporary workspace directory for debugging')
 
+    # github-release
+    p_gh = subparsers.add_parser('github-release', help='Create a GitHub release for the current (or specified) version')
+    p_gh.add_argument('--version', help='Version to release (default: read from pom.xml)')
+
     # Default release options (no subcommand)
     parser.add_argument('--major', action='store_true', help='Bump major version (x.0.0)')
     parser.add_argument('--minor', action='store_true', help='Bump minor version (0.x.0) [default]')
@@ -987,6 +995,13 @@ def main():
         deploy_minimal_cmd(project_root, args.tmp, keep_tmp=args.keep_tmp)
         return
 
+    if args.command == 'github-release':
+        bumper = VersionBumper(project_root)
+        version = args.version if args.version else bumper.get_current_version()
+        print(f"Creating GitHub release for version {version}")
+        bumper.create_github_release(version)
+        return
+
     # ---- existing release flow ----
     bumper = VersionBumper(project_root)
 
@@ -1015,6 +1030,24 @@ def main():
     # Validate changelog before proceeding (unless dry-run)
     if not args.dry_run:
         if not bumper.validate_changelog(new_version):
+            sys.exit(1)
+
+    # Check GitHub CLI authentication early if we'll need it
+    if do_github_release and not args.dry_run:
+        try:
+            subprocess.run(['gh', '--version'], capture_output=True, check=True)
+            result = subprocess.run(['gh', 'auth', 'status'], capture_output=True, text=True)
+            # Exit code may be non-zero if there are multiple accounts, but that's ok as long as github.com is authenticated
+            if 'Logged in to github.com' not in result.stdout and 'Logged in to github.com' not in result.stderr:
+                print("\n❌ GitHub CLI not authenticated to github.com.")
+                print("Run: gh auth login")
+                print("Then run: ./release.py again")
+                sys.exit(1)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print("\n❌ GitHub CLI (gh) not found.")
+            print("Install with: brew install gh  (macOS)")
+            print("Or visit: https://cli.github.com/")
+            print("Then run: ./release.py again")
             sys.exit(1)
 
     if args.dry_run:
