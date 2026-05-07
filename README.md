@@ -221,13 +221,15 @@ jstall compiler-queue 12345
 
 ### Live Mode
 
-Monitor a JVM continuously with an interactive TUI:
+Monitor a JVM continuously with an interactive TUI (Linux/macOS only):
 
 ```bash
 jstall status 12345 --live
 jstall status MyApp --live --color
 jstall threads 12345 --live --color
 ```
+
+> **Note:** `--live` requires a Unix-like environment (Linux, macOS, or WSL). It is not available on Windows.
 
 **Features:**
 - Async data collection (UI stays responsive)

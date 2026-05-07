@@ -61,7 +61,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
     @Option(names = "--full", description = "Run all analyses including expensive ones (only for status command)")
     protected boolean full = false;
 
-    @Option(names = {"-l", "--live"}, description = "Live mode: repeatedly collect and display, like watch")
+    @Option(names = {"-l", "--live"}, description = "Live mode: repeatedly collect and display, like watch (Linux/macOS only)")
     protected boolean live = false;
 
     @Option(names = "--keep-samples", defaultValue = "0", description = "Number of last samples to persist as recording ZIP on quit of live mode (0 = don't persist)")
@@ -135,6 +135,10 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
         }
         if (interval != null && interval.toMillis() <= 0) {
             System.err.println("Error: --interval must be positive");
+            return 1;
+        }
+        if (live && System.getProperty("os.name", "").toLowerCase().startsWith("win")) {
+            System.err.println("Error: --live is not supported on Windows");
             return 1;
         }
         if (live && getEffectiveReplayFilePath() != null) {
