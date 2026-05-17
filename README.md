@@ -307,13 +307,92 @@ at com.example.Service.processRequest(Service.java:78)
 
 ---
 
+## AI-Powered Analysis (Experimental)
+
+> **Note:** AI analysis is experimental and hidden from the default CLI help. Commands are available via direct invocation.
+
+JStall includes an AI command that sends thread dump data to an LLM for natural-language analysis. It supports remote (Gardener) and local (any OpenAI-compatible server) providers.
+
+```bash
+jstall ai 12345                          # analyze a JVM with default provider
+jstall ai 12345 --local                  # force local provider
+jstall ai 12345 --model gpt-4            # override model
+jstall ai 12345 --question "Is there a deadlock?"
+jstall ai full                           # analyze all JVMs on the system
+```
+
+### Configuration
+
+Create a `.jstall-ai-config` file in the current directory or home directory:
+
+**Remote (Gardener):**
+```properties
+provider=gardener
+model=gpt-50-nano
+api.key=your-api-key
+```
+
+**Local OpenAI-compatible server** (llama-server, Ollama, vLLM, LocalAI, etc.):
+```properties
+provider=local
+local.host=http://127.0.0.1:8080
+model=local
+```
+
+**Auto-launch llama-server** — if `llama-server` is installed and no server is running, JStall can launch one automatically with a HuggingFace model:
+```properties
+provider=local
+local.host=http://127.0.0.1:8080
+local.llama-server-model=AaryanK/Qwen3.5-9B-GGUF:Q8_0
+```
+
+The server is started in the background with the specified model and stopped when JStall exits. Model files are cached in `$HF_HOME` (defaults to `~/.cache/huggingface`).
+
+### AI Options
+
+| Option | Description |
+|--------|-------------|
+| `--local` | Force local OpenAI-compatible provider |
+| `--remote` | Force remote Gardener provider |
+| `--model <name>` | Override LLM model |
+| `--question <q>` | Custom question (use `-` for stdin) |
+| `--thinking` | Show thinking/reasoning tokens |
+| `--short` | Produce a succinct summary |
+| `--raw` | Output raw JSON response |
+| `--dry-run` | Show prompt without calling AI |
+| `--no-tools` | Disable tool calling (enabled by default for local providers) |
+
+### Tool Calling (Interactive Analysis)
+
+When using a local OpenAI-compatible provider, tool calling is **enabled by default**. The LLM first receives the `jstall status` summary, then can use tools to dig deeper into specific threads or issues it wants to investigate further.
+
+```bash
+jstall ai 12345 --local                  # tools enabled automatically
+jstall ai 12345 --local --no-tools       # disable tools, just summarize
+jstall ai 12345 --tools --remote         # explicitly enable tools with remote provider
+```
+
+Available tools the AI can use:
+- **get_thread_stack_trace** — full stack trace of a thread (optionally from a specific dump)
+- **search_stack_frames** — find threads with a class/method in their stack
+- **get_lock_info** — lock holders and blocked threads
+- **get_top_cpu_threads** — top N threads by CPU consumption
+- **get_dependency_tree** — thread wait chains (who blocks whom)
+- **compare_thread_across_dumps** — track a thread across multiple dumps to see if it's stuck
+- **get_system_properties** — JVM configuration and properties
+- **get_raw_thread_dump_section** — raw dump text for a specific thread
+
+The AI makes up to 5 tool-call rounds before producing its final answer. Progress is shown on stderr (e.g., `[tool 1/5] get_thread_stack_trace(thread_name=main)`).
+
+---
+
 ## Usage as a Library
 
 ```xml
 <dependency>
     <groupId>me.bechberger</groupId>
     <artifactId>jstall</artifactId>
-    <version>0.7.0</version>
+    <version>0.7.1</version>
 </dependency>
 ```
 

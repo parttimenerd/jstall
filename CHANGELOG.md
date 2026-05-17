@@ -14,6 +14,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
+## [0.7.1] - 2026-05-17
+
+### Added
+- Local AI via generic OpenAI-compatible provider (`OpenAiLlmProvider`) with auto-launch of llama-server
+- Tool-calling system for AI: 8 tools (`get_thread_stack_trace`, `search_stack_frames`, `get_lock_info`, `get_top_cpu_threads`, `compare_thread_across_dumps`, `get_dependency_tree`, `get_system_properties`, `get_raw_thread_dump_section`)
+- `--no-tools` flag, `--think` flag for showing LLM reasoning, `--short` for succinct summaries
+- Retry with exponential backoff on transient HTTP errors (429, 502, 503)
+- Robust `<think>` tag handling for streaming (handles tags split across chunks)
+- `TablePrinter` utility for formatted table output
+
+### Changed
+- Replaced Ollama provider with generic OpenAI-compatible provider; config keys are now `local.host` and `local.llama-server-model`
+- `--short` mode no longer double-streams (full analysis is suppressed, only summary shown)
+
+### Removed
+- `OllamaLlmProvider` and Ollama-specific config keys (`ollama.host`, `ollama.think-mode`)
+
 ## [0.7.0] - 2026-05-07
 
 ### Added
