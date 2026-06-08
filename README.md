@@ -28,8 +28,9 @@ Features:
 Requires Java 17+ to run.
 
 You can use the `jstall` CLI tool directly, or through the
-[IntelliJ plugin](https://plugins.jetbrains.com/plugin/30667-jstall) or
-[VSCode extension](https://marketplace.visualstudio.com/items?itemName=bechberger.jstall) (with MCP support).
+[IntelliJ plugin](https://plugins.jetbrains.com/plugin/30667-jstall),
+[VSCode extension](https://marketplace.visualstudio.com/items?itemName=bechberger.jstall),
+or [Claude Code MCP server](#use-with-claude-code-mcp) (with skill support).
 
 ## Installation
 
@@ -304,6 +305,44 @@ at com.example.MyController.handleRequest(MyController.java:42)
 at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(...)
 at com.example.Service.processRequest(Service.java:78)
 ```
+
+---
+
+## Use with Claude Code (MCP)
+
+jstall ships an [MCP server](mcp/) that lets Claude Code inspect running JVMs directly.
+Install it in one command:
+
+```bash
+claude mcp add jstall -- npx -y @bechberger/jstall-mcp@latest
+```
+
+Restart Claude Code, then ask things like:
+
+- *"What is my Java application doing right now?"*
+- *"Is there a deadlock in PID 12345?"*
+- *"Show me the hottest threads in my Spring Boot app."*
+
+Claude will automatically call `jstall_list_jvms` to discover running JVMs, then use
+`jstall_status` or other tools to diagnose the issue and explain the result.
+
+### Claude Code skill
+
+A skill is bundled with the MCP package and teaches Claude the investigation workflow
+(deadlock analysis, high CPU, memory allocation, remote JVMs). Install it with:
+
+```bash
+ln -s "$(npm root -g)/@bechberger/jstall-mcp/skills/jstall" ~/.claude/skills/jstall
+```
+
+Or if you used `npx`, install the jstall CLI and run:
+
+```bash
+jstall install-claude-skill
+```
+
+See the [MCP README](mcp/README.md) for full documentation including remote JVM usage,
+flamegraph generation, and offline recording analysis.
 
 ---
 
