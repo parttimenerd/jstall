@@ -11,7 +11,13 @@ MCP server for [jstall](https://github.com/parttimenerd/jstall) — exposes JVM 
 
 ## Quick install (Claude Code)
 
-If you already have jstall installed, the fastest path is:
+The simplest way if you don't have jstall installed yet:
+
+```bash
+claude mcp add jstall -- npx -y @bechberger/jstall-mcp@latest
+```
+
+If you already have jstall installed, you can use the built-in command instead:
 
 ```bash
 jstall install-claude-mcp    # registers the MCP server in ~/.claude/settings.json
