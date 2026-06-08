@@ -1,0 +1,55 @@
+{
+  "name": "@bechberger/jstall-mcp",
+  "version": "0.7.1",
+  "description": "MCP server for jstall JVM diagnostic CLI — thread analysis, deadlock detection, flamegraphs, and recordings.",
+  "type": "module",
+  "main": "dist/server.js",
+  "bin": {
+    "jstall-mcp": "dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "postinstall": "node scripts/download-jar.cjs",
+    "download-jar": "node scripts/download-jar.cjs",
+    "start": "node dist/server.js",
+    "dev": "node scripts/download-jar.cjs && tsc && node dist/server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist/",
+    "lib/jstall.jar",
+    "lib/.version"
+  ],
+  "keywords": [
+    "mcp",
+    "jvm",
+    "java",
+    "diagnostics",
+    "profiling",
+    "thread-dump",
+    "deadlock",
+    "flamegraph",
+    "jstall"
+  ],
+  "license": "MIT",
+  "author": {
+    "name": "Johannes Bechberger",
+    "email": "me@mostlynerdless.de"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/parttimenerd/jstall",
+    "directory": "mcp"
+  },
+  "homepage": "https://github.com/parttimenerd/jstall#readme"
+}

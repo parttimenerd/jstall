@@ -1,0 +1,10 @@
+{
+  "name": "jstall",
+  "description": "JVM diagnostics for Claude Code — thread analysis, deadlock detection, flamegraphs, and recordings via jstall.",
+  "version": "0.7.1",
+  "author": {
+    "name": "Johannes Bechberger",
+    "email": "me@mostlynerdless.de"
+  },
+  "keywords": ["java", "jvm", "diagnostics", "profiling", "threads", "deadlock", "flamegraph"]
+}
