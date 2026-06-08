@@ -1,136 +1,205 @@
 # JStall Investigation Workflows
 
-Detailed runbooks for common JVM diagnostic scenarios.
+Detailed runbooks for common JVM diagnostic scenarios. All commands use `jstall_run(args)` for local JVMs or `jstall_remote({type, target, args})` for remote.
 
 ## Deadlock Investigation
 
 **Symptoms**: Application hangs, requests time out, threads stuck forever.
 
 ```
-Step 1: jstall_status(pid)
-  → Look for "DEADLOCK DETECTED" section near top of output
-  → Note: thread names, stack frames, lock addresses
+Step 1: Confirm with status
+  jstall_run(["status", "--intelligent-filter", "--no-native", "<pid>"])
+  → Look for "deadlock" anywhere in output
+  → Note thread names and lock addresses in dependency-tree section
 
-Step 2: jstall_dependency_graph(pid)
-  → Output format:
-      [Category] Thread-A
-        -> [Category] Thread-B (lock: <0x1234>)
-           Waiter state: BLOCKED, CPU: 0.00s
-  → A deadlock = cycle in this graph (A waits for B, B waits for A)
+Step 2: Get the full deadlock chain
+  jstall_run(["deadlock", "<pid>"])
+  → Thread-A holds lock 0x... (java.util.concurrent.locks.ReentrantLock)
+      waiting to acquire lock 0x... held by Thread-B
+    Thread-B holds lock 0x...
+      waiting to acquire lock 0x... held by Thread-A
 
-Step 3: Read the stack traces
-  → jstall_run(["threads", "--no-native", "<pid>"])
-  → Find the frames where Thread-A holds a lock and waits for another
+Step 3: Visualise the lock graph
+  jstall_run(["dependency-graph", "--intelligent-filter", "<pid>"])
+  → ASCII graph — cycle = deadlock
 
-Step 4: Root cause patterns
-  → Lock ordering violation: A acquires lock1 then lock2; B acquires lock2 then lock1
-    Fix: Establish consistent lock ordering across all code paths
-  → Nested synchronized calls into foreign code
-    Fix: Don't call external methods while holding a lock
-  → tryLock timeout: replace synchronized with ReentrantLock + tryLock(timeout)
+Step 4: Get full stacks for involved threads
+  jstall_run(["threads", "--no-native", "<pid>"])
+  → Find the exact source lines where each thread acquires its first lock
 ```
+
+**Root cause patterns:**
+- Lock ordering violation: Thread A acquires lock1 then lock2; Thread B acquires lock2 then lock1. Fix: establish a consistent global lock ordering.
+- Nested `synchronized` calls into foreign code while holding a lock. Fix: don't call external methods under a lock.
+- Re-entrant lock misuse. Fix: use `ReentrantLock.tryLock(timeout)`.
+
+---
 
 ## High CPU Investigation
 
-**Symptoms**: JVM using 100% CPU, application is slow but not stuck.
+**Symptoms**: JVM using 100%+ CPU, application is slow but not stuck.
 
 ```
-Step 1: jstall_status(pid, top: 5)
-  → "Most Work" section lists threads by CPU time consumed
-  → Look for threads with very high CPU%
+Step 1: Identify hot threads
+  jstall_run(["most-work", "--top=5", "--intelligent-filter", "<pid>"])
+  → Shows threads by CPU time; RUNNABLE with high CPU% = hot path
 
-Step 2: Read hot thread stack traces
-  → The status output includes top frames for hot threads
-  → Look for: tight loops, hash collisions, regex backtracking, JSON parsing
+Step 2: Escalate if stacks aren't clear
+  jstall_run(["threads", "--no-native", "--intelligent-filter", "<pid>"])
+  → Full stacks for all threads sorted by CPU time
 
-Step 3: If not clear from status: jstall_flamegraph(pid, durationSeconds: 20, event: "cpu")
-  → HTML flamegraph — tell user to open in browser
-  → Wide frames = hot paths; look for unexpected width
-
-Step 4: Common causes
-  → HashMap with high collision rate (poor hashCode): look for many LinkedList traversals
-  → Regex catastrophic backtracking: java.util.regex.*
-  → String intern abuse: String.intern() in hot path
-  → Log4j/SLF4J: logging at DEBUG level in production
-  → JIT deoptimization: look for Interpreter frames in flamegraph
+Step 3: Profile with flamegraph
+  jstall_run(["flame", "--output=/tmp/flame-<pid>.html", "--duration=20s", "<pid>"])
+  → Blocks ~20s; tell user to open HTML in browser
+  → Wide frames = hot paths; look for unexpected width in app code
 ```
 
-## Memory / GC Pressure Investigation
+**Common causes:**
+- HashMap with poor `hashCode` → many hash collisions, long bucket traversals
+- Regex catastrophic backtracking: `java.util.regex.*` in hot path
+- Logging at DEBUG level in production
+- JIT deoptimization: look for `Interpreter` frames in flamegraph
+- String.intern() abuse in hot path
 
-**Symptoms**: Frequent GC pauses, OutOfMemoryError, high allocation rate.
+---
 
-```
-Step 1: jstall_status(pid, full: true)
-  → Includes "GC Heap Info" showing heap used/committed/max
-  → Shows GC pause info if available
+## I/O / External Wait Investigation
 
-Step 2: jstall_run(["gc-heap-info", "<pid>"])
-  → More detail on GC type, heap regions, recent GC activity
+**Symptoms**: Application is slow, but `most-work` shows 0% CPU and all threads WAITING.
 
-Step 3: jstall_flamegraph(pid, event: "alloc", durationSeconds: 15)
-  → Allocation flamegraph — shows which methods allocate the most
-  → Look for: StringBuilder in loops, unnecessary boxing, large arrays
-
-Step 4: jstall_run(["vm-metaspace", "<pid>"])
-  → Check if metaspace is growing (class loader leak)
-
-Step 5: Common fixes
-  → Object pooling for frequently allocated objects
-  → StringBuilder → StringJoiner or direct concatenation
-  → Primitive arrays instead of boxed collections
-  → WeakReference for caches
-```
-
-## Production Recording Workflow
-
-When you need to capture diagnostics without staying connected:
+The bottleneck is outside the JVM — network, DB, filesystem, or a downstream service.
 
 ```
-Step 1: Record (takes ~10s by default)
-  jstall_record(pid: 12345, full: true, count: 3, interval: "10s")
-  → Returns ZIP path (e.g. /tmp/jstall-12345-2026-06-08_12-00-00.zip)
+Step 1: Find what threads are waiting on
+  jstall_run(["waiting-threads", "--intelligent-filter", "<pid>"])
+  → Look for socket read, JDBC, HTTP client frames
 
-Step 2: Retrieve the ZIP from the server (scp, cf files, etc.)
+Step 2: Scan all thread stacks
+  jstall_run(["threads", "--no-native", "--intelligent-filter", "<pid>"])
+  → Search for: SocketInputStream.read, Statement.execute,
+    HttpClient.send, URLConnection.getInputStream
 
-Step 3: Analyze offline
-  jstall_status(recordingZip: "/local/path/recording.zip")
-  jstall_flamegraph(recordingZip: "/local/path/recording.zip")
-  jstall_dependency_graph(recordingZip: "/local/path/recording.zip")
-  jstall_run(["record", "summary", "/local/path/recording.zip"])
+Step 3: Wall-clock flamegraph (captures blocked time, not just CPU)
+  jstall_run(["flame", "--event=wall", "--output=/tmp/wall-<pid>.html",
+              "--duration=20s", "<pid>"])
+  → Shows where time is spent including I/O waits
+  → Wide I/O frames = where the bottleneck is
 ```
+
+---
+
+## GC Pressure / Memory Investigation
+
+**Symptoms**: Frequent GC pauses, OutOfMemoryError, high allocation rate, slow throughput.
+
+```
+Step 1: Check heap and allocation trends
+  jstall_run(["gc-heap-info", "<pid>"])
+  → Heap used% > 80% → GC pressure
+  → Δ growing rapidly → allocation-driven GC
+
+Step 2: Allocation flamegraph
+  jstall_run(["flame", "--event=alloc", "--output=/tmp/alloc-<pid>.html",
+              "--duration=15s", "<pid>"])
+  → Shows which call paths allocate the most
+  → Look for: StringBuilder in loops, unnecessary boxing, large temp arrays
+
+Step 3: Deep heap detail (only if steps 1-2 don't surface the cause)
+  jstall_run(["status", "--full", "--no-native", "<pid>"])
+  → Includes class histogram — can be very large output
+```
+
+**Common fixes:** object pooling, primitive arrays instead of boxed collections, `WeakReference` for caches, review log statement construction at DEBUG level.
+
+---
+
+## Classloader Leak Investigation
+
+**Symptoms**: Metaspace growing steadily, eventual `OutOfMemoryError: Metaspace`.
+
+```
+Step 1: Confirm growing trend
+  jstall_run(["vm-metaspace", "<pid>"])
+  → ↑ trend on Non-Class used = classloader leak
+
+Step 2: Identify the leaking classloader type
+  jstall_run(["vm-classloader-stats", "<pid>"])
+  → Large or growing class counts in custom/framework loaders = leak suspect
+  → Standard loaders (AppClassLoader, boot) growing is normal at startup only
+```
+
+**Common causes:** OSGi bundles not unloaded, scripting engine classloaders (Groovy, JRuby), application hot-reload frameworks, ClassLoader retained by a static field or thread-local.
+
+---
 
 ## Thread Starvation / Stuck Threads
 
-**Symptoms**: Some requests never complete, thread pool exhausted.
+**Symptoms**: Some requests never complete, thread pool exhausted, queue grows unbounded.
 
 ```
-Step 1: jstall_run(["waiting-threads", "<pid>"])
-  → Shows threads in WAITING or TIMED_WAITING state that may be stuck
-  → Look for threads waiting on a condition that never fires
+Step 1: Confirm stuck (same frame across multiple dumps)
+  jstall_run(["status", "--intelligent-filter", "--no-native",
+              "--dump-count=3", "--interval=5s", "<pid>"])
+  → Same thread in most-work across all 3 dumps with no CPU progress
+    and identical stack frames = truly stuck, not just slow
 
-Step 2: jstall_dependency_graph(pid)
-  → Even without a deadlock, shows who is waiting on whom
-  → Non-deadlock dependency chains can cause effective starvation
+Step 2: Identify what they're waiting on
+  jstall_run(["waiting-threads", "--intelligent-filter", "<pid>"])
 
-Step 3: jstall_status(pid, dumps: 3, interval: "5s")
-  → Collect 3 dumps 5s apart — threads stuck in the same frame across dumps are stuck
+Step 3: Inspect lock graph
+  jstall_run(["dependency-graph", "--intelligent-filter", "<pid>"])
+  → Snapshot of current lock ownership
 
-Step 4: Common causes
-  → Thread pool exhaustion: all threads waiting on same resource
-  → Slow downstream (DB, HTTP) with no timeout: threads pile up
-  → Event loop starvation: blocking calls on non-blocking thread
+  jstall_run(["dependency-tree", "--intelligent-filter", "--dump-count=3", "<pid>"])
+  → Lock dependencies over time — catches intermittent contention
 ```
 
-## JVM Support Check
+**Common causes:** thread pool exhaustion (all threads waiting on same slow resource), no timeout on downstream calls (DB, HTTP), blocking call on event-loop thread.
 
-When investigating incidents on older infrastructure:
+---
+
+## Production Recording Workflow
+
+Use when you need to capture diagnostics without staying connected, or to share with someone else.
+
+```
+Step 1: Capture (lightweight, ~20s)
+  jstall_run(["record", "create", "--count=3", "--interval=10s",
+              "--output=/tmp/rec.zip", "<pid>"])
+
+  For full diagnostics (flamegraph + JFR + class histogram):
+  jstall_run(["record", "create", "--full", "--count=3", "--interval=10s",
+              "--output=/tmp/rec-full.zip", "<pid>"])
+
+Step 2: Inspect the ZIP
+  jstall_run(["record", "summary", "/tmp/rec.zip"])
+  → Shows creation time, PIDs, data types captured
+
+Step 3: Analyze offline (same commands as live, ZIP as target)
+  jstall_run(["status", "--intelligent-filter", "--no-native", "/tmp/rec.zip"])
+  jstall_run(["flame", "--output=/tmp/flame.html", "/tmp/rec.zip"])
+  jstall_run(["dependency-graph", "--intelligent-filter", "/tmp/rec.zip"])
+```
+
+---
+
+## Environment / Health Check
+
+Use when investigating incidents on infrastructure of unknown quality.
 
 ```
 jstall_run(["jvm-support", "<pid>"])
-→ Reports if the JVM version is past end-of-life (> 1 year old)
-→ Old JVMs may have known bugs — upgrade recommendation
+→ Reports if JVM is past end-of-life — old JVMs may have known bugs
+
+jstall_run(["gc-heap-info", "<pid>"])
+→ Current heap usage and GC region breakdown with Δ trends
 
 jstall_run(["compiler-queue", "<pid>"])
-→ Shows JIT compiler queue size
-→ Very large queue = JVM hasn't warmed up yet, or compilation is bottlenecked
+→ JIT queue depth — large sustained queue = compilation bottleneck or cold start
+
+jstall_run(["vm-metaspace", "<pid>"])
+→ Metaspace used/committed/reserved with trend
+
+jstall_run(["vm-vitals", "<pid>"])
+→ SapMachine only — comprehensive JVM perf counters
 ```

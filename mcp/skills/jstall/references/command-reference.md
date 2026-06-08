@@ -1,155 +1,164 @@
 # JStall CLI Command Reference
 
-Quick reference for all jstall commands and flags. Use via `jstall_run(args: [...])`.
+Quick reference for all jstall commands and flags. Use via `jstall_run(["<command>", ...args])`.
 
 ## Global Flags
 
 | Flag | Description |
 |---|---|
-| `-f <zip>` | Replay mode — analyze a recording ZIP instead of a live JVM |
-| `--ssh <prefix>` | Run via SSH, e.g. `--ssh "ssh user@host"` |
+| `--ssh "ssh user@host"` | Run via SSH (prefix passed verbatim to shell) |
 | `--cf <app>` | Run via Cloud Foundry app SSH |
-| `-v, --verbose` | Show verbose remote command logging |
+| `-v, --verbose` | Show verbose remote SSH command logging |
 
 ## Analysis Commands
 
 ### `status` — Primary diagnostic
 
 ```
-["status", [flags], <pid|"all">]
-["status", [flags], <zip>]       ← replay mode without -f prefix
+["status", "--intelligent-filter", "--no-native", "<pid>"]
+["status", "--intelligent-filter", "--no-native", "/path/recording.zip"]
+["status", "--intelligent-filter", "--no-native", "all"]
 ```
 
 | Flag | Default | Description |
 |---|---|---|
-| `--full` | false | Include VM vitals, metaspace, compiler queue |
-| `--intelligent-filter` | false | Collapse framework internals |
-| `--no-native` | false | Exclude threads with no Java frames |
-| `--keep` | false | Write thread dumps to disk |
-| `--top=N` | 3 | Show top N threads by CPU time |
-| `--dumps=N` | 1 | Number of sequential dumps |
+| `--intelligent-filter` | off | Collapse framework internals, focus on app code |
+| `--no-native` | off | Exclude threads with no Java frames |
+| `--full` | off | Add class histogram and expensive diagnostics — large output |
+| `--top=N` | 3 | Show top N threads in most-work section |
+| `--dump-count=N` | 1 | Number of sequential thread dumps |
 | `--interval=T` | 5s | Time between sequential dumps |
-| `--live` | — | Interactive TUI mode (not for MCP use) |
+| `--keep` | off | Write thread dumps to disk |
+| `--live` | — | Interactive TUI mode (not useful via MCP) |
 
 ### `deadlock` — Deadlock-only check
 
 ```
-["deadlock", <pid>]
+["deadlock", "<pid>"]
 ```
 
-Faster than status when you only need deadlock detection.
+Faster than `status` when you only need deadlock detection.
 
 ### `most-work` — Top CPU threads
 
 ```
-["most-work", "--top=5", <pid>]
-```
-
-| Flag | Description |
-|---|---|
-| `--top=N` | Show top N threads (default: 3) |
-| `--no-native` | Exclude native-only threads |
-
-### `threads` — All threads
-
-```
-["threads", "--no-native", <pid>]
-```
-
-| Flag | Description |
-|---|---|
-| `--no-native` | Exclude threads with no Java frames |
-| `--intelligent-filter` | Collapse framework internals |
-
-### `waiting-threads` — Stuck threads
-
-```
-["waiting-threads", <pid>]
-```
-
-Shows threads in WAITING or TIMED_WAITING that may be stalled.
-
-### `dependency-graph` — Lock dependency visualization
-
-```
-["dependency-graph", "--intelligent-filter", <pid>]
-```
-
-Shows thread → lock → thread chains. Deadlock cycles clearly visible.
-
-### `dependency-tree` — Non-deadlock dependencies over time
-
-```
-["dependency-tree", <pid>]
-```
-
-Shows threads waiting on locks held by others, without requiring a deadlock.
-
-### `flame` — Flamegraph
-
-```
-["flame", "-o", "/tmp/out.html", <pid>]
-["flame", "--duration=15s", "--event=alloc", "-o", "/tmp/out.html", <pid>]
+["most-work", "--top=5", "--intelligent-filter", "<pid>"]
 ```
 
 | Flag | Default | Description |
 |---|---|---|
-| `--duration=T` | 10s | Profiling duration |
-| `--event=E` | cpu | Event: cpu, alloc, lock, wall, itimer |
-| `--interval=T` | 10ms | Sampling interval |
-| `-o <path>` | — | Output HTML file path (required) |
+| `--top=N` | 3 | Number of threads to show |
+| `--intelligent-filter` | off | Collapse framework internals |
+| `--no-native` | off | Exclude native-only threads |
+| `--stack-depth=N` | 10 | Stack frames to show (0=all) |
+| `--dump-count=N` | 1 | Number of dumps to average over |
 
-Use `jstall_flamegraph` tool instead — it handles the output path automatically.
+### `threads` — All threads sorted by CPU time
+
+```
+["threads", "--no-native", "--intelligent-filter", "<pid>"]
+["threads", "--no-native", "--top=10", "<pid>"]
+```
+
+Use after `most-work` when you need full stacks for all threads, not just the top N.
+
+| Flag | Default | Description |
+|---|---|---|
+| `--no-native` | off | Exclude threads with no Java frames |
+| `--intelligent-filter` | off | Collapse framework internals |
+| `--top=N` | all | Limit to top N threads |
+
+### `waiting-threads` — Stuck/starving threads
+
+```
+["waiting-threads", "--intelligent-filter", "<pid>"]
+```
+
+Shows threads in WAITING or TIMED_WAITING that may be stalled without making progress.
+
+### `dependency-graph` — Lock dependency snapshot
+
+```
+["dependency-graph", "--intelligent-filter", "<pid>"]
+```
+
+Current snapshot of which thread holds which lock and who is waiting. Use when contention is active right now. Deadlock cycles are clearly visible.
+
+### `dependency-tree` — Lock dependencies over time
+
+```
+["dependency-tree", "--intelligent-filter", "--dump-count=3", "<pid>"]
+```
+
+Shows lock dependencies across multiple dumps. Use when contention is intermittent and a single snapshot might miss it.
+
+### `flame` — Flamegraph
+
+```
+["flame", "--output=/tmp/flame-<pid>.html", "--duration=15s", "<pid>"]
+["flame", "--event=alloc", "--output=/tmp/alloc-<pid>.html", "--duration=15s", "<pid>"]
+["flame", "--output=/tmp/flame.html", "/path/recording.zip"]
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--duration=T` | 10s | Profiling duration — tool blocks for this long |
+| `--event=E` | cpu | cpu · alloc · lock · wall · itimer |
+| `--interval=T` | 10ms | Sampling interval |
+| `--output=<path>` | flame.html | Output HTML file path |
+| `--open` | off | Auto-open in browser after generation |
+
+Tell the user the output path and to open it in a browser.
 
 ## JVM Information Commands
-
-### `vm-vitals` — JVM performance counters
-
-```
-["vm-vitals", <pid>]
-```
-
-Shows CPU, memory, GC, and other JVM metrics. Requires SapMachine or compatible JVM.
 
 ### `gc-heap-info` — Heap and GC information
 
 ```
-["gc-heap-info", <pid>]
+["gc-heap-info", "<pid>"]
 ```
 
-Heap usage (used/committed/max), GC type, recent GC activity.
+Heap used/total with Δ trend, GC region breakdown, metaspace summary.
+
+### `vm-metaspace` — Metaspace detail
+
+```
+["vm-metaspace", "<pid>"]
+```
+
+Non-class and class space: capacity, used, committed, free, trend. Growing trend (`↑`) = classloader leak.
 
 ### `vm-classloader-stats` — Classloader statistics
 
 ```
-["vm-classloader-stats", <pid>]
+["vm-classloader-stats", "<pid>"]
 ```
 
-Number of classes loaded per classloader.
-
-### `vm-metaspace` — Metaspace summary
-
-```
-["vm-metaspace", <pid>]
-```
-
-Metaspace used/committed/max. Growing metaspace = potential classloader leak.
+Classes loaded per classloader type with trend. Large or growing counts in custom loaders = leak suspect.
 
 ### `compiler-queue` — JIT compiler queue
 
 ```
-["compiler-queue", <pid>]
+["compiler-queue", "<pid>"]
 ```
 
-JIT compilation queue depth. Large queue = JVM warming up or compile bottleneck.
+Active compilations and queued tasks across samples. Sustained active compilations = JIT backlog.
+
+### `vm-vitals` — JVM performance counters
+
+```
+["vm-vitals", "<pid>"]
+```
+
+CPU, memory, GC, and other JVM metrics. **SapMachine only** — returns error on other JVMs.
 
 ### `jvm-support` — JVM support status
 
 ```
-["jvm-support", <pid>]
+["jvm-support", "<pid>"]
 ```
 
-Checks if JVM version is past end-of-life (>1 year old since release).
+Checks if JVM version is past end-of-life based on `java.version.date`. Supported JVMs are typically released within the last ~4 months.
 
 ## Process Discovery
 
@@ -157,32 +166,35 @@ Checks if JVM version is past end-of-life (>1 year old since release).
 
 ```
 ["list"]
+["list", "MyApp"]          ← filter by main class substring
+["list", "--no-truncate"]  ← show full descriptors
 ```
-
-Lists all running JVM processes with PIDs and main class names.
 
 ### `processes` — Non-JVM high-CPU processes
 
 ```
-["processes"]
+["processes", "<pid>"]
 ```
 
-Detects CPU-hungry processes that are NOT JVMs.
+Detects other OS processes consuming high CPU alongside the JVM.
 
 ## Recording Commands
 
-### `record create` — Create a recording
+### `record create` — Capture a recording ZIP
 
 ```
-["record", "create", "-o", "/path/output.zip", <pid|"all">]
+["record", "create", "--count=3", "--interval=10s", "--output=/tmp/rec.zip", "<pid>"]
+["record", "create", "--full", "--count=3", "--output=/tmp/rec.zip", "all"]
 ```
 
 | Flag | Default | Description |
 |---|---|---|
-| `--full` | false | Include expensive diagnostics |
-| `--count=N` | 2 | Number of samples |
+| `--count=N` / `--dump-count=N` | 2 | Number of samples |
 | `--interval=T` | 5s | Time between samples |
-| `-o <path>` | — | Output ZIP path (required) |
+| `--output=<path>` | — | Output ZIP path |
+| `--full` | off | Include flamegraph, JFR, class histogram, class hierarchy |
+| `--force` | off | Overwrite existing ZIP without prompting |
+| `--no-parallel` | off | Disable parallel recording when target is `all` |
 
 ### `record summary` — Summarize a recording
 
@@ -190,20 +202,27 @@ Detects CPU-hungry processes that are NOT JVMs.
 ["record", "summary", "/path/recording.zip"]
 ```
 
-Shows what's in the ZIP: time range, PIDs, commands captured.
+Shows creation time, JVM list, PIDs, and data types captured.
+
+### `record extract` — Extract a recording
+
+```
+["record", "extract", "/path/recording.zip"]
+```
+
+Extracts ZIP contents to a folder for manual inspection.
 
 ## Replay Mode
 
-Analyze recordings without a live JVM. Two forms:
+Analyze a recording ZIP without a live JVM. Pass the ZIP path as the target:
 
 ```
-["-f", "<zip>", "status", <pid|"all">]     ← global -f flag
-["status", "<zip>"]                          ← zip as positional arg
+["status", "--intelligent-filter", "--no-native", "/path/recording.zip"]
+["flame", "--output=/tmp/flame.html", "/path/recording.zip"]
+["dependency-graph", "--intelligent-filter", "/path/recording.zip"]
 ```
-
-The `jstall_status` and `jstall_flamegraph` tools accept `recordingZip` directly.
 
 ## Time Format
 
 Duration arguments accept: `500ms`, `5s`, `1m`, `1h`.
-Interval/sampling arguments for flamegraph accept: `10ms`, `1000000` (nanoseconds).
+Sampling interval for `flame --interval`: `10ms` or nanoseconds as integer (e.g. `1000000`).
