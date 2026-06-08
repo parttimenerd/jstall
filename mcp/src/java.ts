@@ -190,7 +190,7 @@ export interface JStallResult {
 
 const FLAME_DURATION_RE = /--duration[= ](\d+)/;
 
-function resolveTimeout(args: string[]): number {
+export function resolveTimeout(args: string[]): number {
     // flame blocks for its profiling duration; add 30s headroom
     if (args[0] === 'flame') {
         const m = FLAME_DURATION_RE.exec(args.join(' '));

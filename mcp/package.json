@@ -13,14 +13,18 @@
     "postinstall": "node scripts/download-jar.cjs",
     "download-jar": "node scripts/download-jar.cjs",
     "start": "node dist/server.js",
-    "dev": "node scripts/download-jar.cjs && tsc && node dist/server.js"
+    "dev": "node scripts/download-jar.cjs && tsc && node dist/server.js",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "typescript": "^5.7.0"
+    "@vitest/coverage-v8": "^4.1.8",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.8"
   },
   "engines": {
     "node": ">=18"

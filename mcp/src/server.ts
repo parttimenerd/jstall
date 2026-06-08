@@ -14,7 +14,7 @@ import {
 import { runJstall, jstallOutput } from './java.js';
 
 // Safe SSH target: user@host, host, user@host:port, IPv4, hostnames with dots/dashes
-const SAFE_SSH_TARGET_RE = /^[a-zA-Z0-9][a-zA-Z0-9._@:\-]*$/;
+export const SAFE_SSH_TARGET_RE = /^[a-zA-Z0-9][a-zA-Z0-9._@:\-]*$/;
 
 const server = new Server(
     { name: 'jstall', version: '0.7.1' },
@@ -23,7 +23,7 @@ const server = new Server(
 
 // ── Tool definitions ──────────────────────────────────────────────
 
-const TOOLS = [
+export const TOOLS = [
     {
         name: 'jstall_help',
         description:
@@ -90,6 +90,11 @@ const TOOLS = [
 
 // ── Request handlers ──────────────────────────────────────────────
 
+export function buildHelpArgs(command?: string): string[] {
+    const cmd = command?.trim();
+    return cmd ? [...cmd.split(/\s+/), '--help'] : ['--help'];
+}
+
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
@@ -99,9 +104,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         let text: string;
 
         if (name === 'jstall_help') {
-            const cmd = (args.command as string | undefined)?.trim();
-            // split "record create" → ["record", "create", "--help"]
-            const helpArgs = cmd ? [...cmd.split(/\s+/), '--help'] : ['--help'];
+            const helpArgs = buildHelpArgs(args.command as string | undefined);
             text = jstallOutput(await runJstall(helpArgs, 15_000));
 
         } else if (name === 'jstall_run') {
