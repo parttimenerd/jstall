@@ -41,6 +41,8 @@ import java.nio.file.Path;
         ListCommand.class,
         SystemProcessCommand.class,
         JvmSupportCommand.class,
+        InstallClaudeSkillCommand.class,
+        InstallClaudeMcpCommand.class,
         HelpCommand.class
     },
     defaultSubcommand = StatusCommand.class
