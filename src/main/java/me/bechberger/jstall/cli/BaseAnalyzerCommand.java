@@ -149,6 +149,10 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             System.err.println("Error: --keep-samples must be >= 0");
             return 1;
         }
+        if (live && resolveExecutor().isRemote()) {
+            System.err.println("Warning: --live with --ssh/--cf opens a new SSH connection per jcmd call each cycle.");
+            System.err.println("         This may be slow and can fail if the remote endpoint rate-limits connections.");
+        }
         AnalysisContext context;
         try {
             context = createContext();

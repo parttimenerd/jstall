@@ -96,7 +96,14 @@ public class JMXDiagnosticHelper {
             if (args != null && args.length > 0) {
                 Collections.addAll(jcmdArgs, args);
             }
-            return executor.executeCommand("jcmd", jcmdArgs.toArray(String[]::new)).out();
+            CommandResult result = executor.executeCommand("jcmd", jcmdArgs.toArray(String[]::new));
+            if (executor.isRemote() && result.exitCode() != 0 && result.out().isBlank()) {
+                String detail = result.err().isBlank() ? "(no output)" : result.err().trim();
+                throw new CommandExecutor.SSHCommandException(
+                    "Remote jcmd command failed (exit " + result.exitCode() + "): " + detail,
+                    result.exitCode());
+            }
+            return result.out();
         }
         try {
             Object[] params = new Object[] { args };

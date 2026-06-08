@@ -285,7 +285,11 @@ public class LiveModeRunner {
             String errorMsg = "Error collecting data: " + e.getMessage()
                     + "\n\n(Will retry on next interval)";
             if (isJvmGone(e)) {
-                errorMsg = "Target JVM (PID " + pid + ") appears to have exited.\n\n" + e.getMessage();
+                if (e instanceof CommandExecutor.SSHCommandException) {
+                    errorMsg = "SSH/CF connection failed — live mode stopped.\n\n" + e.getMessage();
+                } else {
+                    errorMsg = "Target JVM (PID " + pid + ") appears to have exited.\n\n" + e.getMessage();
+                }
                 running = false;
             } else {
                 try {
@@ -423,7 +427,11 @@ public class LiveModeRunner {
             display(Instant.now(), null);
             System.err.println("Error collecting data: " + e.getMessage());
             if (isJvmGone(e)) {
-                System.err.println("Target JVM (PID " + pid + ") appears to have exited.");
+                if (e instanceof CommandExecutor.SSHCommandException) {
+                    System.err.println("SSH/CF connection failed — live mode stopped.");
+                } else {
+                    System.err.println("Target JVM (PID " + pid + ") appears to have exited.");
+                }
                 running = false;
             } else {
                 // Attempt to get a fresh connection for next cycle
@@ -507,6 +515,9 @@ public class LiveModeRunner {
     }
 
     private boolean isJvmGone(Exception e) {
+        if (e instanceof CommandExecutor.SSHCommandException) {
+            return true;
+        }
         String msg = e.getMessage();
         if (msg == null) return false;
         String lower = msg.toLowerCase();

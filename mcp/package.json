@@ -28,7 +28,9 @@
   "files": [
     "dist/",
     "lib/jstall.jar",
-    "lib/.version"
+    "lib/.version",
+    "skills/",
+    "scripts/"
   ],
   "keywords": [
     "mcp",
