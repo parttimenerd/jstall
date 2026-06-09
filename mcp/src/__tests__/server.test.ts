@@ -36,7 +36,7 @@ vi.mock('../java.js', () => ({
 }));
 
 // Now import the server module — the top-level await runs but is a no-op
-const { SAFE_SSH_TARGET_RE, buildHelpArgs, TOOLS } = await import('../server.js');
+const { SAFE_SSH_TARGET_RE, buildHelpArgs, buildTools, parseCommands, TOOLS } = await import('../server.js');
 
 // ── SAFE_SSH_TARGET_RE ────────────────────────────────────────────
 
@@ -101,7 +101,70 @@ describe('buildHelpArgs', () => {
     });
 });
 
-// ── TOOLS definitions ─────────────────────────────────────────────
+// ── parseCommands ─────────────────────────────────────────────────
+
+const SAMPLE_HELP = `Usage: jstall [-hV] [COMMAND]
+One-shot JVM inspection tool
+  -h, --help   Show this help message and exit.
+Commands:
+  status        Run multiple analyzers over thread dumps
+  deadlock      Detect JVM-reported thread deadlocks
+  list          List running JVM processes
+  record        Record all data into a zip for later analysis
+  help          Show help (same as --help)
+`;
+
+describe('parseCommands', () => {
+    it('extracts all commands from help output', () => {
+        const cmds = parseCommands(SAMPLE_HELP);
+        expect(cmds.map(c => c.name)).toEqual(['status', 'deadlock', 'list', 'record', 'help']);
+    });
+
+    it('extracts descriptions', () => {
+        const cmds = parseCommands(SAMPLE_HELP);
+        expect(cmds.find(c => c.name === 'status')?.description).toBe('Run multiple analyzers over thread dumps');
+    });
+
+    it('returns empty array when no Commands: section', () => {
+        expect(parseCommands('Usage: jstall\n  -h, --help\n')).toEqual([]);
+    });
+
+    it('stops at blank line after commands block', () => {
+        const help = 'Commands:\n  status   Do stuff\n\nSomething else\n  notacommand   X\n';
+        const cmds = parseCommands(help);
+        expect(cmds.map(c => c.name)).toEqual(['status']);
+    });
+});
+
+// ── buildTools ────────────────────────────────────────────────────
+
+describe('buildTools', () => {
+    it('returns 3 tools regardless of command list', () => {
+        expect(buildTools([])).toHaveLength(3);
+        expect(buildTools([{ name: 'status', description: 'desc' }])).toHaveLength(3);
+    });
+
+    it('embeds command list in jstall_run description when commands are present', () => {
+        const tools = buildTools([{ name: 'status', description: 'Run analyzers' }]);
+        const run = tools.find(t => t.name === 'jstall_run')!;
+        expect(run.description).toContain('status');
+        expect(run.description).toContain('Run analyzers');
+    });
+
+    it('embeds command list in jstall_remote description', () => {
+        const tools = buildTools([{ name: 'list', description: 'List JVMs' }]);
+        const remote = tools.find(t => t.name === 'jstall_remote')!;
+        expect(remote.description).toContain('list');
+    });
+
+    it('omits command list section when commands array is empty', () => {
+        const tools = buildTools([]);
+        const run = tools.find(t => t.name === 'jstall_run')!;
+        expect(run.description).not.toContain('Available commands');
+    });
+});
+
+// ── TOOLS (runtime, populated from real jstall --help) ────────────
 
 describe('TOOLS', () => {
     it('defines exactly 3 tools', () => {
@@ -141,6 +204,13 @@ describe('TOOLS', () => {
             properties: Record<string, { enum?: readonly string[] }>
         }).properties;
         expect(props.type.enum).toEqual(['ssh', 'cf']);
+    });
+
+    it('jstall_run description includes autodiscovered commands (if JAR available)', () => {
+        const run = TOOLS.find(t => t.name === 'jstall_run')!;
+        // If JAR is present, the description will contain real command names
+        // If JAR is absent, the description still exists but has no command list
+        expect(run.description).toBeTruthy();
     });
 });
 

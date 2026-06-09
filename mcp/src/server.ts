@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * jstall MCP server — wraps the jstall CLI as two tools:
+ * jstall MCP server — wraps the jstall CLI as three tools:
+ *   jstall_help   — show help / command list
  *   jstall_run    — run any jstall command locally
  *   jstall_remote — run any jstall command via SSH or Cloud Foundry
  */
@@ -11,10 +12,52 @@ import {
     ListToolsRequestSchema,
     CallToolRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { runJstall, jstallOutput } from './java.js';
+import { runJstall, jstallOutput, stripAnsi } from './java.js';
 
 // Safe SSH target: user@host, host, user@host:port, IPv4, hostnames with dots/dashes
 export const SAFE_SSH_TARGET_RE = /^[a-zA-Z0-9][a-zA-Z0-9._@:\-]*$/;
+
+// ── Command autodiscovery ─────────────────────────────────────────
+
+export interface CommandEntry {
+    name: string;
+    description: string;
+}
+
+export function parseCommands(helpText: string): CommandEntry[] {
+    const commands: CommandEntry[] = [];
+    const lines = helpText.split('\n');
+    let inCommands = false;
+    for (const line of lines) {
+        if (/^Commands:/.test(line)) { inCommands = true; continue; }
+        if (!inCommands) continue;
+        // A command line is indented 2 spaces, then a name, then spaces, then description
+        const m = /^  ([a-z][a-z0-9-]*)[ \t]+(.+)$/.exec(line);
+        if (m) {
+            commands.push({ name: m[1], description: m[2].trim() });
+        } else if (line.trim() === '' || /^\S/.test(line)) {
+            break; // end of commands block
+        }
+    }
+    return commands;
+}
+
+async function discoverCommands(): Promise<CommandEntry[]> {
+    try {
+        const result = await runJstall(['--help'], 15_000);
+        return parseCommands(stripAnsi(result.stdout + result.stderr));
+    } catch {
+        return [];
+    }
+}
+
+function commandListText(commands: CommandEntry[]): string {
+    if (commands.length === 0) return '';
+    return '\n\nAvailable commands:\n' +
+        commands.map(c => `  ${c.name.padEnd(22)} ${c.description}`).join('\n');
+}
+
+// ── Server setup ──────────────────────────────────────────────────
 
 const server = new Server(
     { name: 'jstall', version: '0.7.1' },
@@ -23,70 +66,79 @@ const server = new Server(
 
 // ── Tool definitions ──────────────────────────────────────────────
 
-export const TOOLS = [
-    {
-        name: 'jstall_help',
-        description:
-            'Show help for jstall commands. ' +
-            'Call with no arguments for the full command list, or pass a command name ' +
-            'to get its flags and usage, e.g. command="status", command="flame", ' +
-            'command="record create" (subcommands use a space, e.g. "record create").',
-        inputSchema: {
-            type: 'object',
-            properties: {
-                command: {
-                    type: 'string',
-                    description: 'Optional command name, e.g. "status", "flame", "record create", "record summary".',
+export function buildTools(commands: CommandEntry[]) {
+    const cmdList = commandListText(commands);
+    return [
+        {
+            name: 'jstall_help',
+            description:
+                'Show help for jstall commands. ' +
+                'Call with no arguments for the full command list, or pass a command name ' +
+                'to get its flags and usage, e.g. command="status", command="flame", ' +
+                'command="record create" (subcommands use a space, e.g. "record create").',
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    command: {
+                        type: 'string',
+                        description: 'Optional command name, e.g. "status", "flame", "record create", "record summary".',
+                    },
                 },
             },
         },
-    },
-    {
-        name: 'jstall_run',
-        description:
-            'Run any jstall command on a local JVM. ' +
-            'Call jstall_help first if unsure which command or flags to use.',
-        inputSchema: {
-            type: 'object',
-            properties: {
-                args: {
-                    type: 'array',
-                    items: { type: 'string' },
-                    description: 'jstall arguments, e.g. ["status", "--intelligent-filter", "--no-native", "12345"]',
+        {
+            name: 'jstall_run',
+            description:
+                'Run any jstall command on a local JVM. ' +
+                'Call jstall_help first if unsure which command or flags to use.' +
+                cmdList,
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    args: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'jstall arguments, e.g. ["status", "--intelligent-filter", "--no-native", "12345"]',
+                    },
                 },
+                required: ['args'],
             },
-            required: ['args'],
         },
-    },
-    {
-        name: 'jstall_remote',
-        description:
-            'Run any jstall command on a remote JVM via SSH or Cloud Foundry. ' +
-            'Use command=["list"] first to discover PIDs on the remote host, then diagnose with ' +
-            'command=["status", "--intelligent-filter", "--no-native", "<pid>"] etc. ' +
-            'jstall must be available on the remote host (in PATH or via jbang).',
-        inputSchema: {
-            type: 'object',
-            properties: {
-                type: {
-                    type: 'string',
-                    enum: ['ssh', 'cf'],
-                    description: '"ssh" for SSH, "cf" for Cloud Foundry.',
+        {
+            name: 'jstall_remote',
+            description:
+                'Run any jstall command on a remote JVM via SSH or Cloud Foundry. ' +
+                'Use args=["list"] first to discover PIDs on the remote host, then diagnose with ' +
+                'args=["status", "--intelligent-filter", "--no-native", "<pid>"] etc. ' +
+                'jstall must be available on the remote host (in PATH or via jbang).' +
+                cmdList,
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    type: {
+                        type: 'string',
+                        enum: ['ssh', 'cf'],
+                        description: '"ssh" for SSH, "cf" for Cloud Foundry.',
+                    },
+                    target: {
+                        type: 'string',
+                        description: 'SSH: "user@hostname". CF: application name.',
+                    },
+                    args: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'jstall arguments, same as jstall_run.',
+                    },
                 },
-                target: {
-                    type: 'string',
-                    description: 'SSH: "user@hostname". CF: application name.',
-                },
-                args: {
-                    type: 'array',
-                    items: { type: 'string' },
-                    description: 'jstall arguments, same as jstall_run.',
-                },
+                required: ['type', 'target', 'args'],
             },
-            required: ['type', 'target', 'args'],
         },
-    },
-] as const;
+    ] as const;
+}
+
+// Discover commands at startup; fall back to an empty list if jstall is unavailable.
+const commands = await discoverCommands();
+export const TOOLS = buildTools(commands);
 
 // ── Request handlers ──────────────────────────────────────────────
 
