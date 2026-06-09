@@ -17,6 +17,13 @@ The simplest way if you don't have jstall installed yet:
 claude mcp add jstall -- npx -y @bechberger/jstall-mcp@latest
 ```
 
+If you already have jstall installed, two hidden helper commands are also available:
+
+```bash
+jstall install-claude-mcp    # writes the MCP entry to ~/.claude/settings.json
+jstall install-claude-skill  # symlinks the skill into ~/.claude/skills/jstall/
+```
+
 Then restart Claude Code and you're ready to go.
 
 ## Quick install (GitHub Copilot in VS Code)
@@ -123,6 +130,12 @@ Install the skill to give Claude a built-in triage decision tree and scenario ru
 
 ```bash
 ln -s "$(npm root -g)/@bechberger/jstall-mcp/skills/jstall" ~/.claude/skills/jstall
+```
+
+Or if you have jstall installed, use the hidden helper command:
+
+```bash
+jstall install-claude-skill
 ```
 
 Or from a local clone:
