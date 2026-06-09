@@ -30,7 +30,7 @@ Requires Java 17+ to run.
 You can use the `jstall` CLI tool directly, or through the
 [IntelliJ plugin](https://plugins.jetbrains.com/plugin/30667-jstall),
 [VSCode extension](https://marketplace.visualstudio.com/items?itemName=bechberger.jstall),
-or [Claude Code MCP server](#use-with-claude-code-mcp) (with skill support).
+or [Claude Code / GitHub Copilot MCP server](#use-with-claude-code-mcp) (with skill support).
 
 ## Installation
 
@@ -308,16 +308,21 @@ at com.example.Service.processRequest(Service.java:78)
 
 ---
 
-## Use with Claude Code (MCP)
+## Use with Claude Code / GitHub Copilot (MCP)
 
-jstall ships an [MCP server](mcp/) that lets Claude Code inspect running JVMs directly.
-Install it in one command:
+jstall ships an [MCP server](mcp/) that lets Claude Code and GitHub Copilot inspect running JVMs directly.
 
+**Claude Code:**
 ```bash
 claude mcp add jstall -- npx -y @bechberger/jstall-mcp@latest
 ```
 
-Restart Claude Code, then ask things like:
+**GitHub Copilot (VS Code):**
+```bash
+code --add-mcp '{"name":"jstall","command":"npx","args":["-y","@bechberger/jstall-mcp@latest"]}'
+```
+
+Restart Claude Code or reload the VS Code window, then ask things like:
 
 - *"What is my Java application doing right now?"*
 - *"Is there a deadlock in PID 12345?"*

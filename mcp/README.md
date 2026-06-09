@@ -26,6 +26,14 @@ jstall install-claude-skill  # installs the Claude Code skill to ~/.claude/skill
 
 Then restart Claude Code and you're ready to go.
 
+## Quick install (GitHub Copilot in VS Code)
+
+```bash
+code --add-mcp '{"name":"jstall","command":"npx","args":["-y","@bechberger/jstall-mcp@latest"]}'
+```
+
+Then reload the VS Code window. The jstall tools will be available in Copilot Chat.
+
 ## Manual installation
 
 Add to `~/.claude/settings.json` (Claude Code) or your Claude Desktop MCP config:
