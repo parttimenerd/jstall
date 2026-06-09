@@ -340,12 +340,6 @@ A skill is bundled with the MCP package and teaches Claude the investigation wor
 ln -s "$(npm root -g)/@bechberger/jstall-mcp/skills/jstall" ~/.claude/skills/jstall
 ```
 
-Or if you used `npx`, install the jstall CLI and run:
-
-```bash
-jstall install-claude-skill
-```
-
 See the [MCP README](mcp/README.md) for full documentation including remote JVM usage,
 flamegraph generation, and offline recording analysis.
 
