@@ -1,5 +1,7 @@
 package me.bechberger.jstall.cli.live;
 
+import me.bechberger.jstall.util.render.AnsiCodes;
+
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 
@@ -8,14 +10,6 @@ import java.nio.charset.StandardCharsets;
  * Uses stty for raw mode, /dev/tty for input, ANSI sequences for rendering.
  */
 public class RawTerminal implements AutoCloseable {
-
-    private static final String ALT_SCREEN_ON = "\033[?1049h";
-    private static final String ALT_SCREEN_OFF = "\033[?1049l";
-    private static final String CURSOR_HIDE = "\033[?25l";
-    private static final String CURSOR_SHOW = "\033[?25h";
-    private static final String CURSOR_HOME = "\033[H";
-    private static final String CLEAR_LINE = "\033[K";
-    private static final String CLEAR_BELOW = "\033[J";
 
     private String savedSttySettings;
     private FileInputStream ttyInput;
@@ -43,7 +37,7 @@ public class RawTerminal implements AutoCloseable {
         rawMode = true;
 
         // Switch to alternate screen buffer and hide cursor
-        out.print(ALT_SCREEN_ON + CURSOR_HIDE);
+        out.print(AnsiCodes.ALT_SCREEN_ON + AnsiCodes.CURSOR_HIDE);
         out.flush();
 
         // Detect initial terminal size
@@ -182,21 +176,21 @@ public class RawTerminal implements AutoCloseable {
      * Moves cursor to home position.
      */
     public void cursorHome() {
-        out.print(CURSOR_HOME);
+        out.print(AnsiCodes.CURSOR_HOME);
     }
 
     /**
      * Clears from cursor to end of line.
      */
     public void clearLine() {
-        out.print(CLEAR_LINE);
+        out.print(AnsiCodes.CLEAR_LINE);
     }
 
     /**
      * Clears from cursor to end of screen.
      */
     public void clearBelow() {
-        out.print(CLEAR_BELOW);
+        out.print(AnsiCodes.CLEAR_BELOW);
     }
 
     /**
@@ -208,7 +202,7 @@ public class RawTerminal implements AutoCloseable {
         if (visibleLen > termCols) {
             text = truncateVisible(text, termCols - 1) + "…";
         }
-        out.print(text + CLEAR_LINE + "\n");
+        out.print(text + AnsiCodes.CLEAR_LINE + "\n");
     }
 
     /**
@@ -285,7 +279,7 @@ public class RawTerminal implements AutoCloseable {
     public void close() {
         if (rawMode) {
             // Restore terminal
-            out.print(CURSOR_SHOW + ALT_SCREEN_OFF);
+            out.print(AnsiCodes.CURSOR_SHOW + AnsiCodes.ALT_SCREEN_OFF);
             out.flush();
             if (savedSttySettings != null) {
                 try {

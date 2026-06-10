@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -35,12 +36,23 @@ public class OpenAiLlmProvider implements LlmProvider {
 
     private final URI baseUri;
     private final HttpClient httpClient;
+    private boolean enableThinking = false;
 
     public OpenAiLlmProvider(String host) {
         this.baseUri = URI.create(host.endsWith("/") ? host.substring(0, host.length() - 1) : host);
         this.httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(30))
             .build();
+    }
+
+    /**
+     * When true, requests the model to emit chain-of-thought reasoning tokens.
+     * When false (default), injects chat_template_kwargs={"enable_thinking":false}
+     * to suppress reasoning on models like Qwen3 that support it, cutting response
+     * time roughly in half.
+     */
+    public void setEnableThinking(boolean enableThinking) {
+        this.enableThinking = enableThinking;
     }
 
     @Override
@@ -160,6 +172,9 @@ public class OpenAiLlmProvider implements LlmProvider {
         root.put("model", model);
         root.put("messages", msgs);
         root.put("stream", stream);
+        // Cap output length for local models to bound generation time.
+        // 600 tokens ≈ ~450 words, enough for a thorough analysis.
+        root.put("max_tokens", 600);
 
         if (tools != null && !tools.isEmpty()) {
             List<Object> toolSchemas = new ArrayList<>();
@@ -168,6 +183,11 @@ public class OpenAiLlmProvider implements LlmProvider {
             }
             root.put("tools", toolSchemas);
         }
+
+        // Suppress chain-of-thought on Qwen3-family models unless --think is set.
+        // chat_template_kwargs is a llama-server extension; other OpenAI-compatible
+        // servers ignore unknown fields, so this is safe to send unconditionally.
+        root.put("chat_template_kwargs", Map.of("enable_thinking", enableThinking));
 
         return root;
     }
@@ -202,6 +222,91 @@ public class OpenAiLlmProvider implements LlmProvider {
         public boolean hasToolCalls() {
             return toolCalls != null && !toolCalls.isEmpty();
         }
+    }
+
+    /**
+     * Streaming variant of {@link #chatWithTools}: sends {@code stream:true} alongside tools.
+     * Content delta tokens emitted before the tool-call decision (model "thinking out loud")
+     * are forwarded to {@code verboseHandler} so the user sees progress instead of silence.
+     * Accumulates tool-call JSON fragments from the SSE stream and returns a complete
+     * {@link ChatResponse} once the stream ends.
+     *
+     * @param verboseHandler Optional consumer for pre-tool content tokens. Pass null to suppress.
+     */
+    public ChatResponse chatWithToolsStreaming(String model,
+                                               List<LlmProvider.Message> messages,
+                                               List<ToolDefinition> tools,
+                                               Consumer<String> verboseHandler)
+            throws IOException, LlmProvider.LlmException {
+
+        Map<String, Object> body = buildRequestBody(model, messages, true, tools);
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(baseUri.resolve("/v1/chat/completions"))
+            .timeout(Duration.ofMinutes(20))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(PrettyPrinter.compactPrint(body)))
+            .build();
+
+        HttpResponse<java.io.InputStream> response = sendWithRetry(request,
+            HttpResponse.BodyHandlers.ofInputStream());
+
+        Map<Integer, String> tcIds   = new LinkedHashMap<>();
+        Map<Integer, String> tcNames = new LinkedHashMap<>();
+        Map<Integer, StringBuilder> tcArgs = new LinkedHashMap<>();
+        StringBuilder contentBuf = new StringBuilder();
+
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(response.body(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty() || !line.startsWith("data: ")) continue;
+                String data = line.substring(6).trim();
+                if ("[DONE]".equals(data)) break;
+                Map<String, Object> obj;
+                try { obj = Util.asMap(JSONParser.parse(data)); } catch (Exception e) { continue; }
+                String token = extractDeltaContent(obj);
+                if (token != null && !token.isEmpty()) {
+                    contentBuf.append(token);
+                }
+                accumulateDeltaToolCalls(obj, tcIds, tcNames, tcArgs);
+            }
+        }
+
+        if (tcNames.isEmpty()) {
+            // Direct answer — caller's responseHandler will stream it; don't also send to verboseHandler
+            return new ChatResponse(contentBuf.isEmpty() ? null : contentBuf.toString(), List.of(), null);
+        }
+
+        // Pre-tool reasoning content — send to verboseHandler before announcing tool calls
+        if (verboseHandler != null && !contentBuf.isEmpty()) {
+            verboseHandler.accept(contentBuf.toString());
+            // Ensure next stderr line ([tool] ...) starts on a new line
+            System.err.println();
+        }
+
+        List<ToolCall> toolCalls = new ArrayList<>();
+        List<Map<String, Object>> rawList = new ArrayList<>();
+        for (Integer index : tcNames.keySet()) {
+            String id       = tcIds.getOrDefault(index, "call_" + index);
+            String name     = tcNames.get(index);
+            String argsJson = tcArgs.containsKey(index) ? tcArgs.get(index).toString() : "{}";
+            Map<String, Object> args = Map.of();
+            try {
+                Object parsed = JSONParser.parse(argsJson);
+                if (parsed instanceof Map<?, ?>) args = Util.asMap(parsed);
+            } catch (Exception ignored) {}
+            toolCalls.add(new ToolCall(id, name, args));
+            Map<String, Object> fnMap = new LinkedHashMap<>();
+            fnMap.put("name", name);
+            fnMap.put("arguments", argsJson);
+            Map<String, Object> tcMap = new LinkedHashMap<>();
+            tcMap.put("id", id);
+            tcMap.put("type", "function");
+            tcMap.put("function", fnMap);
+            rawList.add(tcMap);
+        }
+        return new ChatResponse(contentBuf.isEmpty() ? null : contentBuf.toString(), toolCalls, rawList);
     }
 
     @SuppressWarnings("unchecked")
@@ -280,6 +385,29 @@ public class OpenAiLlmProvider implements LlmProvider {
             return reasoning;
         }
         return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void accumulateDeltaToolCalls(Map<String, Object> obj,
+                                           Map<Integer, String> ids,
+                                           Map<Integer, String> names,
+                                           Map<Integer, StringBuilder> args) {
+        if (!(obj.get("choices") instanceof List<?> choices) || choices.isEmpty()) return;
+        Map<String, Object> choice = Util.asMap(choices.get(0));
+        if (!(choice.get("delta") instanceof Map<?, ?>)) return;
+        Map<String, Object> delta = Util.asMap(choice.get("delta"));
+        if (!(delta.get("tool_calls") instanceof List<?> toolCallDeltas)) return;
+        for (Object tcObj : toolCallDeltas) {
+            Map<String, Object> tc = Util.asMap(tcObj);
+            int index = tc.get("index") instanceof Number n ? n.intValue() : 0;
+            if (tc.get("id") instanceof String id) ids.put(index, id);
+            if (tc.get("function") instanceof Map<?, ?>) {
+                Map<String, Object> fn = Util.asMap(tc.get("function"));
+                if (fn.get("name") instanceof String n) names.put(index, n);
+                if (fn.get("arguments") instanceof String frag)
+                    args.computeIfAbsent(index, k -> new StringBuilder()).append(frag);
+            }
+        }
     }
 
     private LlmProvider.LlmException toLlmException(int statusCode, String body) {
@@ -372,17 +500,75 @@ public class OpenAiLlmProvider implements LlmProvider {
             throws IOException, LlmProvider.LlmException {
 
         List<LlmProvider.Message> conversation = new ArrayList<>(messages);
+        String result = chatWithToolLoop(model, conversation, tools, executor, handlers, maxIterations, true);
+        return result;
+    }
 
+    /**
+     * Tool-calling loop that mutates the supplied {@code conversation} list in place,
+     * so callers (e.g. the chat REPL) can maintain full history across turns.
+     *
+     * @param conversation Mutable message list; grows with assistant + tool messages.
+     * @param appendFinalAssistant If true, appends the final assistant reply to the list.
+     * @return The final text response
+     */
+    public String chatWithToolLoop(String model, List<LlmProvider.Message> conversation,
+                                    List<ToolDefinition> tools, ToolExecutor executor,
+                                    StreamHandlers handlers, int maxIterations,
+                                    boolean appendFinalAssistant)
+            throws IOException, LlmProvider.LlmException {
+        return chatWithToolLoop(model, conversation, tools, executor, handlers, maxIterations,
+            appendFinalAssistant, null);
+    }
+
+    /**
+     * Tool-calling loop with optional verbose handler for streaming pre-tool reasoning tokens.
+     *
+     * <p>After the first iteration the tool definitions are omitted from subsequent requests —
+     * the model already has the schemas in its assistant messages, so resending them wastes
+     * ~2400 tokens per round. {@code buildRequestBody} already handles {@code tools=null}
+     * correctly (does not emit the {@code "tools"} key).
+     *
+     * @param verboseHandler If non-null, content tokens emitted before tool decisions are
+     *                       forwarded here so the user sees "thinking out loud" on stderr.
+     */
+    public String chatWithToolLoop(String model, List<LlmProvider.Message> conversation,
+                                    List<ToolDefinition> tools, ToolExecutor executor,
+                                    StreamHandlers handlers, int maxIterations,
+                                    boolean appendFinalAssistant,
+                                    Consumer<String> verboseHandler)
+            throws IOException, LlmProvider.LlmException {
+
+        boolean toolsLoaded = false;
         for (int iteration = 0; iteration < maxIterations; iteration++) {
-            ChatResponse response = chatWithTools(model, conversation, tools);
+            // After the first round the model has seen tool schemas in its own assistant messages;
+            // resending the full tool definitions costs ~2400 tokens per iteration for no benefit.
+            List<ToolDefinition> iterationTools = toolsLoaded ? null : tools;
+            ChatResponse response = verboseHandler != null
+                ? chatWithToolsStreaming(model, conversation, iterationTools, verboseHandler)
+                : chatWithTools(model, conversation, iterationTools);
+            toolsLoaded = true;
 
             if (!response.hasToolCalls()) {
-                // Final response — stream it to handlers
-                String content = response.content() != null ? response.content() : "";
-                if (handlers != null && handlers.responseHandler() != null && !content.isEmpty()) {
-                    handlers.responseHandler().accept(content);
+                // Final response — stream it for real-time output
+                if (response.content() != null && !response.content().isEmpty()) {
+                    if (handlers != null && handlers.responseHandler() != null) {
+                        handlers.responseHandler().accept(response.content());
+                    }
+                    if (appendFinalAssistant) {
+                        conversation.add(new LlmProvider.Message("assistant", response.content()));
+                    }
+                    return response.content();
                 }
-                return content;
+                // Content was null/empty — use streaming for the final answer.
+                // Compact tool exchanges into a single context message to reduce token count.
+                List<LlmProvider.Message> compacted = compactForFinalAnswer(conversation);
+                String streamed = chat(model, compacted, handlers);
+                if (appendFinalAssistant && !streamed.isEmpty()) {
+                    // Append to original conversation (not the compacted view)
+                    conversation.add(new LlmProvider.Message("assistant", streamed));
+                }
+                return streamed;
             }
 
             // Model wants to call tools
@@ -390,19 +576,140 @@ public class OpenAiLlmProvider implements LlmProvider {
 
             // Execute each tool call and add results
             for (ToolCall call : response.toolCalls()) {
-                System.err.println("  [tool " + (iteration + 1) + "/" + maxIterations + "] "
-                    + call.name() + "(" + formatArgs(call.arguments()) + ")");
+                System.err.println("  [tool] " + call.name() + "(" + formatArgs(call.arguments()) + ")");
                 String result = executor.execute(call);
                 if (result.length() > 8000) {
                     result = result.substring(0, 8000) + "\n... (truncated to 8000 chars)";
                 }
                 conversation.add(LlmProvider.Message.toolResult(call.id(), result));
             }
+
+            // After the first round, compact old tool exchanges to keep context lean.
+            // Keep the 2 most recent tool exchanges; summarize earlier ones.
+            if (iteration >= 2) {
+                compactIntermediateHistory(conversation);
+            }
         }
 
-        // Exceeded max iterations — stream the final response without tools
-        System.err.println("  [tools] Generating final answer...");
-        return chat(model, conversation, handlers);
+        // Exceeded max iterations — stream the final response, compacting tool history
+        System.err.println("  [tools] Max iterations reached, generating final answer...");
+        List<LlmProvider.Message> compacted = compactForFinalAnswer(conversation);
+        String finalContent = chat(model, compacted, handlers);
+        if (appendFinalAssistant && !finalContent.isEmpty()) {
+            conversation.add(new LlmProvider.Message("assistant", finalContent));
+        }
+        return finalContent;
+    }
+
+    /**
+     * In-place compaction of old tool exchanges during the tool loop.
+     * Keeps the last 2 assistant+tool pairs intact; replaces earlier ones with
+     * a summarized user message to cap context growth.
+     */
+    private static void compactIntermediateHistory(List<LlmProvider.Message> conversation) {
+        // Find all tool-exchange segments: each is (assistant-with-tool-calls, tool-result+)
+        // We keep the last 2 full segments and collapse everything before that
+        List<Integer> segmentStarts = new ArrayList<>(); // index of each assistant-with-tool-calls message
+        for (int i = 0; i < conversation.size(); i++) {
+            LlmProvider.Message m = conversation.get(i);
+            if ("assistant".equals(m.role()) && m.toolCalls() != null) {
+                segmentStarts.add(i);
+            }
+        }
+        if (segmentStarts.size() <= 2) return; // not enough to compact
+
+        // Collapse everything from the first tool segment to the start of (size-2)-th segment
+        int keepFrom = segmentStarts.get(segmentStarts.size() - 2);
+        int collapseFrom = segmentStarts.get(0);
+
+        // Build summary from tool results in [collapseFrom, keepFrom)
+        StringBuilder summary = new StringBuilder("\n\nPrevious tool findings (summarized):\n");
+        for (int i = collapseFrom; i < keepFrom; i++) {
+            LlmProvider.Message m = conversation.get(i);
+            if ("tool".equals(m.role()) && m.content() != null && !m.content().isBlank()) {
+                String content = m.content();
+                if (content.length() > 1000) content = content.substring(0, 1000) + "...";
+                summary.append("- ").append(content.lines().findFirst().orElse("")).append("\n");
+            }
+        }
+
+        // Replace [collapseFrom, keepFrom) with a single user summary message
+        List<LlmProvider.Message> remaining = new ArrayList<>(conversation.subList(keepFrom, conversation.size()));
+        conversation.subList(collapseFrom, conversation.size()).clear();
+
+        // Append summary to last user message before collapseFrom (if any)
+        for (int i = conversation.size() - 1; i >= 0; i--) {
+            if ("user".equals(conversation.get(i).role()) && conversation.get(i).toolCalls() == null) {
+                LlmProvider.Message old = conversation.get(i);
+                conversation.set(i, new LlmProvider.Message("user", old.content() + summary));
+                break;
+            }
+        }
+        conversation.addAll(remaining);
+    }
+
+    /**
+     * call/result exchanges with a single summarized user message.
+     *
+     * <p>This reduces token count significantly: tool definitions (hundreds of tokens)
+     * are dropped, and repeated tool exchanges are collapsed into a short summary.
+     * The system prompt and original user question are preserved verbatim.
+     */
+    private static List<LlmProvider.Message> compactForFinalAnswer(List<LlmProvider.Message> conversation) {
+        // Find tool exchanges: messages after the first user message with role assistant/tool
+        List<LlmProvider.Message> system = new ArrayList<>();
+        List<LlmProvider.Message> beforeTools = new ArrayList<>();
+        List<LlmProvider.Message> toolExchanges = new ArrayList<>();
+
+        boolean pastFirstUser = false;
+        boolean inToolPhase = false;
+        for (LlmProvider.Message m : conversation) {
+            if (!pastFirstUser) {
+                if ("user".equals(m.role())) {
+                    pastFirstUser = true;
+                    beforeTools.add(m);
+                } else {
+                    system.add(m);
+                }
+            } else if (!inToolPhase) {
+                if (m.toolCalls() != null || "tool".equals(m.role())) {
+                    inToolPhase = true;
+                    toolExchanges.add(m);
+                } else {
+                    beforeTools.add(m);
+                }
+            } else {
+                toolExchanges.add(m);
+            }
+        }
+
+        if (toolExchanges.isEmpty()) {
+            return conversation; // no tool calls — nothing to compact
+        }
+
+        // Build a summary of what the tools found
+        StringBuilder summary = new StringBuilder();
+        summary.append("\n\nAdditional data collected via tools:\n");
+        for (LlmProvider.Message m : toolExchanges) {
+            if ("tool".equals(m.role()) && m.content() != null && !m.content().isBlank()) {
+                String content = m.content();
+                if (content.length() > 2000) content = content.substring(0, 2000) + "\n...(truncated)";
+                summary.append("\n---\n").append(content);
+            }
+        }
+
+        // Merge the summary into the user message
+        List<LlmProvider.Message> result = new ArrayList<>(system);
+        for (int i = 0; i < beforeTools.size(); i++) {
+            LlmProvider.Message m = beforeTools.get(i);
+            if (i == beforeTools.size() - 1 && "user".equals(m.role())) {
+                // Append tool summary to the last user message
+                result.add(new LlmProvider.Message("user", m.content() + summary));
+            } else {
+                result.add(m);
+            }
+        }
+        return result;
     }
 
     private static String formatArgs(Map<String, Object> args) {

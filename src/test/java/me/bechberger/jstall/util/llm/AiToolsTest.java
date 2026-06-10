@@ -1004,4 +1004,38 @@ class AiToolsTest {
         assertThat(result).contains("worker-1");
         assertThat(result).contains("lock-holder");
     }
+
+    @Test
+    void testGetThreadsByStateBlockedReturnsWorker1() {
+        AiTools tools = new AiTools(createTestData());
+        ToolExecutor executor = tools.createExecutor();
+
+        String result = executor.execute(new ToolCall("1", "get_threads_by_state",
+            Map.of("state", "BLOCKED")));
+
+        assertThat(result).contains("worker-1");
+        assertThat(result).contains("1 thread(s) in state BLOCKED");
+    }
+
+    @Test
+    void testGetThreadsByStateInvalidStateReturnsError() {
+        AiTools tools = new AiTools(createTestData());
+        ToolExecutor executor = tools.createExecutor();
+
+        String result = executor.execute(new ToolCall("1", "get_threads_by_state",
+            Map.of("state", "NONSENSE")));
+
+        assertThat(result).contains("Unknown thread state");
+    }
+
+    @Test
+    void testGetThreadsByStateNoneFoundReturnsMessage() {
+        AiTools tools = new AiTools(createTestData());
+        ToolExecutor executor = tools.createExecutor();
+
+        String result = executor.execute(new ToolCall("1", "get_threads_by_state",
+            Map.of("state", "TERMINATED")));
+
+        assertThat(result).contains("No threads in state TERMINATED");
+    }
 }

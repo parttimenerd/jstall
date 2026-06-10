@@ -546,4 +546,48 @@ class OpenAiLlmProviderTest {
             server.stop(0);
         }
     }
+
+    @Test
+    void testChatWithToolsStreamingAccumulatesToolCalls() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        int port = server.getAddress().getPort();
+
+        server.createContext("/v1/chat/completions", exchange -> {
+            // SSE stream: a content token before a streamed tool call
+            String sseResponse =
+                "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\",\"content\":null}}]}\n\n" +
+                "data: {\"choices\":[{\"delta\":{\"content\":\"Checking lock contention...\"}}]}\n\n" +
+                "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\"," +
+                    "\"type\":\"function\",\"function\":{\"name\":\"get_lock_info\",\"arguments\":\"\"}}]}}]}\n\n" +
+                "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0," +
+                    "\"function\":{\"arguments\":\"{}\"}}]}}]}\n\n" +
+                "data: {\"choices\":[{\"finish_reason\":\"tool_calls\"}]}\n\n" +
+                "data: [DONE]\n\n";
+            exchange.getResponseHeaders().set("Content-Type", "text/event-stream");
+            byte[] body = sseResponse.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.getResponseBody().close();
+        });
+        server.start();
+
+        try {
+            OpenAiLlmProvider provider = new OpenAiLlmProvider("http://127.0.0.1:" + port);
+            StringBuilder verbose = new StringBuilder();
+
+            OpenAiLlmProvider.ChatResponse response = provider.chatWithToolsStreaming(
+                "test-model",
+                List.of(new LlmProvider.Message("user", "analyze")),
+                List.of(),
+                verbose::append);
+
+            assertThat(response.hasToolCalls()).isTrue();
+            assertThat(response.toolCalls()).hasSize(1);
+            assertThat(response.toolCalls().get(0).name()).isEqualTo("get_lock_info");
+            assertThat(response.toolCalls().get(0).id()).isEqualTo("call_1");
+            assertThat(verbose.toString()).isEqualTo("Checking lock contention...");
+        } finally {
+            server.stop(0);
+        }
+    }
 }

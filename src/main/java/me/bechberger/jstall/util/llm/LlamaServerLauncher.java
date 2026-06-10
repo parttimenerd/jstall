@@ -99,6 +99,11 @@ public final class LlamaServerLauncher {
             cmd.add("-hf");
             cmd.add(hfModel);
         }
+        cmd.add("-ngl");
+        cmd.add("99"); // offload all layers to GPU
+        // Start with thinking enabled; jstall suppresses it per-request via chat_template_kwargs.
+        cmd.add("--chat-template-kwargs");
+        cmd.add("{\"enable_thinking\":true}");
 
         // Inherit HF_HOME / HF_HUB_CACHE so model downloads are cached
         ProcessBuilder pb = new ProcessBuilder(cmd);

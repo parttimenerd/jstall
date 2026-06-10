@@ -12,6 +12,8 @@ import me.bechberger.jstall.util.llm.LlmProviderFactory;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -21,59 +23,89 @@ import java.util.Map;
 @Command(
     name = "ai",
     description = "AI-powered thread dump analysis using LLM",
-    hidden = true,
     subcommands = {
-        AiFullCommand.class
+        AiFullCommand.class,
+        AiChatCommand.class
     }
 )
 public class AiCommand extends BaseAnalyzerCommand {
 
-    @Option(names = "--local", description = "Use local OpenAI-compatible provider (overrides config)")
-    private boolean useLocal;
+    @Option(names = {"-p", "--provider"},
+        description = "LLM provider: auto (default, from config), local, remote",
+        defaultValue = "auto")
+    private String provider = "auto";
 
-    @Option(names = "--remote", description = "Use remote Gardener AI provider (overrides config)")
-    private boolean useRemote;
-
-    @Option(names = "--model", description = "LLM model to use (default from config or provider default)")
+    @Option(names = {"-m", "--model"},
+        description = "LLM model to use (default from config or provider default)")
     private String model;
 
-    @Option(names = "--question", description = "Custom question to ask (use '-' to read from stdin)")
+    @Option(names = {"-q", "--question"},
+        description = "Custom question to ask. If omitted and stdin is piped, the piped text is used as the question")
     private String question;
 
     @Option(names = "--raw", description = "Output raw JSON response")
-    private boolean raw = false;
+    private boolean raw;
 
-    // Status options
-    @Option(names = "--top", description = "Number of top threads (default: ${DEFAULT-VALUE})")
+    @Option(names = "--top",
+        description = "Number of top threads",
+        defaultValue = "3")
     private int top = 3;
 
     @Option(names = "--no-native", description = "Ignore threads without stack traces")
-    private boolean noNative = false;
+    private boolean noNative;
 
-    @Option(names = "--stack-depth", description = "Stack trace depth (default: ${DEFAULT-VALUE}, 0=all)")
+    @Option(names = "--stack-depth",
+        description = "Stack trace depth (0=all)",
+        defaultValue = "10")
     private int stackDepth = 10;
 
-    @Option(names = "--dry-run", description = "Perform a dry run without calling the AI API")
+    @Option(names = "--dry-run", description = "Print the full prompt without calling the AI API")
     private boolean dryRun;
 
     @Option(names = "--short", description = "Create a succinct summary of the analysis")
     private boolean shortMode;
 
-    @Option(names = "--think", description = "Show thinking/reasoning tokens (local provider only)")
-    private boolean showThinking;
+    @Option(names = "--reasoning",
+        description = "Show the model's pre-tool reasoning and <think> blocks (local provider only)")
+    private boolean reasoning;
 
-    @Option(names = "--no-tools", description = "Disable automatic tool calling")
-    private boolean noTools;
+    @Option(names = "--tools",
+        description = "Enable LLM tool calling: on (default), off",
+        defaultValue = "on")
+    private String tools = "on";
+
+    @Option(names = "--src",
+        description = "Project source root for AI file exploration. Auto-detected from git if omitted; pass an empty string to disable")
+    private String src;
+
+    @Option(names = "--no-pretty", description = "Disable markdown rendering (default: on when connected to a terminal)")
+    private boolean noPretty;
+
+    @Option(names = "--allow-mutations",
+        description = "Allow AI to invoke side-effecting commands (flame, record create) with confirmation")
+    private boolean allowMutations;
+
+    @Option(names = "--quiet",
+        description = "Suppress progress output (progress is on by default when connected to a terminal)")
+    private boolean quiet;
+
+    @Option(names = "--save",
+        description = "Save the final analysis to a file")
+    private String saveTo;
 
     private Analyzer analyzer;
 
     @Override
     protected Analyzer getAnalyzer() {
         if (analyzer == null) {
+            // Validate tri-state options up-front, before initializing the provider
+            // (which may launch a local llama-server — bad UX on a typo).
+            validateToolsOption(tools);
             try {
-                LlmProviderFactory.Selection selection = LlmProviderFactory.create(useLocal, useRemote, model);
-                LlmProvider llmProvider = selection.provider();
-                model = selection.model();
+                ProviderResolver.ResolvedProvider resolved =
+                    ProviderResolver.resolve(provider, model);
+                LlmProvider llmProvider = resolved.provider();
+                model = resolved.model();
                 analyzer = new AiAnalyzer(llmProvider, spec.getParent(Main.class).executor());
             } catch (AiConfig.ConfigNotFoundException | IllegalArgumentException e) {
                 System.err.println("Error: " + e.getMessage());
@@ -82,6 +114,17 @@ public class AiCommand extends BaseAnalyzerCommand {
             }
         }
         return analyzer;
+    }
+
+    static void validateToolsOption(String tools) {
+        if (tools == null) return;
+        switch (tools.toLowerCase()) {
+            case "on", "off" -> {}
+            default -> {
+                System.err.println("Error: --tools must be one of: on, off (got '" + tools + "')");
+                System.exit(2);
+            }
+        }
     }
 
     @Override
@@ -93,31 +136,43 @@ public class AiCommand extends BaseAnalyzerCommand {
         options.put("raw", raw);
         options.put("dry-run", dryRun);
         options.put("short", shortMode);
-        options.put("think", showThinking);
-        if (noTools) {
-            options.put("no-tools", true);
+        options.put("think", reasoning);
+
+        // Translate --tools on|off into the analyzer's no-tools/tools flags.
+        // (already validated in getAnalyzer)
+        switch (tools.toLowerCase()) {
+            case "off" -> options.put("no-tools", true);
+            case "on" -> options.put("tools", true);
         }
 
-        // Handle question (with stdin support)
-        if (question != null) {
-            if ("-".equals(question)) {
-                // Read from stdin
-                try {
-                    BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(System.in));
-                    StringBuilder sb = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        sb.append(line).append("\n");
-                    }
-                    options.put("question", sb.toString().trim());
-                } catch (IOException e) {
-                    System.err.println("Error reading question from stdin: " + e.getMessage());
-                    System.exit(1);
-                }
-            } else {
-                options.put("question", question);
-            }
+        String resolvedSrc = resolveSourceRoot(src);
+        if (resolvedSrc != null) {
+            options.put("source-root", resolvedSrc);
+        }
+        if (noPretty) {
+            options.put("no-pretty", true);
+        }
+        if (allowMutations) {
+            options.put("allow-mutations", true);
+        }
+        // Verbose is on by default for TTY; --quiet flips it off
+        boolean verbose = !quiet && System.console() != null;
+        if (verbose) {
+            options.put("verbose", true);
+        }
+        if (saveTo != null && !saveTo.isBlank()) {
+            options.put("save", saveTo);
+        }
+
+        // Pass the analysis target(s) so tools like run_jstall_command can use the correct PID
+        if (targets != null && !targets.isEmpty()) {
+            options.put("targets", targets);
+        }
+
+        // Question handling: explicit --question takes precedence; otherwise auto-detect piped stdin
+        String resolvedQuestion = resolveQuestion(question);
+        if (resolvedQuestion != null) {
+            options.put("question", resolvedQuestion);
         }
 
         // Status options
@@ -131,5 +186,54 @@ public class AiCommand extends BaseAnalyzerCommand {
         }
 
         return options;
+    }
+
+    /**
+     * Resolves the question: explicit --question wins; otherwise read piped stdin
+     * (only when stdin is not a TTY, so interactive use isn't blocked).
+     */
+    static String resolveQuestion(String questionOpt) {
+        if (questionOpt != null && !questionOpt.equals("-")) {
+            return questionOpt.trim().isEmpty() ? null : questionOpt;
+        }
+        boolean explicitStdin = "-".equals(questionOpt);
+        boolean hasPipedStdin = System.console() == null;
+        if (!explicitStdin && !hasPipedStdin) {
+            return null;
+        }
+        try {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line).append("\n");
+            }
+            String result = sb.toString().trim();
+            return result.isEmpty() ? null : result;
+        } catch (IOException e) {
+            System.err.println("Error reading question from stdin: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Resolves the source root: explicit --src wins (empty string disables);
+     * otherwise auto-detect from `git rev-parse --show-toplevel`.
+     */
+    static String resolveSourceRoot(String srcOpt) {
+        if (srcOpt != null) {
+            return srcOpt.isBlank() ? null : srcOpt;
+        }
+        // Auto-detect from current working directory's git root
+        Path cwd = Path.of(System.getProperty("user.dir", "."));
+        Path candidate = cwd;
+        for (int i = 0; i < 10 && candidate != null; i++) {
+            if (Files.isDirectory(candidate.resolve(".git"))) {
+                return candidate.toString();
+            }
+            candidate = candidate.getParent();
+        }
+        // Fall back to cwd so source tools still work
+        return cwd.toString();
     }
 }

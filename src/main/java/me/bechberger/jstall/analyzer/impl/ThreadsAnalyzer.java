@@ -64,10 +64,16 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
         // Sort threads using base class method
         List<ThreadActivity> sortedThreads = sortThreadsByCpuTime(threadActivities.values(), topN);
 
-        return AnalyzerResult.ok(buildOutput(sortedThreads, dumps.size(), totalCpuTimeSec, elapsedTimeSec));
+        // Pass all threads for state distribution summary, top-N for the table
+        List<ThreadActivity> allThreads = topN != -1 && threadActivities.size() > topN
+            ? sortThreadsByCpuTime(threadActivities.values(), -1)
+            : sortedThreads;
+
+        return AnalyzerResult.ok(buildOutput(sortedThreads, allThreads, dumps.size(), totalCpuTimeSec, elapsedTimeSec));
     }
 
-    private AnalyzerOutput buildOutput(List<ThreadActivity> threads, int totalDumps, double totalCpuTimeSec, double elapsedTimeSec) {
+    private AnalyzerOutput buildOutput(List<ThreadActivity> threads, List<ThreadActivity> allThreads,
+                                        int totalDumps, double totalCpuTimeSec, double elapsedTimeSec) {
         if (threads.isEmpty()) {
             return new AnalyzerOutput.TextOutput("No threads found");
         }
@@ -84,6 +90,24 @@ public class ThreadsAnalyzer extends BaseAnalyzer {
                 cpuLine.append(String.format(Locale.US, " (%.1f%% total CPU / wall-clock, sums all cores)", overallUtilization));
             }
             preamble.add(cpuLine.toString());
+        }
+
+        // Aggregate state distribution across all threads (not just top-N)
+        Map<Thread.State, Integer> globalStateCounts = new LinkedHashMap<>();
+        for (ThreadActivity a : allThreads) {
+            a.stateCounts.forEach((state, count) ->
+                globalStateCounts.merge(state, 1, Integer::sum)); // count threads, not samples
+        }
+        if (!globalStateCounts.isEmpty()) {
+            // Sort by frequency descending
+            String stateDistLine = globalStateCounts.entrySet().stream()
+                .sorted(Map.Entry.<Thread.State, Integer>comparingByValue().reversed())
+                .map(e -> e.getValue() + " " + e.getKey())
+                .collect(Collectors.joining(", ", "Thread state distribution: ", ""));
+            if (allThreads.size() > threads.size()) {
+                stateDistLine += " (table shows top " + threads.size() + " by CPU)";
+            }
+            preamble.add(stateDistLine);
         }
 
         TableModel.Builder table = TableModel.builder()

@@ -353,16 +353,18 @@ flamegraph generation, and offline recording analysis.
 
 ## AI-Powered Analysis (Experimental)
 
-> **Note:** AI analysis is experimental and hidden from the default CLI help. Commands are available via direct invocation.
+> **Note:** AI analysis is experimental but visible in `jstall --help`. Output structure may still change between releases.
 
 JStall includes an AI command that sends thread dump data to an LLM for natural-language analysis. It supports remote (Gardener) and local (any OpenAI-compatible server) providers.
 
 ```bash
-jstall ai 12345                          # analyze a JVM with default provider
-jstall ai 12345 --local                  # force local provider
-jstall ai 12345 --model gpt-4            # override model
-jstall ai 12345 --question "Is there a deadlock?"
-jstall ai full                           # analyze all JVMs on the system
+jstall ai 12345                                    # analyze a JVM with the configured provider
+jstall ai 12345 --provider local                   # force local provider
+jstall ai 12345 -m gpt-4                           # override model
+jstall ai 12345 -q "Is there a deadlock?"          # ask a specific question
+echo "what's blocking thread main?" | jstall ai 12345   # piped stdin becomes the question
+jstall ai chat 12345                               # initial analysis, then interactive REPL
+jstall ai full                                     # analyze all JVMs on the system
 ```
 
 ### Configuration
@@ -395,24 +397,27 @@ The server is started in the background with the specified model and stopped whe
 
 | Option | Description |
 |--------|-------------|
-| `--local` | Force local OpenAI-compatible provider |
-| `--remote` | Force remote Gardener provider |
-| `--model <name>` | Override LLM model |
-| `--question <q>` | Custom question (use `-` for stdin) |
-| `--think` | Show thinking/reasoning tokens (local provider only) |
+| `-p, --provider <auto\|local\|remote>` | Pick the LLM provider (default: `auto`, from config) |
+| `-m, --model <name>` | Override LLM model |
+| `-q, --question <q>` | Custom question; piped stdin is used automatically when this is omitted |
+| `--tools <on\|off>` | Tool calling (default: `on`; ignored for providers without tool support) |
+| `--src <dir>` | Source root for file-exploration tools (default: auto-detected via `.git`) |
+| `--reasoning` | Show the model's pre-tool reasoning and `<think>` blocks (local provider only) |
 | `--short` | Produce a succinct summary |
 | `--raw` | Output raw JSON response |
-| `--dry-run` | Show prompt without calling AI |
-| `--no-tools` | Disable tool calling (enabled by default for local providers) |
+| `--dry-run` | Show prompt without calling the AI |
+| `--no-pretty` | Disable markdown rendering (default: on when connected to a terminal) |
+| `--quiet` | Suppress progress output (default: shown on a terminal) |
+| `--save <file>` | Write the final analysis to a file |
+| `--allow-mutations` | Let the AI invoke side-effecting commands (flame, record create) with confirmation |
 
 ### Tool Calling (Interactive Analysis)
 
 When using a local OpenAI-compatible provider, tool calling is **enabled by default**. The LLM first receives the `jstall status` summary, then can use tools to dig deeper into specific threads or issues it wants to investigate further.
 
 ```bash
-jstall ai 12345 --local                  # tools enabled automatically
-jstall ai 12345 --local --no-tools       # disable tools, just summarize
-jstall ai 12345 --tools --remote         # explicitly enable tools with remote provider
+jstall ai 12345                          # tools on by default
+jstall ai 12345 --tools off              # summarize only, no tool calls
 ```
 
 Available tools the AI can use:
@@ -426,6 +431,10 @@ Available tools the AI can use:
 - **get_raw_thread_dump_section** — raw dump text for a specific thread
 
 The AI makes up to 5 tool-call rounds before producing its final answer. Progress is shown on stderr (e.g., `[tool 1/5] get_thread_stack_trace(thread_name=main)`).
+
+### Interactive Chat
+
+`jstall ai chat <pid>` collects dumps, runs status analysis, and seeds the conversation with a short 3-5 bullet summary so the REPL prompt appears quickly. The full status data stays in conversation history for follow-up questions, and tool calling is enabled from turn 2 onward — including `run_jstall_command` for fresh dumps and (with per-call y/N confirmation) `flame` and `record create`. Pass `--no-mutations` to disable side-effecting commands. Builtins inside the REPL: `/help`, `/clear`, `/save <file>`, `/exit`. Multi-line input is supported with a trailing `\`. Local provider only.
 
 ---
 

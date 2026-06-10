@@ -11,6 +11,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Helper class for executing diagnostic commands on remote JVM processes via JMX.
@@ -36,7 +42,7 @@ public class JMXDiagnosticHelper {
     private static final String DIAGNOSTIC_COMMAND_MBEAN = "com.sun.management:type=DiagnosticCommand";
 
     private final long pid;
-    private final VirtualMachine vm;
+    private VirtualMachine vm;
     private boolean noMBeanConnection;
     private JMXConnector connector;
     private MBeanServerConnection mbsc;
@@ -60,31 +66,87 @@ public class JMXDiagnosticHelper {
             this.vm = null;
             return;
         }
+        // Skip JMX attach if the target JVM runs on a different major version.
+        // VirtualMachine.attach() uses a version-specific protocol; cross-major-version
+        // attach (e.g. GraalVM 25 → SAP JDK 21) hangs indefinitely waiting for a socket
+        // that never appears. jcmd is a separate binary that handles this transparently.
+        if (!isSameMajorVersion(pid)) {
+            this.noMBeanConnection = true;
+            this.vm = null;
+            return;
+        }
+        // VirtualMachine.attach() can still hang on some JVMs even within the same version.
+        // Run it on a background thread with a 5-second timeout; fall back to jcmd on timeout.
+        ExecutorService attachEx = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "jmx-attach-" + pid);
+            t.setDaemon(true);
+            return t;
+        });
+        VirtualMachine attached = null;
         try {
-            // Attach to the target VM
-            this.vm = VirtualMachine.attach(String.valueOf(pid));
-
+            Future<VirtualMachine> future = attachEx.submit(() -> VirtualMachine.attach(String.valueOf(pid)));
             try {
-                // Start or get the JMX management agent
-                String jmxUrl = vm.startLocalManagementAgent();
-                JMXServiceURL url = new JMXServiceURL(jmxUrl);
-
-                // Connect via JMX
-                this.connector = JMXConnectorFactory.connect(url);
-                this.mbsc = connector.getMBeanServerConnection();
-
-                // Get the DiagnosticCommand MBean
-                this.diagnosticCmd = new ObjectName(DIAGNOSTIC_COMMAND_MBEAN);
-                this.noMBeanConnection = false;
-            } catch (IOException e) {
+                attached = future.get(5, TimeUnit.SECONDS);
+            } catch (TimeoutException e) {
+                // Don't cancel — the native attach thread holds the socket; let it finish
+                // naturally in the background so subsequent jcmd calls aren't blocked.
                 this.noMBeanConnection = true;
+                this.vm = null;
+                return;
+            } catch (ExecutionException e) {
+                Throwable cause = e.getCause();
+                cleanup();
+                throw new IOException("Failed to attach to JVM process " + pid + ": " + cause.getMessage(), cause);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                cleanup();
+                throw new IOException("Interrupted while attaching to JVM process " + pid, e);
             }
+        } finally {
+            attachEx.shutdown(); // don't shutdownNow — let the attach thread finish cleanly
+        }
+        this.vm = attached;
+        try {
+            // Start or get the JMX management agent
+            String jmxUrl = vm.startLocalManagementAgent();
+            JMXServiceURL url = new JMXServiceURL(jmxUrl);
 
+            // Connect via JMX
+            this.connector = JMXConnectorFactory.connect(url);
+            this.mbsc = connector.getMBeanServerConnection();
+
+            // Get the DiagnosticCommand MBean
+            this.diagnosticCmd = new ObjectName(DIAGNOSTIC_COMMAND_MBEAN);
+            this.noMBeanConnection = false;
+        } catch (IOException e) {
+            this.noMBeanConnection = true;
         } catch (Exception e) {
-            // Clean up on failure
             cleanup();
             throw new IOException("Failed to attach to JVM process " + pid + ": " + e.getMessage(), e);
         }
+    }
+
+    /** Returns true if the target JVM's major version matches this JVM's major version. */
+    private static boolean isSameMajorVersion(long pid) {
+        int myMajor = Runtime.version().feature();
+        try {
+            // jcmd VM.version is fast (<100ms) and works cross-version
+            Process p = new ProcessBuilder("jcmd", String.valueOf(pid), "VM.version")
+                .redirectErrorStream(true)
+                .start();
+            String output = new String(p.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            p.waitFor(3, TimeUnit.SECONDS);
+            // Output contains e.g. "JDK 21.0.0" or "OpenJDK ... version 21+35"
+            java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("(?:version|JDK)\\s+(\\d+)[.+]")
+                .matcher(output);
+            if (m.find()) {
+                int targetMajor = Integer.parseInt(m.group(1));
+                return targetMajor == myMajor;
+            }
+        } catch (Exception ignored) {
+        }
+        return false; // unknown — skip attach to be safe
     }
 
     public String executeCommand(String command, String... args) throws IOException {

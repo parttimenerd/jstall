@@ -32,74 +32,71 @@ public class AiTools {
         return List.of(
             new ToolDefinition(
                 "get_thread_stack_trace",
-                "Get the full stack trace of a specific thread by name or partial name match. " +
-                "Use this when you need to see exactly what a thread is doing. " +
-                "Optionally specify a dump index (1-based) to look at a specific dump instead of the latest.",
+                "Get full stack trace of a thread by name. Optionally specify dump index (1-based, default: latest).",
                 List.of(
                     new ToolDefinition.Parameter("thread_name", "string",
-                        "The thread name or substring to search for"),
+                        "Thread name or substring"),
                     new ToolDefinition.Parameter("dump_index", "integer",
-                        "1-based index of the dump to query (default: latest dump)", false)
+                        "Dump index 1-based (default: latest)", false)
                 )
             ),
-
             new ToolDefinition(
                 "search_stack_frames",
-                "Search all thread stack traces for a class or method name. " +
-                "Use this to find which threads are executing code from a specific class or calling a specific method.",
+                "Search all thread stack traces for a class or method name.",
                 List.of(
                     new ToolDefinition.Parameter("pattern", "string",
-                        "Class name, method name, or package to search for in stack frames")
+                        "Class name, method name, or package substring")
                 )
             ),
             new ToolDefinition(
                 "get_lock_info",
-                "Get information about locks: which threads hold locks and which are waiting for them. " +
-                "Use this to investigate potential deadlocks or lock contention.",
+                "Get threads holding locks and threads waiting for them.",
                 List.of()
             ),
             new ToolDefinition(
                 "get_system_properties",
-                "Get JVM system properties (java.version, classpath, VM arguments, etc.). " +
-                "Use this to understand the JVM configuration.",
+                "Get JVM system properties (java.version, classpath, VM args, etc.).",
                 List.of(
                     new ToolDefinition.Parameter("filter", "string",
-                        "Optional substring to filter properties by key", false)
+                        "Optional substring to filter property keys", false)
                 )
             ),
-
             new ToolDefinition(
                 "get_raw_thread_dump_section",
-                "Get a raw section of the thread dump text. Use this when you need to see " +
-                "the original unprocessed output for specific threads.",
+                "Get the raw unprocessed thread dump text for a specific thread.",
                 List.of(
                     new ToolDefinition.Parameter("thread_name", "string",
                         "Thread name to find in the raw dump")
                 )
             ),
-
             new ToolDefinition(
                 "get_top_cpu_threads",
-                "Get the top N threads by CPU time consumption. " +
-                "Use this to quickly identify which threads are using the most CPU.",
+                "Get the top N threads by CPU time.",
                 List.of(
                     new ToolDefinition.Parameter("count", "integer",
-                        "Number of top threads to return (default 10)", false)
+                        "Number of threads to return (default 10)", false)
                 )
             ),
             new ToolDefinition(
                 "get_dependency_tree",
-                "Get the thread dependency tree showing which threads are waiting on locks held by other threads. " +
-                "Use this to understand wait chains and find bottleneck threads.",
+                "Get thread wait chains: which threads wait on locks held by other threads.",
                 List.of()
             ),
             new ToolDefinition(
                 "compare_thread_across_dumps",
-                "Compare a thread's state across multiple dumps to see if it's making progress. " +
-                "Use this to determine if a thread is stuck or just slow.",
+                "Compare a thread's state across all dumps to check if it's stuck or making progress.",
                 List.of(
                     new ToolDefinition.Parameter("thread_name", "string",
-                        "The thread name or substring to track across dumps")
+                        "Thread name or substring")
+                )
+            ),
+            new ToolDefinition(
+                "get_threads_by_state",
+                "Get threads in a given state with their top 3 stack frames (up to 20 threads). " +
+                "States: BLOCKED, WAITING, TIMED_WAITING, RUNNABLE.",
+                List.of(
+                    new ToolDefinition.Parameter("state", "string",
+                        "Thread state: BLOCKED, WAITING, TIMED_WAITING, or RUNNABLE")
                 )
             )
         );
@@ -120,6 +117,7 @@ public class AiTools {
                     case "get_top_cpu_threads" -> getTopCpuThreads(call.getInt("count", 10));
                     case "get_dependency_tree" -> getDependencyTree();
                     case "compare_thread_across_dumps" -> compareThreadAcrossDumps(call.getString("thread_name", ""));
+                    case "get_threads_by_state" -> getThreadsByState(call.getString("state", "BLOCKED"));
                     default -> "Unknown tool: " + call.name();
                 };
             } catch (Exception e) {
@@ -188,9 +186,12 @@ public class AiTools {
         }
 
         StringBuilder sb = new StringBuilder();
-        sb.append(matching.size()).append(" thread(s) with '").append(pattern).append("' in stack:\n\n");
-
         int limit = Math.min(matching.size(), 10);
+        sb.append(matching.size()).append(" thread(s) with '").append(pattern).append("' in stack");
+        if (matching.size() > limit) {
+            sb.append(" (showing first ").append(limit).append(" of ").append(matching.size()).append(")");
+        }
+        sb.append(":\n\n");
         for (int i = 0; i < limit; i++) {
             ThreadInfo t = matching.get(i);
             sb.append("## ").append(t.name()).append(" (").append(t.state()).append(")\n");
@@ -235,10 +236,16 @@ public class AiTools {
         }
 
         // Find threads holding locks
-        sb.append("\n## Threads Holding Locks\n\n");
+        sb.append("\n## Threads Holding Locks");
         List<ThreadInfo> holders = dump.threads().stream()
             .filter(t -> t.locks() != null && t.locks().stream().anyMatch(LockInfo::isLocked))
             .toList();
+        if (!holders.isEmpty()) {
+            sb.append(" (").append(holders.size()).append(" total");
+            if (holders.size() > 15) sb.append(", showing first 15");
+            sb.append(")");
+        }
+        sb.append("\n\n");
 
         if (holders.isEmpty()) {
             sb.append("No explicit lock holders found.\n");
@@ -428,6 +435,50 @@ public class AiTools {
     }
 
     // --- Utility methods ---
+
+    public String getThreadsByState(String stateStr) {
+        ThreadDump dump = getLatestDump();
+        if (dump == null) return "No thread dumps available.";
+
+        Thread.State targetState;
+        try {
+            targetState = Thread.State.valueOf(stateStr.toUpperCase().trim());
+        } catch (IllegalArgumentException e) {
+            return "Unknown thread state: '" + stateStr
+                + "'. Valid: BLOCKED, WAITING, TIMED_WAITING, RUNNABLE, NEW, TERMINATED.";
+        }
+
+        List<ThreadInfo> matching = dump.threads().stream()
+            .filter(t -> t.state() == targetState)
+            .toList();
+
+        if (matching.isEmpty()) return "No threads in state " + targetState + ".";
+
+        int limit = Math.min(matching.size(), 20);
+        StringBuilder sb = new StringBuilder();
+        sb.append(matching.size()).append(" thread(s) in state ").append(targetState);
+        if (matching.size() > limit) sb.append(" (showing first ").append(limit).append(")");
+        sb.append(":\n\n");
+
+        for (int i = 0; i < limit; i++) {
+            ThreadInfo t = matching.get(i);
+            sb.append("\"").append(t.name()).append("\"");
+            t.getWaitedOnLock().ifPresent(lock ->
+                sb.append(" [waiting on ").append(lock.className())
+                  .append(" ").append(lock.lockId()).append("]"));
+            sb.append("\n");
+            if (t.stackTrace() != null) {
+                int frames = Math.min(t.stackTrace().size(), 3);
+                for (int j = 0; j < frames; j++) {
+                    sb.append("    at ").append(t.stackTrace().get(j)).append("\n");
+                }
+                if (t.stackTrace().size() > 3)
+                    sb.append("    ... ").append(t.stackTrace().size() - 3).append(" more frames\n");
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
 
     private String formatThread(ThreadInfo t) {
         StringBuilder sb = new StringBuilder();

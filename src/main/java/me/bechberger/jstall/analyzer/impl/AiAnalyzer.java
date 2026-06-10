@@ -5,16 +5,23 @@ import me.bechberger.jstall.analyzer.BaseAnalyzer;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.analyzer.ResolvedData;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
+import me.bechberger.jstall.util.llm.AiChatLoop;
 import me.bechberger.jstall.util.llm.AiTools;
+import me.bechberger.jstall.util.llm.ContextCompressor;
+import me.bechberger.jstall.util.llm.JstallCommandTool;
 import me.bechberger.jstall.util.llm.LlmProvider;
 import me.bechberger.jstall.util.llm.OpenAiLlmProvider;
+import me.bechberger.jstall.util.llm.SourceTools;
 import me.bechberger.jstall.util.llm.ToolDefinition;
 import me.bechberger.jstall.util.llm.ToolExecutor;
+import me.bechberger.jstall.util.render.MarkdownRenderer;
+import me.bechberger.jstall.util.render.AnsiCodes;
 import me.bechberger.jstall.util.SystemAnalyzer;
 import me.bechberger.jstall.util.CommandExecutor;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -30,12 +37,33 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class AiAnalyzer extends BaseAnalyzer {
 
-    private static final String SYSTEM_PROMPT =
-        "You're a helpful thread dump analyzer that likes to be on the point. Given the following thread dump analysis, answer the user's question.";
+    /**
+     * System prompt for both local and cloud providers.
+     * <p>
+     * /no_think suppresses Qwen3's chain-of-thought tokens so the model emits
+     * its answer directly, cutting response time roughly in half on small models.
+     * Pass think=true to omit the directive and let the model reason step-by-step.
+     * Other models ignore the directive harmlessly.
+     */
+    private static String systemPrompt(boolean think) {
+        return (think ? "" : "/no_think\n") +
+            "You are a JVM performance expert. Analyze jstall thread dump data. " +
+            "Report only what is in the data. No speculation. No generic advice. Be specific and brief.";
+    }
 
     private static final String DEFAULT_USER_PROMPT =
-        "Summarize the current state of the application. State any potential issues found in the thread dumps." +
-        "Don't offer generic advice; focus on the specific findings from the analyses. But start with a short summary of the overall state.\n";
+        "One-sentence bottom line then bullet findings. Each bullet must cite a specific thread name, lock address, section, or number from the data above — never repeat a rule whose trigger is absent. Report EVERY rule that fires, not just the first one — multiple issues can coexist. Flag:\n" +
+        "- deadlock section → report thread names + lock addresses first\n" +
+        "- BLOCKED threads → always Java monitor contention\n" +
+        "- PRODUCER thread with 'Lock Wait' → queue full (backpressure) — even at 0 CPU%, producer is blocked waiting for queue space\n" +
+        "- WORKER/CONSUMER with 'Lock Wait' at 0 CPU% → idle (ok)\n" +
+        "- thread-count-warning section → thread leak\n" +
+        "- hidden-waiting-threads section → call get_threads_by_state WAITING immediately\n" +
+        "- hidden-timed-waiting-threads section → call get_threads_by_state TIMED_WAITING immediately, then classify: pool/worker/executor names = pool starvation; sleeper-style names = idle/healthy\n" +
+        "- hidden-runnable-threads section → call get_threads_by_state RUNNABLE immediately, then classify by stack frames: socketRead0/readBytes/native methods = blocked I/O / native wait\n" +
+        "- heap Δ > +5 MiB in 5s → memory leak / allocation spike\n" +
+        "- heap used% > 80% → high memory pressure\n" +
+        "- thread with Computation + CPU% > 80% → CPU hot-spot (REPORT THIS EVEN IF A DEADLOCK IS ALSO PRESENT)\n";
 
     private final LlmProvider llmProvider;
     private final CommandExecutor commandExecutor;
@@ -66,6 +94,13 @@ public class AiAnalyzer extends BaseAnalyzer {
         options.add("think");
         options.add("tools");
         options.add("no-tools");
+        options.add("source-root");
+        options.add("pretty");
+        options.add("no-pretty");
+        options.add("allow-mutations");
+        options.add("chat");
+        options.add("verbose");
+        options.add("save");
         return options;
     }
 
@@ -88,42 +123,65 @@ public class AiAnalyzer extends BaseAnalyzer {
         boolean dryRun = getBooleanOption(options, "dry-run", false);
         boolean shortMode = getBooleanOption(options, "short", false);
         boolean showThinking = getBooleanOption(options, "think", false);
-        // Auto-enable tools for local OpenAI provider unless explicitly disabled
+        String sourceRoot = getStringOption(options, "source-root",
+            System.getProperty("user.dir"));
+        boolean prettyMode = getBooleanOption(options, "no-pretty", false) ? false
+            : getBooleanOption(options, "pretty", System.console() != null);
+        boolean allowMutations = getBooleanOption(options, "allow-mutations", false);
+        boolean chatMode = getBooleanOption(options, "chat", false);
+        boolean verbose = getBooleanOption(options, "verbose", false);
+        String saveTo = getStringOption(options, "save", null);
+        @SuppressWarnings("unchecked")
+        List<String> targets = options.get("targets") instanceof List<?> rawList
+            ? (List<String>) rawList : List.of();
+        // Tools default to ON for any provider that supports the OpenAI tool-call shape.
+        // The chat-with-tool-loop path requires OpenAiLlmProvider regardless; for other
+        // providers we silently skip tool registration further below.
         boolean useTools;
         if (getBooleanOption(options, "no-tools", false)) {
             useTools = false;
         } else if (options.containsKey("tools")) {
             useTools = getBooleanOption(options, "tools", false);
         } else {
-            useTools = (llmProvider instanceof OpenAiLlmProvider);
+            useTools = true;
         }
 
         // Enable intelligent filtering by default
         Map<String, Object> statusOptions = new HashMap<>(options);
 
+        if (verbose) System.err.println("[ai] Collecting thread dumps and running analysis...");
+
         // Run status analyzer to get thread dump analysis
         StatusAnalyzer statusAnalyzer = new StatusAnalyzer();
         AnalyzerResult statusResult = statusAnalyzer.analyze(data, statusOptions);
 
-        if (statusResult.exitCode() != 0 && statusResult.exitCode() != 2) {
-            // Status analyzer failed (but deadlocks are ok - exitCode 2)
+        // Treat any exit code < 3 as valid (0=ok, 2=deadlock found, 10=jvm outdated, etc.)
+        // Only truly fatal errors (e.g. could not connect to JVM) should abort AI analysis.
+        if (statusResult.output() == null || statusResult.output().isBlank()) {
             return AnalyzerResult.withExitCode(
-                "Failed to analyze thread dumps: " + statusResult.output(),
+                "Failed to collect thread dump data.",
                 1
             );
         }
 
         String analysis = statusResult.output();
 
-        // Build prompts
-        String userPrompt = buildUserPrompt(analysis, customQuestion);
+        // Compress context for local providers (small models, token budget matters)
+        boolean compact = (llmProvider instanceof OpenAiLlmProvider);
+
+        // Build prompts. In chat mode the first turn uses a short-summary prompt so
+        // the REPL prompt appears quickly; tools and the bullet-rules prompt are
+        // reserved for follow-up turns once the user starts asking questions.
+        String userPrompt = chatMode
+            ? buildChatSeedPrompt(analysis, customQuestion, compact, targets)
+            : buildUserPrompt(analysis, customQuestion, compact, targets);
 
         // Dry-run mode: just print the prompt without calling the API
         if (dryRun) {
             String output = "=== DRY RUN MODE ===\n\n" +
                             "Model: " + model + "\n\n" +
                             "System Prompt:\n" +
-                            SYSTEM_PROMPT + "\n\n" +
+                            systemPrompt(showThinking) + "\n\n" +
                             "User Prompt:\n" +
                             userPrompt + "\n" +
                             "\n=== END DRY RUN ===\n";
@@ -132,11 +190,24 @@ public class AiAnalyzer extends BaseAnalyzer {
 
         // Call LLM API
         try {
-            String aiAnalysis = callLLM(model, userPrompt, rawOutput, showThinking, useTools, shortMode, data);
+            String aiAnalysis = callLLM(model, userPrompt, rawOutput, showThinking, useTools, shortMode, data,
+                sourceRoot, prettyMode, allowMutations, chatMode, verbose, targets);
 
-            // If short mode, run through LLM again for succinct summary
-            if (shortMode && !rawOutput) {
+            // If short mode, run a second pass for a succinct summary — but only if the
+            // first-pass output is long enough to be worth compressing. The `--short`
+            // user prompt already biases the model toward a one-line bottom-line + bullets,
+            // and re-summarizing a 1 KB output with thinking enabled can take 30+ minutes
+            // on local 9B models with negligible benefit.
+            if (shortMode && !rawOutput && aiAnalysis != null && aiAnalysis.length() > SHORT_SUMMARY_THRESHOLD) {
                 aiAnalysis = createShortSummary(model, aiAnalysis, false, showThinking);
+            }
+            if (saveTo != null && !saveTo.isBlank() && aiAnalysis != null && !aiAnalysis.isBlank()) {
+                try {
+                    java.nio.file.Files.writeString(java.nio.file.Path.of(saveTo), aiAnalysis);
+                    System.err.println("[ai] Saved analysis to " + saveTo);
+                } catch (IOException e) {
+                    System.err.println("[ai] Failed to save analysis: " + e.getMessage());
+                }
             }
             if (llmProvider.supportsStreaming()) {
                 return AnalyzerResult.ok(""); // Output already printed during streaming
@@ -163,15 +234,69 @@ public class AiAnalyzer extends BaseAnalyzer {
         }
     }
 
-    private String buildUserPrompt(String analysis, String customQuestion) {
+    private String buildUserPrompt(String analysis, String customQuestion, boolean compact) {
+        return buildUserPrompt(analysis, customQuestion, compact, List.of());
+    }
+
+    private String buildUserPrompt(String analysis, String customQuestion, boolean compact, List<String> targets) {
+        String context = compact ? ContextCompressor.compress(analysis) : analysis;
         StringBuilder prompt = new StringBuilder();
+        if (!targets.isEmpty()) {
+            prompt.append("Target JVM: ").append(String.join(", ", targets)).append("\n\n");
+        }
         prompt.append("Thread Dump Analysis:\n");
         prompt.append("---\n");
-        prompt.append(analysis);
+        prompt.append(context);
         prompt.append("\n---\n\n");
         prompt.append(DEFAULT_USER_PROMPT);
+        if (compact) {
+            prompt.append("\n[Stacks truncated to ")
+                  .append(ContextCompressor.MAX_STACK_FRAMES)
+                  .append(" frames; top threads by CPU shown only]\n");
+        }
 
         // Add provider-specific instructions
+        String additionalInstructions = llmProvider.getAdditionalInstructions();
+        if (!additionalInstructions.isEmpty()) {
+            prompt.append("\nAdditional Instructions:\n");
+            prompt.append(additionalInstructions);
+            prompt.append("\n");
+        }
+
+        if (customQuestion != null && !customQuestion.trim().isEmpty()) {
+            prompt.append("\n\nUser's specific question: ");
+            prompt.append(customQuestion.trim());
+        }
+
+        return prompt.toString();
+    }
+
+    /**
+     * First-turn prompt for chat mode: produce a short summary instead of the full
+     * bullet-rules analysis. Keeps the same status-data context in conversation
+     * history (so follow-up questions still have all the data available), but asks
+     * for a 3-5 bullet summary so the REPL prompt appears quickly.
+     */
+    private String buildChatSeedPrompt(String analysis, String customQuestion, boolean compact, List<String> targets) {
+        String context = compact ? ContextCompressor.compress(analysis) : analysis;
+        StringBuilder prompt = new StringBuilder();
+        if (!targets.isEmpty()) {
+            prompt.append("Target JVM: ").append(String.join(", ", targets)).append("\n\n");
+        }
+        prompt.append("Thread Dump Analysis:\n");
+        prompt.append("---\n");
+        prompt.append(context);
+        prompt.append("\n---\n\n");
+        prompt.append("Provide a succinct summary of the current state of the application. ");
+        prompt.append("Focus on the most important findings. Be specific and data-driven. ");
+        prompt.append("Keep it to 3-5 bullet points. State the state, do not give advice.\n");
+        prompt.append("The user will ask follow-up questions; do not invite them, just summarize.\n");
+        if (compact) {
+            prompt.append("\n[Stacks truncated to ")
+                  .append(ContextCompressor.MAX_STACK_FRAMES)
+                  .append(" frames; top threads by CPU shown only]\n");
+        }
+
         String additionalInstructions = llmProvider.getAdditionalInstructions();
         if (!additionalInstructions.isEmpty()) {
             prompt.append("\nAdditional Instructions:\n");
@@ -242,7 +367,7 @@ public class AiAnalyzer extends BaseAnalyzer {
             String output = "=== DRY RUN MODE (FULL SYSTEM) ===\n\n" +
                             "Model: " + model + "\n\n" +
                             "System Prompt:\n" +
-                            SYSTEM_PROMPT + "\n\n" +
+                            systemPrompt(showThinking) + "\n\n" +
                             "User Prompt:\n" +
                             userPrompt + "\n" +
                             "\n=== END DRY RUN ===\n";
@@ -251,10 +376,12 @@ public class AiAnalyzer extends BaseAnalyzer {
 
         // Call LLM API
         try {
-            String aiAnalysis = callLLM(model, userPrompt, rawOutput, showThinking, false, shortMode, null);
+            String aiAnalysis = callLLM(model, userPrompt, rawOutput, showThinking, false, shortMode, null,
+                null, false, false, false, false, List.of());
 
-            // If short mode, run through LLM again for succinct summary
-            if (shortMode && !rawOutput) {
+            // Skip second-pass summary when first-pass output is already concise — see
+            // analyze() for rationale.
+            if (shortMode && !rawOutput && aiAnalysis != null && aiAnalysis.length() > SHORT_SUMMARY_THRESHOLD) {
                 aiAnalysis = createShortSummary(model, aiAnalysis, true, showThinking);
             }
 
@@ -333,70 +460,296 @@ public class AiAnalyzer extends BaseAnalyzer {
     }
 
     private static final String TOOLS_SYSTEM_ADDENDUM =
-        "\n\nYou have tools to dig deeper into the application state. " +
-        "Before answering, use tools to verify your hypotheses and gather evidence. " +
-        "For example:\n" +
-        "- Use get_thread_stack_trace to see exactly what a suspicious thread is doing\n" +
-        "- Use search_stack_frames to find threads executing specific code\n" +
-        "- Use get_lock_info to verify lock contention\n" +
-        "- Use get_top_cpu_threads to identify hot threads\n" +
-        "Don't guess — investigate with tools first, then provide a well-supported analysis.";
+        "\n\nTools are available for deeper investigation. Call them ONLY when the data is insufficient:\n" +
+        "- If the context already has enough data to answer confidently, answer directly WITHOUT calling tools.\n" +
+        "- Call `get_threads_by_state BLOCKED` only when you see BLOCKED threads and need more detail.\n" +
+        "- Call `get_threads_by_state WAITING` IMMEDIATELY when the hidden-waiting-threads section is present — those threads are parked on a lock and this is real contention.\n" +
+        "- Call `get_lock_info` only when you see unexplained BLOCKED threads and need to identify the lock holder.\n" +
+        "- Call `get_dependency_tree` only to trace a specific deadlock or wait chain not visible in the data.\n" +
+        "- Call `get_thread_stack_trace` only for a specific thread that appears stuck but has no stack in the data.\n" +
+        "- Call `search_stack_frames` or source tools only when a class/method name needs clarification.\n" +
+        "- Call `run_jstall_command` to fetch FRESH live data from the JVM. The other tools (get_*, search_*) operate on the dump captured at the start of the conversation; if the user asks about CURRENT state, recent changes, or the conversation has gone on for a while, prefer `run_jstall_command threads`, `most-work`, or `dependency-tree` for a new snapshot. Note: it takes ~5-15s per call.\n" +
+        "Minimize tool calls. If the data is clear, answer immediately without tools.";
+
+    private static final int DEFAULT_TOOL_ITERATIONS = 5;
+
+    /** Skip the second-pass `--short` LLM call if the first-pass output is already this short.
+     *  The first-pass user prompt already requests "one-sentence bottom line then bullets",
+     *  so anything under ~1.5 KB is already a usable summary and re-running the model
+     *  (especially with thinking enabled) is wasteful and can hang on local 9B models. */
+    private static final int SHORT_SUMMARY_THRESHOLD = 1500;
 
     private String callLLM(String model, String userPrompt, boolean rawOutput, boolean showThinking,
-                           boolean useTools, boolean shortMode, ResolvedData data)
+                           boolean useTools, boolean shortMode, ResolvedData data,
+                           String sourceRoot, boolean prettyMode, boolean allowMutations, boolean chatMode,
+                           boolean verbose, List<String> targets)
             throws IOException, LlmProvider.LlmException {
 
         List<LlmProvider.Message> messages = new ArrayList<>();
-        messages.add(new LlmProvider.Message("system", SYSTEM_PROMPT +
+        messages.add(new LlmProvider.Message("system", systemPrompt(showThinking) +
             (useTools ? TOOLS_SYSTEM_ADDENDUM : "")));
         messages.add(new LlmProvider.Message("user", userPrompt));
 
         // Use tool-calling loop if enabled and provider supports it
         if (useTools && !rawOutput && llmProvider instanceof OpenAiLlmProvider openAiProvider && data != null) {
+            openAiProvider.setEnableThinking(showThinking);
+            // Build combined tool list
             AiTools aiTools = new AiTools(data);
-            List<ToolDefinition> tools = aiTools.getToolDefinitions();
-            ToolExecutor executor = aiTools.createExecutor();
 
-            StringBuilder output = new StringBuilder();
+            // Pre-inject WAITING thread details when the context has the hidden-waiting-threads section.
+            // The local 9B model reliably misses this tool call, so we inject the data proactively.
+            String effectiveUserPrompt = userPrompt;
+            if (userPrompt.contains("=== hidden-waiting-threads ===")) {
+                String waitingData = buildWaitingThreadsSummary(aiTools, data);
+                effectiveUserPrompt = userPrompt
+                    + "\nWAITING thread details (pre-fetched):\n" + waitingData + "\n"
+                    + "LOCK CONTENTION ANALYSIS (use this to interpret the stacks above):\n"
+                    + "- Stack ends with ArrayBlockingQueue.put OR LinkedBlockingQueue.put → producer blocked because queue is FULL (backpressure). Report as: producer blocked on full queue.\n"
+                    + "- Stack contains AbstractQueuedSynchronizer.acquire + ReentrantLock → threads competing for the SAME lock = lock contention.\n"
+                    + "- Stack ends with AbstractQueuedSynchronizer.acquireSharedInterruptibly + Semaphore → threads waiting for a pool resource = pool saturation.\n"
+                    + "- Stack ends with BlockingQueue.take OR ForkJoinPool.awaitWork OR ThreadPoolExecutor.getTask → idle worker waiting for work (NOT a problem).\n"
+                    + "- 0 CPU% for all these patterns is NORMAL (LockSupport.park does not spin).\n";
+                // Replace the last user message with the enriched prompt
+                messages.set(messages.size() - 1, new LlmProvider.Message("user", effectiveUserPrompt));
+            }
+
+            List<ToolDefinition> tools = new ArrayList<>(aiTools.getToolDefinitions());
+
+            // Skip tool schemas when the context is self-contained.
+            // Saves ~2000 prefill tokens (~10-15s) on local models.
+            // Tools are needed only when BLOCKED threads exist without a deadlock explanation,
+            // or when the hidden-waiting hint is present (but pre-injection handles that above).
+            // A deadlock section already has full thread names+locks — no tool needed.
+            // Check only the data section (between --- delimiters), not the instructions.
+            String dataSection = extractDataSection(effectiveUserPrompt);
+            boolean hasDeadlockSection = dataSection.contains("=== deadlock");
+            boolean hasUnexplainedBlocked = dataSection.contains("BLOCKED") && !hasDeadlockSection;
+            boolean contextSelfContained = !hasUnexplainedBlocked
+                && !effectiveUserPrompt.contains("=== hidden-waiting-threads ===");
+            if (contextSelfContained) {
+                tools = null;
+                if (verbose) System.err.println("[ai] Context self-contained — skipping tool schemas for speed.");
+            }
+            JstallCommandTool jstallTool = new JstallCommandTool(allowMutations, targets);
+            if (tools != null) {
+                tools.add(jstallTool.getToolDefinition());
+            }
+
+            // Add source exploration tools if a source root is configured
+            ToolExecutor baseExecutor = aiTools.createExecutor();
+            ToolExecutor combined;
+            if (sourceRoot != null && !sourceRoot.isBlank()) {
+                SourceTools sourceTools = new SourceTools(Path.of(sourceRoot));
+                if (tools != null) tools.addAll(sourceTools.getToolDefinitions());
+                ToolExecutor sourceExecutor = sourceTools.createExecutor();
+                combined = call -> {
+                    String name = call.name();
+                    if (name.startsWith("list_source") || name.startsWith("read_source") || name.startsWith("grep_source")) {
+                        return sourceExecutor.execute(call);
+                    } else if ("run_jstall_command".equals(name)) {
+                        return jstallTool.execute(call);
+                    } else {
+                        return baseExecutor.execute(call);
+                    }
+                };
+            } else {
+                combined = call ->
+                    "run_jstall_command".equals(call.name())
+                        ? jstallTool.execute(call)
+                        : baseExecutor.execute(call);
+            }
+            if (verbose) {
+                ToolExecutor inner = combined;
+                combined = call -> {
+                    if ("run_jstall_command".equals(call.name())) {
+                        long start = System.nanoTime();
+                        try {
+                            return inner.execute(call);
+                        } finally {
+                            long ms = (System.nanoTime() - start) / 1_000_000;
+                            System.err.println("[tool] run_jstall_command finished in " + ms + " ms");
+                        }
+                    }
+                    return inner.execute(call);
+                };
+            }
+
+            if (verbose) System.err.println("[ai] Sending to model with " + (tools != null ? tools.size() : 0) + " tools available...");
+
+            java.util.function.Consumer<String> downstream = buildResponseHandler(prettyMode, verbose);
             LlmProvider.StreamHandlers handlers = new LlmProvider.StreamHandlers(
-                content -> {
-                    output.append(content);
-                    System.out.print(content);
-                    System.out.flush();
-                },
-                showThinking ? (thinkingToken -> {
-                    System.err.print(thinkingToken);
-                    System.err.flush();
-                }) : null
-            );
+                downstream, buildThinkingHandler(showThinking));
 
-            String result = openAiProvider.chatWithToolLoop(model, messages, tools, executor, handlers, 5);
+            java.util.function.Consumer<String> verboseToolHandler = buildVerboseToolHandler(verbose, showThinking);
+
+            if (chatMode) {
+                // Turn 1: short summary only — no tools, so the REPL prompt appears fast.
+                // Follow-up turns get the full tool list.
+                openAiProvider.chatWithToolLoop(model, messages, null, combined, handlers, DEFAULT_TOOL_ITERATIONS, true, verboseToolHandler);
+                System.out.println();
+                new AiChatLoop(openAiProvider, model, messages, tools, combined, prettyMode, verbose, showThinking).run();
+                return "";
+            }
+
+            String result = openAiProvider.chatWithToolLoop(model, messages, tools, combined, handlers, DEFAULT_TOOL_ITERATIONS, true, verboseToolHandler);
             System.out.println();
             return result;
         }
 
         if (rawOutput) {
-            // Return raw response
             return llmProvider.getRawResponse(model, messages);
         } else {
-            // Stream response
             StringBuilder output = new StringBuilder();
             boolean suppressOutput = shortMode && llmProvider.supportsStreaming();
 
-            // Warn if thinking mode is requested but provider doesn't support streaming
+            if (llmProvider instanceof OpenAiLlmProvider openAiProvider) {
+                openAiProvider.setEnableThinking(showThinking);
+            }
             if (showThinking && !llmProvider.supportsStreaming()) {
                 System.err.println("Note: --think mode not supported by this provider (no streaming support)");
             }
+            if (verbose) System.err.println("[ai] Sending to model (streaming)...");
 
-            LlmProvider.StreamHandlers handlers = createStreamHandlers(
-                output, showThinking, suppressOutput);
-
+            LlmProvider.StreamHandlers handlers = createStreamHandlers(output, showThinking, suppressOutput);
             llmProvider.chat(model, messages, handlers);
             if (!suppressOutput) {
-                System.out.println(); // Final newline
+                System.out.println();
             }
             return output.toString();
         }
+    }
+
+    /**
+     * Build a concise summary of WAITING threads with enough stack depth to distinguish
+     * ReentrantLock/AQS contention from idle thread-pool workers.
+     * Shows up to 20 threads, 6 frames each, skipping pure JVM housekeeping threads.
+     */
+    private static String buildWaitingThreadsSummary(AiTools aiTools, ResolvedData data) {
+        if (data == null || data.dumps().isEmpty()) return aiTools.getThreadsByState("WAITING");
+
+        var snapshot = data.dumps().get(data.dumps().size() - 1);
+        var dump = snapshot.parsed();
+        if (dump == null) return aiTools.getThreadsByState("WAITING");
+
+        // JVM internal threads that are always WAITING — not app threads
+        java.util.Set<String> jvmThreads = java.util.Set.of(
+            "Finalizer", "Reference Handler", "Common-Cleaner", "Signal Dispatcher",
+            "Notification Thread", "Attach Listener"
+        );
+
+        var waitingThreads = dump.threads().stream()
+            .filter(t -> t.state() == Thread.State.WAITING)
+            .filter(t -> !jvmThreads.contains(t.name()))
+            .toList();
+
+        if (waitingThreads.isEmpty()) return aiTools.getThreadsByState("WAITING");
+
+        int limit = Math.min(waitingThreads.size(), 20);
+        StringBuilder sb = new StringBuilder();
+        sb.append(waitingThreads.size()).append(" app-thread(s) in WAITING state");
+        if (waitingThreads.size() > limit) sb.append(" (showing first ").append(limit).append(")");
+        sb.append(":\n\n");
+
+        for (int i = 0; i < limit; i++) {
+            var t = waitingThreads.get(i);
+            sb.append("\"").append(t.name()).append("\"");
+            t.getWaitedOnLock().ifPresent(lock ->
+                sb.append(" [monitor: ").append(lock.className()).append("]"));
+            sb.append("\n");
+            if (t.stackTrace() != null && !t.stackTrace().isEmpty()) {
+                var stack = t.stackTrace().stream().map(Object::toString).toList();
+                // Show: all frames up to the first java.util.concurrent blocking call
+                // that reveals WHAT the thread is blocked on (put, acquire, take, etc.)
+                // This ensures we don't hide ArrayBlockingQueue.put behind ForkJoinPool frames.
+                boolean foundBlockingFrame = false;
+                int shown = 0;
+                for (int j = 0; j < stack.size() && shown < 8; j++) {
+                    String frame = stack.get(j);
+                    sb.append("    at ").append(frame).append("\n");
+                    shown++;
+                    // Stop after the first frame that reveals the blocking primitive
+                    if (!foundBlockingFrame && (
+                            frame.contains("BlockingQueue.put") || frame.contains("BlockingQueue.take") ||
+                            frame.contains("BlockingQueue.offer") || frame.contains("BlockingQueue.poll") ||
+                            frame.contains("Semaphore.acquire") || frame.contains("Semaphore.tryAcquire") ||
+                            frame.contains("ReentrantLock") || frame.contains("CountDownLatch") ||
+                            frame.contains("Object.wait") || frame.contains("LockSupport.parkNanos"))) {
+                        foundBlockingFrame = true;
+                        if (stack.size() > shown)
+                            sb.append("    ... ").append(stack.size() - shown).append(" more frames\n");
+                        break;
+                    }
+                }
+                if (!foundBlockingFrame && stack.size() > shown)
+                    sb.append("    ... ").append(stack.size() - shown).append(" more frames\n");
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
+
+    /** Extract only the data section between the first pair of --- delimiters. */
+    private static String extractDataSection(String prompt) {
+        int start = prompt.indexOf("---\n");
+        if (start < 0) return prompt;
+        int end = prompt.indexOf("\n---\n", start + 4);
+        if (end < 0) return prompt;
+        return prompt.substring(start + 4, end);
+    }
+
+    /** Build the response handler, optionally wrapping with a MarkdownRenderer. */
+    private java.util.function.Consumer<String> buildResponseHandler(boolean prettyMode, boolean verbose) {
+        java.util.function.Consumer<String> raw = content -> {
+            System.out.print(content);
+            System.out.flush();
+        };
+        if (prettyMode && System.console() != null) {
+            MarkdownRenderer renderer = new MarkdownRenderer(raw);
+            return renderer::accept;
+        }
+        return raw;
+    }
+
+    /**
+     * Builds the verbose handler for pre-tool reasoning tokens emitted by the model
+     * before it decides which tool to call.
+     * When showThinking is true: shows dim+italic with a "--- thinking ---" header.
+     * When verbose only: shows dim, no header.
+     */
+    private java.util.function.Consumer<String> buildVerboseToolHandler(boolean verbose, boolean showThinking) {
+        if (!showThinking && !verbose) return null;
+        boolean isTty = System.console() != null;
+        boolean[] headerPrinted = {false};
+        return token -> {
+            if (!headerPrinted[0]) {
+                if (showThinking && isTty) {
+                    System.err.print(AnsiCodes.DIM_ON
+                        + AnsiCodes.ITALIC_ON
+                        + "--- thinking ---\n"
+                        + AnsiCodes.RESET);
+                }
+                headerPrinted[0] = true;
+            }
+            if (showThinking && isTty) {
+                System.err.print(AnsiCodes.DIM_ON
+                    + AnsiCodes.ITALIC_ON
+                    + token
+                    + AnsiCodes.RESET);
+            } else {
+                System.err.print(AnsiCodes.DIM_ON
+                    + token
+                    + AnsiCodes.RESET);
+            }
+            System.err.flush();
+        };
+    }
+
+    private java.util.function.Consumer<String> buildThinkingHandler(boolean showThinking) {
+        if (!showThinking) return null;
+        return token -> {
+            System.err.print(token);
+            System.err.flush();
+        };
     }
 
     /**
@@ -532,7 +885,7 @@ public class AiAnalyzer extends BaseAnalyzer {
         String summaryPrompt = getSummaryPrompt(fullAnalysis, isSystemMode);
 
         List<LlmProvider.Message> messages = new ArrayList<>();
-        messages.add(new LlmProvider.Message("system", SYSTEM_PROMPT));
+        messages.add(new LlmProvider.Message("system", systemPrompt(showThinking)));
         messages.add(new LlmProvider.Message("user", summaryPrompt));
 
         StringBuilder summary = new StringBuilder();

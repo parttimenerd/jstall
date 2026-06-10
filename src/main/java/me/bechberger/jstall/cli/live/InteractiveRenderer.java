@@ -1,5 +1,7 @@
 package me.bechberger.jstall.cli.live;
 
+import me.bechberger.jstall.util.render.AnsiCodes;
+
 import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -15,10 +17,10 @@ import java.util.List;
 public class InteractiveRenderer {
 
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm:ss");
-    private static final String BOLD_ON = "\033[1m";
-    private static final String BOLD_OFF = "\033[0m";
-    private static final String INVERSE_ON = "\033[7m";
-    private static final String INVERSE_OFF = "\033[27m";
+    private static final String BOLD_ON = AnsiCodes.BOLD_ON;
+    private static final String BOLD_OFF = AnsiCodes.RESET;
+    private static final String INVERSE_ON = AnsiCodes.INVERSE_ON;
+    private static final String INVERSE_OFF = AnsiCodes.INVERSE_OFF;
 
     private final RawTerminal terminal;
     private String statusInfo = "";

@@ -161,7 +161,7 @@ class AiAnalyzerTest {
         List<LlmProvider.Message> messages = mockProvider.getLastMessages();
         assertNotNull(messages);
         assertTrue(messages.stream()
-            .anyMatch(m -> m.role().equals("system") && m.content().contains("thread dump analyzer")));
+            .anyMatch(m -> m.role().equals("system") && m.content().contains("JVM")));
     }
 
     // Helper method to create test thread dumps
