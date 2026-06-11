@@ -31,6 +31,10 @@ public class AiFullCommand implements Callable<Integer> {
         description = "LLM model to use (default from config or provider default)")
     private String model;
 
+    @Option(names = "--base-url",
+        description = "Base URL for the LLM API (overrides config). Implies --provider local.")
+    private String baseUrl;
+
     @Option(names = {"-q", "--question"},
         description = "Custom question to ask. If omitted and stdin is piped, the piped text is used")
     private String question;
@@ -89,7 +93,7 @@ public class AiFullCommand implements Callable<Integer> {
     public Integer call() {
         try {
             ProviderResolver.ResolvedProvider resolved =
-                ProviderResolver.resolve(provider, model);
+                ProviderResolver.resolve(provider, model, baseUrl);
             LlmProvider llmProvider = resolved.provider();
             model = resolved.model();
 

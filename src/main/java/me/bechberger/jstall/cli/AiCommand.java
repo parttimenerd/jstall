@@ -39,6 +39,10 @@ public class AiCommand extends BaseAnalyzerCommand {
         description = "LLM model to use (default from config or provider default)")
     private String model;
 
+    @Option(names = "--base-url",
+        description = "Base URL for the LLM API (overrides config). Implies --provider local. Useful when running multiple llama-server instances on different ports.")
+    private String baseUrl;
+
     @Option(names = {"-q", "--question"},
         description = "Custom question to ask. If omitted and stdin is piped, the piped text is used as the question")
     private String question;
@@ -103,7 +107,7 @@ public class AiCommand extends BaseAnalyzerCommand {
             validateToolsOption(tools);
             try {
                 ProviderResolver.ResolvedProvider resolved =
-                    ProviderResolver.resolve(provider, model);
+                    ProviderResolver.resolve(provider, model, baseUrl);
                 LlmProvider llmProvider = resolved.provider();
                 model = resolved.model();
                 analyzer = new AiAnalyzer(llmProvider, spec.getParent(Main.class).executor());

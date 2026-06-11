@@ -24,6 +24,17 @@ public final class LlmProviderFactory {
      */
     public static Selection create(boolean forceLocal, boolean forceRemote, String modelOverride)
             throws AiConfig.ConfigNotFoundException, IllegalArgumentException {
+        return create(forceLocal, forceRemote, modelOverride, null);
+    }
+
+    /**
+     * Same as the 3-arg overload, plus an optional {@code baseUrlOverride} for the local provider.
+     * When non-null, that URL is used directly and llama-server auto-launch is skipped — the
+     * caller is responsible for ensuring something is reachable at that URL. Useful for the
+     * eval harness, which runs two llama-server instances on different ports.
+     */
+    public static Selection create(boolean forceLocal, boolean forceRemote, String modelOverride, String baseUrlOverride)
+            throws AiConfig.ConfigNotFoundException, IllegalArgumentException {
 
         if (forceLocal && forceRemote) {
             throw new IllegalArgumentException("Cannot use both local and remote provider");
@@ -51,15 +62,18 @@ public final class LlmProviderFactory {
         LlmProvider provider;
         switch (selectedProvider) {
             case LOCAL -> {
-                String host = (config != null && config.localHost() != null)
-                    ? config.localHost()
-                    : "http://127.0.0.1:8080";
-                // Auto-launch llama-server if configured and not already running
-                String hfModel = (config != null) ? config.llamaServerModel() : null;
-                try {
-                    LlamaServerLauncher.ensureRunning(host, hfModel);
-                } catch (IOException e) {
-                    throw new IllegalArgumentException("Failed to start llama-server: " + e.getMessage());
+                String host = baseUrlOverride;
+                if (host == null) {
+                    host = (config != null && config.localHost() != null)
+                        ? config.localHost()
+                        : "http://127.0.0.1:8080";
+                    // Auto-launch llama-server if configured and not already running
+                    String hfModel = (config != null) ? config.llamaServerModel() : null;
+                    try {
+                        LlamaServerLauncher.ensureRunning(host, hfModel);
+                    } catch (IOException e) {
+                        throw new IllegalArgumentException("Failed to start llama-server: " + e.getMessage());
+                    }
                 }
                 provider = new OpenAiLlmProvider(host);
             }

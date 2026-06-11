@@ -14,6 +14,7 @@ import me.bechberger.jstall.util.llm.OpenAiLlmProvider;
 import me.bechberger.jstall.util.llm.SourceTools;
 import me.bechberger.jstall.util.llm.ToolDefinition;
 import me.bechberger.jstall.util.llm.ToolExecutor;
+import me.bechberger.jstall.analyzer.ThreadActivityCategorizer;
 import me.bechberger.jstall.util.render.MarkdownRenderer;
 import me.bechberger.jstall.util.render.AnsiCodes;
 import me.bechberger.jstall.util.SystemAnalyzer;
@@ -54,13 +55,18 @@ public class AiAnalyzer extends BaseAnalyzer {
     private static final String DEFAULT_USER_PROMPT =
         "One-sentence bottom line then bullet findings. Each bullet must cite a specific thread name, lock address, section, or number from the data above — never repeat a rule whose trigger is absent. Report EVERY rule that fires, not just the first one — multiple issues can coexist. Flag:\n" +
         "- deadlock section → report thread names + lock addresses first\n" +
-        "- BLOCKED threads → always Java monitor contention\n" +
+        "- BLOCKED threads → Java monitor contention OR classloader lock (see BLOCKED thread stacks below)\n" +
+        "- WAITING/TIMED_WAITING thread stacks contain 'waiting on the Class initialization monitor' → CLASS INITIALIZATION DEADLOCK — report as deadlock between the named classes\n" +
         "- PRODUCER thread with 'Lock Wait' → queue full (backpressure) — even at 0 CPU%, producer is blocked waiting for queue space\n" +
         "- WORKER/CONSUMER with 'Lock Wait' at 0 CPU% → idle (ok)\n" +
+        "- WAITING/TIMED_WAITING thread stacks contain Semaphore.acquire / acquireSharedInterruptibly → semaphore/pool exhaustion — name the specific threads\n" +
+        "- WAITING/TIMED_WAITING thread stacks contain hikari / HikariCP / getConnection → connection pool exhaustion\n" +
+        "- WAITING/TIMED_WAITING thread stacks contain RateLimiter / acquirePermission / AtomicRateLimiter → rate limiter queue full\n" +
+        "- WAITING/TIMED_WAITING thread stacks contain GenericObjectPool / borrowObject / commons.pool → Apache Commons Pool exhaustion\n" +
+        "- TIMED_WAITING thread stacks contain ForkJoinTask.get / ForkJoinTask.awaitDone + ForkJoinPool workers → ForkJoin pool saturation / managed block\n" +
         "- thread-count-warning section → thread leak\n" +
-        "- hidden-waiting-threads section → call get_threads_by_state WAITING immediately\n" +
-        "- hidden-timed-waiting-threads section → call get_threads_by_state TIMED_WAITING immediately, then classify: pool/worker/executor names = pool starvation; sleeper-style names = idle/healthy\n" +
-        "- hidden-runnable-threads section → call get_threads_by_state RUNNABLE immediately, then classify by stack frames: socketRead0/readBytes/native methods = blocked I/O / native wait\n" +
+        "- WAITING/TIMED_WAITING thread details pre-fetched below → classify by thread name and stack: pool/worker/executor names = pool starvation; sleeper-style names = idle/healthy\n" +
+        "- RUNNABLE thread details pre-fetched below → classify by stack frames: socketRead0/readBytes/native methods = blocked I/O / native wait\n" +
         "- heap Δ > +5 MiB in 5s → memory leak / allocation spike\n" +
         "- heap used% > 80% → high memory pressure\n" +
         "- thread with Computation + CPU% > 80% → CPU hot-spot (REPORT THIS EVEN IF A DEADLOCK IS ALSO PRESENT)\n";
@@ -496,20 +502,60 @@ public class AiAnalyzer extends BaseAnalyzer {
             // Build combined tool list
             AiTools aiTools = new AiTools(data);
 
-            // Pre-inject WAITING thread details when the context has the hidden-waiting-threads section.
-            // The local 9B model reliably misses this tool call, so we inject the data proactively.
+            // Pre-inject WAITING and RUNNABLE thread details proactively — the local 9B model
+            // reliably misses these tool calls, so we resolve them before sending.
             String effectiveUserPrompt = userPrompt;
+            StringBuilder injected = new StringBuilder();
             if (userPrompt.contains("=== hidden-waiting-threads ===")) {
                 String waitingData = buildWaitingThreadsSummary(aiTools, data);
-                effectiveUserPrompt = userPrompt
-                    + "\nWAITING thread details (pre-fetched):\n" + waitingData + "\n"
-                    + "LOCK CONTENTION ANALYSIS (use this to interpret the stacks above):\n"
-                    + "- Stack ends with ArrayBlockingQueue.put OR LinkedBlockingQueue.put → producer blocked because queue is FULL (backpressure). Report as: producer blocked on full queue.\n"
-                    + "- Stack contains AbstractQueuedSynchronizer.acquire + ReentrantLock → threads competing for the SAME lock = lock contention.\n"
-                    + "- Stack ends with AbstractQueuedSynchronizer.acquireSharedInterruptibly + Semaphore → threads waiting for a pool resource = pool saturation.\n"
-                    + "- Stack ends with BlockingQueue.take OR ForkJoinPool.awaitWork OR ThreadPoolExecutor.getTask → idle worker waiting for work (NOT a problem).\n"
-                    + "- 0 CPU% for all these patterns is NORMAL (LockSupport.park does not spin).\n";
-                // Replace the last user message with the enriched prompt
+                injected.append("\nWAITING thread details (pre-fetched):\n").append(waitingData).append("\n")
+                    .append("LOCK CONTENTION ANALYSIS (use this to interpret the stacks above):\n")
+                    .append("- Stack ends with ArrayBlockingQueue.put OR LinkedBlockingQueue.put → producer blocked because queue is FULL (backpressure). Report as: producer blocked on full queue.\n")
+                    .append("- Stack contains AbstractQueuedSynchronizer.acquire + ReentrantLock → threads competing for the SAME lock = lock contention.\n")
+                    .append("- Stack ends with AbstractQueuedSynchronizer.acquireSharedInterruptibly + Semaphore → threads waiting for a semaphore/pool resource = pool or bulkhead exhaustion.\n")
+                    .append("- Stack ends with BlockingQueue.take OR ForkJoinPool.awaitWork OR ThreadPoolExecutor.getTask → idle worker waiting for work (NOT a problem).\n")
+                    .append("- Stack contains hikari / HikariCP / getConnection → HikariCP connection pool exhaustion.\n")
+                    .append("- Stack contains RateLimiter / acquirePermission / AtomicRateLimiter → Resilience4j RateLimiter queue — report as rate limiter queue full.\n")
+                    .append("- Stack contains GenericObjectPool / borrowObject → Apache Commons Pool2 exhaustion.\n")
+                    .append("- 0 CPU% for all these patterns is NORMAL (LockSupport.park does not spin).\n");
+            }
+            if (userPrompt.contains("=== hidden-timed-waiting-threads ===")) {
+                String timedData = buildTimedWaitingThreadsSummary(aiTools, data);
+                injected.append("\nTIMED_WAITING thread details (pre-fetched):\n").append(timedData).append("\n")
+                    .append("TIMED_WAITING CLASSIFICATION:\n")
+                    .append("- Thread name contains pool/worker/ForkJoin → pool worker sleeping for work (check if tasks are piling up).\n")
+                    .append("- Stack contains hikari / HikariCP / getConnection → HikariCP connection pool exhaustion — report thread names.\n")
+                    .append("- Stack contains RateLimiter / acquirePermission / AtomicRateLimiter → Resilience4j RateLimiter queue — report as rate limiter queue full.\n")
+                    .append("- Stack contains GenericObjectPool / borrowObject / commons.pool → Apache Commons Pool2 exhaustion.\n")
+                    .append("- Stack ends with Semaphore.acquire → semaphore/bulkhead exhaustion — report thread names.\n")
+                    .append("- Stack contains ForkJoinTask.get / ForkJoinTask.awaitDone → ForkJoin pool waiting on child task — report if all pool workers are blocked.\n")
+                    .append("- Stack ends with Thread.sleep → intentional sleep (healthy unless unexpectedly long).\n")
+                    .append("- Stack ends with Object.wait with timeout → timed lock wait.\n")
+                    .append("- Stack ends with LockSupport.parkNanos → parked on a condition variable.\n");
+            }
+            if (userPrompt.contains("=== hidden-runnable-threads ===")) {
+                String runnableData = buildRunnableThreadsSummary(aiTools, data);
+                injected.append("\nRUNNABLE thread details (pre-fetched):\n").append(runnableData).append("\n")
+                    .append("RUNNABLE CLASSIFICATION:\n")
+                    .append("- Stack contains socketRead0/readBytes/FileInputStream.read/NativeMethodAccessor → blocked I/O (native wait).\n")
+                    .append("- Stack contains java.lang.ref.Finalizer → Finalizer thread blocked waiting to run finalizers (check if fin-lock-holder thread holds the lock).\n")
+                    .append("- Stack contains tight loop with no I/O → CPU hot-spot (spin).\n")
+                    .append("- 0 CPU% with no I/O frames and no spin → idle/parked despite RUNNABLE state.\n");
+            }
+            // Pre-inject stacks for BLOCKED threads (not in hidden section — already in table,
+            // but stacks are needed to distinguish classloader lock vs. monitor contention).
+            {
+                String blockedData = buildBlockedThreadsSummary(data);
+                if (blockedData != null) {
+                    injected.append("\nBLOCKED thread stacks (pre-fetched):\n").append(blockedData).append("\n")
+                        .append("BLOCKED CLASSIFICATION:\n")
+                        .append("- Stack contains Class.forName/ClassLoader.loadClass → classloader lock contention (multiple threads loading same class).\n")
+                        .append("- Stack contains synchronized / ObjectMonitor → Java monitor contention (identify lock holder via get_lock_info).\n")
+                        .append("- Stack ends with AbstractQueuedSynchronizer → ReentrantLock contention.\n");
+                }
+            }
+            if (injected.length() > 0) {
+                effectiveUserPrompt = userPrompt + injected;
                 messages.set(messages.size() - 1, new LlmProvider.Message("user", effectiveUserPrompt));
             }
 
@@ -517,15 +563,12 @@ public class AiAnalyzer extends BaseAnalyzer {
 
             // Skip tool schemas when the context is self-contained.
             // Saves ~2000 prefill tokens (~10-15s) on local models.
-            // Tools are needed only when BLOCKED threads exist without a deadlock explanation,
-            // or when the hidden-waiting hint is present (but pre-injection handles that above).
-            // A deadlock section already has full thread names+locks — no tool needed.
-            // Check only the data section (between --- delimiters), not the instructions.
-            String dataSection = extractDataSection(effectiveUserPrompt);
-            boolean hasDeadlockSection = dataSection.contains("=== deadlock");
-            boolean hasUnexplainedBlocked = dataSection.contains("BLOCKED") && !hasDeadlockSection;
-            boolean contextSelfContained = !hasUnexplainedBlocked
-                && !effectiveUserPrompt.contains("=== hidden-waiting-threads ===");
+            // All hidden-* sections have been pre-injected above (lines ~504-543), so the
+            // context is always self-contained after pre-injection. We only need tools when
+            // there are BLOCKED threads that haven't been explained — which is never now.
+            // BLOCKED threads are now pre-injected with stacks; no tool needed for them either.
+            // hidden-* sections are all pre-injected inline above — no tool call needed for them.
+            boolean contextSelfContained = true;
             if (contextSelfContained) {
                 tools = null;
                 if (verbose) System.err.println("[ai] Context self-contained — skipping tool schemas for speed.");
@@ -652,7 +695,9 @@ public class AiAnalyzer extends BaseAnalyzer {
 
         for (int i = 0; i < limit; i++) {
             var t = waitingThreads.get(i);
+            ThreadActivityCategorizer.Category activity = ThreadActivityCategorizer.categorize(t);
             sb.append("\"").append(t.name()).append("\"");
+            sb.append(" [activity: ").append(activity.getDisplayName()).append("]");
             t.getWaitedOnLock().ifPresent(lock ->
                 sb.append(" [monitor: ").append(lock.className()).append("]"));
             sb.append("\n");
@@ -681,6 +726,156 @@ public class AiAnalyzer extends BaseAnalyzer {
                     }
                 }
                 if (!foundBlockingFrame && stack.size() > shown)
+                    sb.append("    ... ").append(stack.size() - shown).append(" more frames\n");
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Build a concise summary of RUNNABLE threads with 0% CPU — these are typically
+     * blocked in native I/O, spinning, or (for Finalizer) waiting on a monitor.
+     * Shows up to 15 threads, 5 frames each.
+     */
+    private static String buildRunnableThreadsSummary(AiTools aiTools, ResolvedData data) {
+        if (data == null || data.dumps().isEmpty()) return aiTools.getThreadsByState("RUNNABLE");
+
+        var snapshot = data.dumps().get(data.dumps().size() - 1);
+        var dump = snapshot.parsed();
+        if (dump == null) return aiTools.getThreadsByState("RUNNABLE");
+
+        // JVM internal threads that are always listed but uninteresting (except Finalizer)
+        java.util.Set<String> skipThreads = java.util.Set.of(
+            "Reference Handler", "Common-Cleaner", "Signal Dispatcher",
+            "Notification Thread", "Attach Listener"
+        );
+
+        var runnableThreads = dump.threads().stream()
+            .filter(t -> t.state() == Thread.State.RUNNABLE)
+            .filter(t -> !skipThreads.contains(t.name()))
+            .toList();
+
+        if (runnableThreads.isEmpty()) return aiTools.getThreadsByState("RUNNABLE");
+
+        int limit = Math.min(runnableThreads.size(), 15);
+        StringBuilder sb = new StringBuilder();
+        sb.append(runnableThreads.size()).append(" thread(s) in RUNNABLE state");
+        if (runnableThreads.size() > limit) sb.append(" (showing first ").append(limit).append(")");
+        sb.append(":\n\n");
+
+        for (int i = 0; i < limit; i++) {
+            var t = runnableThreads.get(i);
+            ThreadActivityCategorizer.Category activity = ThreadActivityCategorizer.categorize(t);
+            sb.append("\"").append(t.name()).append("\"");
+            sb.append(" [activity: ").append(activity.getDisplayName()).append("]");
+            t.getWaitedOnLock().ifPresent(lock ->
+                sb.append(" [blocked on: ").append(lock.className()).append("]"));
+            sb.append("\n");
+            if (t.stackTrace() != null && !t.stackTrace().isEmpty()) {
+                var stack = t.stackTrace().stream().map(Object::toString).toList();
+                int shown = Math.min(stack.size(), 5);
+                for (int j = 0; j < shown; j++) {
+                    sb.append("    at ").append(stack.get(j)).append("\n");
+                }
+                if (stack.size() > shown)
+                    sb.append("    ... ").append(stack.size() - shown).append(" more frames\n");
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Build a concise summary of TIMED_WAITING threads — these are often pool workers
+     * sleeping on a task, sleeping via Thread.sleep, or waiting in timed lock operations.
+     * Shows up to 15 threads, 5 frames each.
+     */
+    private static String buildTimedWaitingThreadsSummary(AiTools aiTools, ResolvedData data) {
+        if (data == null || data.dumps().isEmpty()) return aiTools.getThreadsByState("TIMED_WAITING");
+
+        var snapshot = data.dumps().get(data.dumps().size() - 1);
+        var dump = snapshot.parsed();
+        if (dump == null) return aiTools.getThreadsByState("TIMED_WAITING");
+
+        java.util.Set<String> skipThreads = java.util.Set.of(
+            "Reference Handler", "Common-Cleaner", "Signal Dispatcher",
+            "Notification Thread", "Attach Listener", "Finalizer"
+        );
+
+        var timedWaitingThreads = dump.threads().stream()
+            .filter(t -> t.state() == Thread.State.TIMED_WAITING)
+            .filter(t -> !skipThreads.contains(t.name()))
+            .toList();
+
+        if (timedWaitingThreads.isEmpty()) return aiTools.getThreadsByState("TIMED_WAITING");
+
+        int limit = Math.min(timedWaitingThreads.size(), 15);
+        StringBuilder sb = new StringBuilder();
+        sb.append(timedWaitingThreads.size()).append(" thread(s) in TIMED_WAITING state");
+        if (timedWaitingThreads.size() > limit) sb.append(" (showing first ").append(limit).append(")");
+        sb.append(":\n\n");
+
+        for (int i = 0; i < limit; i++) {
+            var t = timedWaitingThreads.get(i);
+            ThreadActivityCategorizer.Category activity = ThreadActivityCategorizer.categorize(t);
+            sb.append("\"").append(t.name()).append("\"");
+            sb.append(" [activity: ").append(activity.getDisplayName()).append("]");
+            t.getWaitedOnLock().ifPresent(lock ->
+                sb.append(" [blocked on: ").append(lock.className()).append("]"));
+            sb.append("\n");
+            if (t.stackTrace() != null && !t.stackTrace().isEmpty()) {
+                var stack = t.stackTrace().stream().map(Object::toString).toList();
+                int shown = Math.min(stack.size(), 5);
+                for (int j = 0; j < shown; j++) {
+                    sb.append("    at ").append(stack.get(j)).append("\n");
+                }
+                if (stack.size() > shown)
+                    sb.append("    ... ").append(stack.size() - shown).append(" more frames\n");
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Build stacks for BLOCKED threads — these appear in the main table but without
+     * their full stack traces, so the model can't distinguish classloader lock from
+     * Java monitor contention. Returns null if there are no BLOCKED threads.
+     * Shows up to 10 threads, 6 frames each.
+     */
+    private static String buildBlockedThreadsSummary(ResolvedData data) {
+        if (data == null || data.dumps().isEmpty()) return null;
+        var snapshot = data.dumps().get(data.dumps().size() - 1);
+        var dump = snapshot.parsed();
+        if (dump == null) return null;
+
+        var blockedThreads = dump.threads().stream()
+            .filter(t -> t.state() == Thread.State.BLOCKED)
+            .toList();
+        if (blockedThreads.isEmpty()) return null;
+
+        int limit = Math.min(blockedThreads.size(), 10);
+        StringBuilder sb = new StringBuilder();
+        sb.append(blockedThreads.size()).append(" BLOCKED thread(s)");
+        if (blockedThreads.size() > limit) sb.append(" (showing first ").append(limit).append(")");
+        sb.append(":\n\n");
+
+        for (int i = 0; i < limit; i++) {
+            var t = blockedThreads.get(i);
+            ThreadActivityCategorizer.Category activity = ThreadActivityCategorizer.categorize(t);
+            sb.append("\"").append(t.name()).append("\"");
+            sb.append(" [activity: ").append(activity.getDisplayName()).append("]");
+            t.getWaitedOnLock().ifPresent(lock ->
+                sb.append(" [waiting for monitor: ").append(lock.className()).append("]"));
+            sb.append("\n");
+            if (t.stackTrace() != null && !t.stackTrace().isEmpty()) {
+                var stack = t.stackTrace().stream().map(Object::toString).toList();
+                int shown = Math.min(stack.size(), 6);
+                for (int j = 0; j < shown; j++) {
+                    sb.append("    at ").append(stack.get(j)).append("\n");
+                }
+                if (stack.size() > shown)
                     sb.append("    ... ").append(stack.size() - shown).append(" more frames\n");
             }
             sb.append("\n");

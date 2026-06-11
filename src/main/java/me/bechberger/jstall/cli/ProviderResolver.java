@@ -18,6 +18,11 @@ final class ProviderResolver {
 
     static ResolvedProvider resolve(String providerOpt, String modelOverride)
             throws AiConfig.ConfigNotFoundException, IllegalArgumentException {
+        return resolve(providerOpt, modelOverride, null);
+    }
+
+    static ResolvedProvider resolve(String providerOpt, String modelOverride, String baseUrlOverride)
+            throws AiConfig.ConfigNotFoundException, IllegalArgumentException {
         boolean forceLocal = false;
         boolean forceRemote = false;
         if (providerOpt != null) {
@@ -29,8 +34,12 @@ final class ProviderResolver {
                     "--provider must be one of: auto, local, remote (got '" + providerOpt + "')");
             }
         }
+        // If user supplies an explicit base URL, they're targeting a local OpenAI-compatible server.
+        if (baseUrlOverride != null && !baseUrlOverride.isBlank() && !forceRemote) {
+            forceLocal = true;
+        }
         LlmProviderFactory.Selection selection =
-            LlmProviderFactory.create(forceLocal, forceRemote, modelOverride);
+            LlmProviderFactory.create(forceLocal, forceRemote, modelOverride, baseUrlOverride);
         return new ResolvedProvider(selection.provider(), selection.model());
     }
 }

@@ -32,6 +32,10 @@ public class AiChatCommand extends BaseAnalyzerCommand {
         description = "LLM model to use (default from config or provider default)")
     private String model;
 
+    @Option(names = "--base-url",
+        description = "Base URL for the LLM API (overrides config). Implies --provider local.")
+    private String baseUrl;
+
     @Option(names = {"-q", "--question"},
         description = "Initial question (otherwise piped stdin or the default analysis prompt)")
     private String question;
@@ -75,7 +79,7 @@ public class AiChatCommand extends BaseAnalyzerCommand {
         if (analyzer == null) {
             try {
                 ProviderResolver.ResolvedProvider resolved =
-                    ProviderResolver.resolve(provider, model);
+                    ProviderResolver.resolve(provider, model, baseUrl);
                 LlmProvider llmProvider = resolved.provider();
                 model = resolved.model();
                 analyzer = new AiAnalyzer(llmProvider, spec.getParent(Main.class).executor());
