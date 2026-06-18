@@ -1,0 +1,36 @@
+node_modules/
+dist/
+out/
+lib/jstall.jar
+lib/.version
+*.vsix
+.vscode-test/
+
+# macOS
+.DS_Store
+
+# Environment files
+.env
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Editor and IDE directories
+.vscode/
+.idea/
+
+# Caches
+.cache/
+.parcel-cache/
+.sass-cache/
+
+# ESLint cache
+.eslintcache

@@ -23,7 +23,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ide-support/intellij-plugin
+        working-directory: intellij-plugin
 
     steps:
 

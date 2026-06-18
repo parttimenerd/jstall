@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- "j" letter on the left -->
+  <text x="3" y="14" font-family="JetBrains Mono, monospace" font-size="9" font-weight="bold" fill="#548AF7" text-anchor="middle">j</text>
+  <!-- Red record circle -->
+  <circle cx="11" cy="8" r="4.5" fill="#E35252"/>
+</svg>

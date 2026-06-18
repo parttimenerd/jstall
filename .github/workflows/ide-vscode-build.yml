@@ -4,15 +4,15 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'ide-support/vscode-extension/**'
+      - 'vscode-extension/**'
   pull_request:
     paths:
-      - 'ide-support/vscode-extension/**'
+      - 'vscode-extension/**'
   workflow_dispatch:
 
 defaults:
   run:
-    working-directory: ide-support/vscode-extension
+    working-directory: vscode-extension
 
 jobs:
   build:
@@ -28,7 +28,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: ide-support/vscode-extension/package-lock.json
+          cache-dependency-path: vscode-extension/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -47,9 +47,9 @@ jobs:
         with:
           name: vscode-extension-dist
           path: |
-            ide-support/vscode-extension/dist/
-            ide-support/vscode-extension/lib/
-            ide-support/vscode-extension/package.json
-            ide-support/vscode-extension/README.md
-            ide-support/vscode-extension/CHANGELOG.md
+            vscode-extension/dist/
+            vscode-extension/lib/
+            vscode-extension/package.json
+            vscode-extension/README.md
+            vscode-extension/CHANGELOG.md
           if-no-files-found: error

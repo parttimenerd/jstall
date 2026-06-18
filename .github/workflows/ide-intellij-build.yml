@@ -4,14 +4,14 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'ide-support/intellij-plugin/**'
+      - 'intellij-plugin/**'
   pull_request:
     paths:
-      - 'ide-support/intellij-plugin/**'
+      - 'intellij-plugin/**'
 
 defaults:
   run:
-    working-directory: ide-support/intellij-plugin
+    working-directory: intellij-plugin
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -58,7 +58,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.artifact.outputs.filename }}
-          path: ide-support/intellij-plugin/build/distributions/content/*/*
+          path: intellij-plugin/build/distributions/content/*/*
 
   test:
     name: Test
@@ -94,12 +94,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tests-result
-          path: ide-support/intellij-plugin/build/reports/tests
+          path: intellij-plugin/build/reports/tests
 
       - name: Upload Code Coverage Report
         uses: codecov/codecov-action@v5
         with:
-          files: ide-support/intellij-plugin/build/reports/kover/report.xml
+          files: intellij-plugin/build/reports/kover/report.xml
           token: ${{ secrets.CODECOV_TOKEN }}
 
   inspectCode:
@@ -134,7 +134,7 @@ jobs:
         uses: JetBrains/qodana-action@v2025.3.1
         with:
           cache-default-branch-only: true
-          project-dir: ide-support/intellij-plugin
+          project-dir: intellij-plugin
 
   verify:
     name: Verify plugin
@@ -170,7 +170,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pluginVerifier-result
-          path: ide-support/intellij-plugin/build/reports/pluginVerifier
+          path: intellij-plugin/build/reports/pluginVerifier
 
   releaseDraft:
     name: Release draft

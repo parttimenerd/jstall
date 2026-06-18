@@ -8,7 +8,7 @@ on:
 
 defaults:
   run:
-    working-directory: ide-support/vscode-extension
+    working-directory: vscode-extension
 
 jobs:
   package-vsix:
@@ -26,7 +26,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: ide-support/vscode-extension/package-lock.json
+          cache-dependency-path: vscode-extension/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -72,7 +72,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: jstall-vsix-${{ steps.extension-version.outputs.version }}
-          path: ide-support/vscode-extension/jstall-*.vsix
+          path: vscode-extension/jstall-*.vsix
           if-no-files-found: error
 
       - name: Publish VSIX to GitHub Release
@@ -80,5 +80,5 @@ jobs:
         with:
           name: VS Code Extension v${{ steps.extension-version.outputs.version }}
           tag_name: ${{ github.ref_name }}
-          files: ide-support/vscode-extension/jstall-*.vsix
-          body_path: ide-support/vscode-extension/release-notes.md
+          files: vscode-extension/jstall-*.vsix
+          body_path: vscode-extension/release-notes.md
