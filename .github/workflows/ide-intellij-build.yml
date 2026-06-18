@@ -134,7 +134,7 @@ jobs:
         uses: JetBrains/qodana-action@v2025.3.1
         with:
           cache-default-branch-only: true
-          project-dir: intellij-plugin
+          args: --project-dir,intellij-plugin
 
   verify:
     name: Verify plugin
