@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- "j" letter on the left, matching other icons exactly -->
+  <text x="3" y="14" font-family="JetBrains Mono, monospace" font-size="9" font-weight="bold" fill="#3574F0" text-anchor="middle">j</text>
+  <!-- Flamegraph bars on the right, bottom-up, narrowing toward the top -->
+  <!-- row 1 (bottom): full right section, red -->
+  <rect x="7"  y="12.5" width="8"  height="2.5" rx="0.4" fill="#E05555"/>
+  <!-- row 2: two segments, orange -->
+  <rect x="7"  y="9"    width="4.5" height="2.5" rx="0.4" fill="#E07B30"/>
+  <rect x="12.5" y="9"  width="2.5" height="2.5" rx="0.4" fill="#E08840"/>
+  <!-- row 3: two segments, yellow-orange -->
+  <rect x="7"  y="5.5"  width="3"  height="2.5" rx="0.4" fill="#E0A830"/>
+  <rect x="12" y="5.5"  width="3"  height="2.5" rx="0.4" fill="#D4B800"/>
+  <!-- row 4 (top): one narrow segment, yellow -->
+  <rect x="7"  y="2"    width="2.5" height="2.5" rx="0.4" fill="#D4C000"/>
+</svg>

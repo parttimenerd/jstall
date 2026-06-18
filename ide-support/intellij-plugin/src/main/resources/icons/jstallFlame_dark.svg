@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- "j" letter on the left, matching other icons exactly -->
+  <text x="3" y="14" font-family="JetBrains Mono, monospace" font-size="9" font-weight="bold" fill="#548AF7" text-anchor="middle">j</text>
+  <!-- Flamegraph bars on the right, bottom-up, narrowing toward the top — bright for dark theme -->
+  <rect x="7"  y="12.5" width="8"   height="2.5" rx="0.4" fill="#FF7070"/>
+  <rect x="7"  y="9"    width="4.5" height="2.5" rx="0.4" fill="#FFA060"/>
+  <rect x="12.5" y="9"  width="2.5" height="2.5" rx="0.4" fill="#FFB070"/>
+  <rect x="7"  y="5.5"  width="3"   height="2.5" rx="0.4" fill="#FFC84A"/>
+  <rect x="12" y="5.5"  width="3"   height="2.5" rx="0.4" fill="#FFD84A"/>
+  <rect x="7"  y="2"    width="2.5" height="2.5" rx="0.4" fill="#FFE84A"/>
+</svg>

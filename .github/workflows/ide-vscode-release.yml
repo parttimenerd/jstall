@@ -1,0 +1,84 @@
+name: VS Code Extension Release
+
+on:
+  push:
+    tags:
+      - 'vscode-v*'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: ide-support/vscode-extension
+
+jobs:
+  package-vsix:
+    name: Package VSIX
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ide-support/vscode-extension/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Read extension version
+        id: extension-version
+        run: |
+          VERSION=$(node -p 'require("./package.json").version')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Extract changelog entry
+        env:
+          VERSION: ${{ steps.extension-version.outputs.version }}
+        run: |
+          node <<'EOF'
+          const fs = require('fs');
+
+          const version = process.env.VERSION;
+          const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+          const escapedVersion = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const sectionPattern = new RegExp(
+            `^## \\[${escapedVersion}\\][\\t ]*\\r?\\n([\\s\\S]*?)(?=^## \\[|$)`,
+            'm'
+          );
+          const match = changelog.match(sectionPattern);
+
+          if (!match) {
+            console.error(`Could not find changelog section for version ${version} in CHANGELOG.md`);
+            process.exit(1);
+          }
+
+          const body = `## [${version}]\n\n${match[1].trim()}\n`;
+          fs.writeFileSync('release-notes.md', body);
+          EOF
+
+      - name: Build extension (production)
+        run: npm run package
+
+      - name: Create VSIX
+        run: npx @vscode/vsce package --out jstall-${{ steps.extension-version.outputs.version }}.vsix
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jstall-vsix-${{ steps.extension-version.outputs.version }}
+          path: ide-support/vscode-extension/jstall-*.vsix
+          if-no-files-found: error
+
+      - name: Publish VSIX to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: VS Code Extension v${{ steps.extension-version.outputs.version }}
+          tag_name: ${{ github.ref_name }}
+          files: ide-support/vscode-extension/jstall-*.vsix
+          body_path: ide-support/vscode-extension/release-notes.md

@@ -1,0 +1,74 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <id>me.bechberger.jstall</id>
+    <name>JStall</name>
+    <vendor>parttimenerd</vendor>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.lang</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup id="JStall Notifications" displayType="BALLOON"/>
+        <applicationConfigurable
+                parentId="tools"
+                instance="me.bechberger.jstall.settings.JStallConfigurable"
+                id="me.bechberger.jstall.settings.JStallConfigurable"
+                displayName="JStall"/>
+        <applicationService
+                serviceImplementation="me.bechberger.jstall.settings.JStallSettings"/>
+        <iconProvider
+                implementation="me.bechberger.jstall.JStallRecordingIconProvider"
+                order="first"/>
+        <fileEditorProvider
+                implementation="me.bechberger.jstall.JStallRecordingEditorProvider"/>
+    </extensions>
+
+    <actions>
+        <action id="JStall.Status"
+                class="me.bechberger.jstall.actions.JStallStatusAction"
+                text="JStall Status"
+                description="Run jstall status against the running JVM process"
+                icon="/icons/jstallStatus.svg">
+            <add-to-group group-id="RunTab.TopToolbar" anchor="last" />
+        </action>
+        <action id="JStall.Flame"
+                class="me.bechberger.jstall.actions.JStallFlameAction"
+                text="JStall Flame"
+                description="Generate and display a flamegraph for the running JVM process (not available on Windows)"
+                icon="/icons/jstallFlame.svg">
+            <add-to-group group-id="RunTab.TopToolbar" anchor="last" />
+        </action>
+        <action id="JStall.Record"
+                class="me.bechberger.jstall.actions.JStallRecordAction"
+                text="JStall Record"
+                description="Record JVM diagnostics into a ZIP file for later analysis"
+                icon="/icons/jstallRecord.svg">
+            <add-to-group group-id="RunTab.TopToolbar" anchor="last" />
+            <add-to-group group-id="RunToolbarProcessMainActionGroup" anchor="last"/>
+        </action>
+        <action id="JStall.Replay"
+                class="me.bechberger.jstall.actions.JStallReplayAction"
+                text="Analyze JStall Recording"
+                description="Run jstall status on a recording ZIP file"
+                icon="/icons/jstallStatus.svg">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <add-to-group group-id="EditorTabPopupMenu" anchor="last"/>
+        </action>
+        <action id="JStall.Extract"
+                class="me.bechberger.jstall.actions.JStallExtractAction"
+                text="Extract JStall Recording"
+                description="Extract a jstall recording ZIP into a folder"
+                icon="/icons/jstallRecord.svg">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <add-to-group group-id="EditorTabPopupMenu" anchor="last"/>
+        </action>
+        <action id="JStall.RecordingFlame"
+                class="me.bechberger.jstall.actions.JStallRecordingFlameAction"
+                text="Show JStall Flamegraph"
+                description="Display the flamegraph embedded in a jstall recording"
+                icon="/icons/jstallFlame.svg">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <add-to-group group-id="EditorTabPopupMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>

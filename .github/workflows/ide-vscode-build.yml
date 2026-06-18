@@ -1,0 +1,55 @@
+name: VS Code Extension Build
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'ide-support/vscode-extension/**'
+  pull_request:
+    paths:
+      - 'ide-support/vscode-extension/**'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: ide-support/vscode-extension
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ide-support/vscode-extension/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Compile tests
+        run: npm run compile-tests
+
+      - name: Build extension (production)
+        run: npm run package
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-extension-dist
+          path: |
+            ide-support/vscode-extension/dist/
+            ide-support/vscode-extension/lib/
+            ide-support/vscode-extension/package.json
+            ide-support/vscode-extension/README.md
+            ide-support/vscode-extension/CHANGELOG.md
+          if-no-files-found: error

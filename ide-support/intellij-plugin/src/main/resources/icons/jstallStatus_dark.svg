@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- "j" letter on the left -->
+  <text x="3" y="14" font-family="JetBrains Mono, monospace" font-size="9" font-weight="bold" fill="#548AF7" text-anchor="middle">j</text>
+  <!-- Stack/dump lines -->
+  <rect x="7" y="2" width="7" height="1.5" rx="0.5" fill="#AFB1B3"/>
+  <rect x="7" y="5" width="7" height="1.5" rx="0.5" fill="#AFB1B3"/>
+  <rect x="7" y="8" width="7" height="1.5" rx="0.5" fill="#AFB1B3"/>
+  <rect x="7" y="11" width="7" height="1.5" rx="0.5" fill="#AFB1B3"/>
+</svg>
