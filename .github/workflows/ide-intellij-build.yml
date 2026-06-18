@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - 'intellij-plugin/**'
+  workflow_dispatch:
 
 defaults:
   run:
