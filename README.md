@@ -102,6 +102,57 @@ jstall deadlock kafka          # Check deadlocks in matching JVMs
 
 **Note:** `flame` requires exactly one JVM (fails if filter matches multiple).
 
+## Common Tasks
+
+### Find out where your JVM is stuck or not responding
+
+Run `deadlock` first — if there is a deadlock it is the root cause and everything
+else is a symptom:
+
+```bash
+jstall deadlock <pid>
+```
+
+If no deadlock, check which threads are BLOCKED or WAITING and what they are
+waiting for:
+
+```bash
+jstall status <pid> --intelligent-filter
+```
+
+Look for threads in `BLOCKED` state and the monitor address they are waiting on.
+The thread currently *holding* that monitor is the bottleneck.
+For a continuous view while the JVM is unresponsive, use the live TUI:
+
+```bash
+jstall threads --live <pid>
+```
+
+### Check if memory is growing without taking a full heap dump
+
+The `status` command includes a heap histogram showing the top object types by
+instance count and retained bytes — much faster than a full `jmap -histo`:
+
+```bash
+jstall status <pid> | grep -A 20 "Heap"
+```
+
+Take two snapshots a minute apart and compare to see which class is accumulating:
+
+```bash
+jstall record <pid> --output before.zip
+sleep 60
+jstall record <pid> --output after.zip
+jstall status before.zip
+jstall status after.zip
+```
+
+If the leak is confirmed, trigger a full heap dump for analysis with hprof-analyzer:
+
+```bash
+jcmd <pid> GC.heap_dump heap.hprof
+```
+
 ## Commands
 
 For full command reference with all options, see [docs/COMMANDS.md](docs/COMMANDS.md).
