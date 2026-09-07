@@ -55,6 +55,59 @@ how_to:
     Use `--intelligent-filter` to collapse framework internals and focus on
     application code, or `--full` for the unfiltered output.
 
+- title: Find out where your JVM is stuck or not responding
+  body: |
+    Run `deadlock` first — if there is a deadlock it is the root cause and everything
+    else is a symptom:
+    ```bash
+    java -jar jstall.jar deadlock <pid>
+    ```
+    If no deadlock, check which threads are BLOCKED or WAITING and what they are
+    waiting for:
+    ```bash
+    java -jar jstall.jar status <pid> --intelligent-filter
+    ```
+    Look for threads in `BLOCKED` state and the monitor address they are waiting on.
+    The thread currently *holding* that monitor is the bottleneck.
+    For a continuous view while the JVM is unresponsive, use the live TUI:
+    ```bash
+    java -jar jstall.jar threads --live <pid>
+    ```
+
+- title: Find out why CPU is high
+  body: |
+    `most-work` takes repeated thread dumps and ranks threads by on-CPU frequency —
+    no async-profiler needed, works on any JVM:
+    ```bash
+    java -jar jstall.jar most-work --dumps 5 <pid>
+    # Show only top 3 threads
+    java -jar jstall.jar most-work --dumps 5 --top=3 <pid>
+    ```
+    For a proper CPU flamegraph (requires async-profiler, bundled on Linux/macOS):
+    ```bash
+    java -jar jstall.jar flame --duration=30 --open <pid>
+    ```
+
+- title: Check if memory is growing without taking a full heap dump
+  body: |
+    The `status` command includes a heap histogram showing the top object types by
+    instance count and retained bytes — much faster than a full `jmap -histo`:
+    ```bash
+    java -jar jstall.jar status <pid> | grep -A 20 "Heap"
+    ```
+    Take two snapshots a minute apart and compare to see which class is accumulating:
+    ```bash
+    java -jar jstall.jar record <pid> --output before.zip
+    sleep 60
+    java -jar jstall.jar record <pid> --output after.zip
+    java -jar jstall.jar status before.zip
+    java -jar jstall.jar status after.zip
+    ```
+    If the leak is confirmed, trigger a full heap dump for analysis with hprof-analyzer:
+    ```bash
+    jcmd <pid> GC.heap_dump heap.hprof
+    ```
+
 - title: Find the threads doing the most CPU work
   body: |
     ```bash
