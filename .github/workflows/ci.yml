@@ -100,7 +100,7 @@ jobs:
   windows-test:
     runs-on: windows-latest
     # Run weekly or on manual dispatch only — Windows runner is slow
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || github.event_name == 'push'
 
     steps:
       - uses: actions/checkout@v5
