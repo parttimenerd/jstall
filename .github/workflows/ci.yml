@@ -99,6 +99,9 @@ jobs:
 
   windows-test:
     runs-on: windows-latest
+    # Run weekly or on manual dispatch only — Windows runner is slow and SSH mode
+    # requires a Linux/Mac remote; Windows-as-remote is not yet supported.
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
 
     steps:
       - uses: actions/checkout@v5
@@ -110,71 +113,5 @@ jobs:
           distribution: 'sapmachine'
           cache: maven
 
-      - name: Build package
-        run: mvn package -DskipTests
-
-      - name: Set up OpenSSH Server
-        shell: pwsh
-        run: |
-          # Install OpenSSH Server optional feature
-          Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
-
-          # Ensure PubkeyAuthentication is enabled (commented out by default on some Windows images)
-          $sshdConfig = "C:\ProgramData\ssh\sshd_config"
-          (Get-Content $sshdConfig) -replace '^#\s*PubkeyAuthentication.*', 'PubkeyAuthentication yes' |
-              Set-Content $sshdConfig
-
-          # Start sshd
-          Start-Service sshd
-
-          # Generate ed25519 keypair (no passphrase, no prompts)
-          $sshDir = "$env:USERPROFILE\.ssh"
-          New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
-          ssh-keygen -t ed25519 -f "$sshDir\id_ed25519" -N ""
-
-          # Wire up authorized_keys for admin users
-          $adminKeysFile = "C:\ProgramData\ssh\administrators_authorized_keys"
-          Copy-Item "$sshDir\id_ed25519.pub" $adminKeysFile
-
-          # Fix ACLs: only SYSTEM and Administrators, no inheritance
-          icacls $adminKeysFile /inheritance:r /grant "SYSTEM:(F)" /grant "Administrators:(F)"
-
-          # Pre-populate known_hosts so ssh doesn't prompt
-          $hostKey = (ssh-keyscan -H localhost 2>$null)
-          Add-Content "$sshDir\known_hosts" $hostKey
-
-          # Smoke-test: verify ssh localhost works
-          $result = ssh localhost "echo hello"
-          if ($result -ne "hello") {
-            Write-Error "SSH loopback smoke test failed: got '$result'"
-            exit 1
-          }
-          Write-Host "SSH loopback OK"
-
-      - name: Run jstall SSH loopback test
-        shell: pwsh
-        run: |
-          # Compile Hello.java (uses the JDK set up by setup-java above)
-          javac Hello.java
-
-          # Start background JVM
-          $proc = Start-Process -FilePath "java" -ArgumentList "-cp", ".", "Hello" `
-                    -PassThru -WindowStyle Hidden
-          $helloPid = $proc.Id
-          Write-Host "Started Hello JVM with PID $helloPid"
-
-          # Wait for JVM attach mechanism to become ready (Attach Listener starts ~2s in)
-          Start-Sleep -Seconds 5
-
-          # Run jstall via the jar with SSH loopback
-          java -jar target\jstall.jar --ssh "ssh -o StrictHostKeyChecking=no localhost" status $helloPid
-          $exitCode = $LASTEXITCODE
-
-          # Clean up
-          Stop-Process -Id $helloPid -Force -ErrorAction SilentlyContinue
-
-          if ($exitCode -ne 0) {
-            Write-Error "jstall --ssh loopback test failed with exit code $exitCode"
-            exit $exitCode
-          }
-          Write-Host "jstall SSH loopback test passed"
+      - name: Build and test
+        run: mvn test

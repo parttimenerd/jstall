@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
+## [0.7.2] - 2026-09-22
+
+### Fixed
+- `--ssh` mode now works when running jstall on Windows: replaced the `sh -c "ssh ..."` shell wrapper with a direct `ProcessBuilder` invocation, so no local Unix shell is required. The remote host still needs to be Linux/Mac.
+
 ## [0.7.1] - 2026-05-17
 
 ### Added
