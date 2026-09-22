@@ -145,3 +145,31 @@ jobs:
             exit 1
           }
           Write-Host "SSH loopback OK"
+
+      - name: Run jstall SSH loopback test
+        shell: pwsh
+        run: |
+          # Compile Hello.java (uses the JDK set up by setup-java above)
+          javac Hello.java
+
+          # Start background JVM
+          $proc = Start-Process -FilePath "java" -ArgumentList "-cp", ".", "Hello" `
+                    -PassThru -WindowStyle Hidden
+          $pid = $proc.Id
+          Write-Host "Started Hello JVM with PID $pid"
+
+          # Wait for JVM attach mechanism to become ready (Attach Listener starts ~2s in)
+          Start-Sleep -Seconds 5
+
+          # Run jstall via the jar with SSH loopback
+          java -jar target\jstall.jar --ssh "ssh -o StrictHostKeyChecking=no localhost" status $pid
+          $exitCode = $LASTEXITCODE
+
+          # Clean up
+          Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+
+          if ($exitCode -ne 0) {
+            Write-Error "jstall --ssh loopback test failed with exit code $exitCode"
+            exit $exitCode
+          }
+          Write-Host "jstall SSH loopback test passed"
