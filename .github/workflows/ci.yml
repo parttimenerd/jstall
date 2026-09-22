@@ -96,3 +96,19 @@ jobs:
           name: jstall-minimal
           path: target/jstall-minimal
           retention-days: 30
+
+  windows-test:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: 21
+          distribution: 'sapmachine'
+          cache: maven
+
+      - name: Build package
+        run: mvn package -DskipTests
