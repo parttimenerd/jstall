@@ -195,10 +195,12 @@ public abstract class CommandExecutor {
 
         private final Object probeLock = new Object();
         private volatile boolean remoteProbeDone = false;
+        private volatile boolean remoteIsWindows = false;
 
         /**
          * Shell snippet that discovers a JDK bin directory and prepends it to PATH.
          * Prefers JAVA_HOME if set, then searches from . and finally from /.
+         * Used when the remote shell is POSIX sh (Linux/Mac).
          */
         private static final String JDK_PATH_DISCOVERY_PREFIX =
                 "if [ -n \"$JAVA_HOME\" ] && [ -x \"$JAVA_HOME/bin/jps\" ]; then JDK_BIN=\"$JAVA_HOME/bin\"; " +
@@ -209,6 +211,10 @@ public abstract class CommandExecutor {
                     "fi; " +
                 "fi; " +
                 "if [ -n \"$JDK_BIN\" ] && [ \"$JDK_BIN\" != \".\" ]; then export PATH=\"$JDK_BIN:$PATH\"; fi; ";
+
+        /** cmd.exe equivalent: prepend %JAVA_HOME%\bin to PATH if JAVA_HOME is set. */
+        private static final String JDK_PATH_DISCOVERY_PREFIX_WINDOWS =
+                "if defined JAVA_HOME (set PATH=%JAVA_HOME%\\bin;%PATH%) & ";
 
         public RemoteCommandExecutor(String sshCommandPrefix) {
             super(true);
@@ -231,7 +237,7 @@ public abstract class CommandExecutor {
         }
 
         /**
-         * Ensures that the passed command prefix works at all.
+         * Ensures that the passed command prefix works at all, and detects whether the remote is Windows.
          * Throws IOException with the SSH error output on failure.
          */
         private void ensureRemoteProbe() throws IOException {
@@ -239,8 +245,8 @@ public abstract class CommandExecutor {
             synchronized (probeLock) {
                 if (remoteProbeDone) return;
 
-                String marker = "__JSTALL_REMOTE_OK__";
-                String remotePayload = "echo " + marker;
+                // Use %OS% probe: on Windows cmd.exe this expands to "Windows_NT"; on sh it stays literal.
+                String remotePayload = "echo %OS%";
                 if (verbose) {
                     System.err.println("[verbose] SSH probe: " + sshCommandPrefix + " " + remotePayload);
                 }
@@ -249,6 +255,10 @@ public abstract class CommandExecutor {
                 if (probe.exitCode() != 0) {
                     String details = Stream.of(probe.err(), probe.out()).filter(s -> !s.isBlank()).collect(Collectors.joining("\n"));
                     throw new SSHCommandException("SSH command failed (exit code " + probe.exitCode() + "):\n  " + details.replace("\n", "\n  "), probe.exitCode());
+                }
+                remoteIsWindows = probe.out().trim().equalsIgnoreCase("Windows_NT");
+                if (verbose) {
+                    System.err.println("[verbose] Remote OS detected: " + (remoteIsWindows ? "Windows" : "Unix"));
                 }
                 remoteProbeDone = true;
             }
@@ -259,13 +269,15 @@ public abstract class CommandExecutor {
             ensureRemoteProbe();
             String actualCommand;
             if (JVM_RELATED_COMMANDS.contains(command)) {
-                // Prepend JDK PATH discovery so tools like jps/jcmd work on CF containers
-                actualCommand = JDK_PATH_DISCOVERY_PREFIX + command;
+                String prefix = remoteIsWindows ? JDK_PATH_DISCOVERY_PREFIX_WINDOWS : JDK_PATH_DISCOVERY_PREFIX;
+                actualCommand = prefix + command;
             } else {
                 actualCommand = command;
             }
 
-            String remotePayload = args != null ? actualCommand + " " + escapeAndJoinArgs(args) : actualCommand;
+            String remotePayload = args != null && args.length > 0
+                    ? actualCommand + " " + (remoteIsWindows ? String.join(" ", args) : escapeAndJoinArgs(args))
+                    : actualCommand;
             if (verbose) {
                 System.err.println("[verbose] SSH command: " + sshCommandPrefix + " " + remotePayload);
             }

@@ -120,15 +120,11 @@ jobs:
         run: |
           Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
 
-          # Configure sshd to use Git sh (POSIX-compatible) as default shell
+          # Configure sshd: enable pubkey authentication
           $sshdConfig = "C:\ProgramData\ssh\sshd_config"
           $cfg = Get-Content $sshdConfig
           $cfg = $cfg -replace '^#\s*PubkeyAuthentication.*', 'PubkeyAuthentication yes'
-          # Path must be quoted in sshd_config if it contains spaces
-          $gitSh = "C:\Program Files\Git\bin\sh.exe"
-          $cfg += "DefaultShell `"$gitSh`""
           $cfg | Set-Content $sshdConfig
-          Write-Host "sshd_config DefaultShell line: $(Select-String DefaultShell $sshdConfig)"
 
           Start-Service sshd
 
