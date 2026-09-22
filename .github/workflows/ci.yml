@@ -121,8 +121,11 @@ jobs:
           Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
 
           $sshdConfig = "C:\ProgramData\ssh\sshd_config"
-          (Get-Content $sshdConfig) -replace '^#\s*PubkeyAuthentication.*', 'PubkeyAuthentication yes' |
-              Set-Content $sshdConfig
+          $cfg = Get-Content $sshdConfig
+          $cfg = $cfg -replace '^#\s*PubkeyAuthentication.*', 'PubkeyAuthentication yes'
+          # Use Git for Windows sh as the default shell so POSIX scripts work over SSH
+          $cfg += 'DefaultShell C:\Program Files\Git\bin\sh.exe'
+          $cfg | Set-Content $sshdConfig
 
           Start-Service sshd
 
@@ -147,16 +150,17 @@ jobs:
       - name: Run jstall SSH loopback test
         shell: pwsh
         run: |
-          javac "$env:GITHUB_WORKSPACE\Hello.java"
+          Set-Location "$env:GITHUB_WORKSPACE"
+          javac Hello.java
 
-          $proc = Start-Process -FilePath "java" -ArgumentList "-cp", "$env:GITHUB_WORKSPACE", "Hello" `
-                    -PassThru -WindowStyle Hidden
+          $proc = Start-Process -FilePath "java" -ArgumentList "-cp", ".", "Hello" `
+                    -PassThru -WindowStyle Hidden -WorkingDirectory "$env:GITHUB_WORKSPACE"
           $helloPid = $proc.Id
           Write-Host "Started Hello JVM with PID $helloPid"
 
           Start-Sleep -Seconds 10
 
-          java -jar "$env:GITHUB_WORKSPACE\target\jstall.jar" --verbose --ssh "ssh -o StrictHostKeyChecking=no localhost" status $helloPid
+          java -jar "target\jstall.jar" --verbose --ssh "ssh -o StrictHostKeyChecking=no localhost" status $helloPid
           $exitCode = $LASTEXITCODE
 
           Stop-Process -Id $helloPid -Force -ErrorAction SilentlyContinue
