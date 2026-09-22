@@ -498,6 +498,7 @@ class VersionBumper:
         if not self.mcp_dir.exists():
             print("⚠ mcp/ directory not found, skipping MCP build")
             return
+        self.run_command(['npm', 'install'], "Installing MCP npm dependencies", cwd=self.mcp_dir)
         self.run_command(['npm', 'run', 'build'], "Building MCP package", cwd=self.mcp_dir)
 
     def publish_mcp(self):
@@ -804,6 +805,9 @@ java -jar jstall.jar <pid>
         """Create backups of files that will be modified"""
         import shutil
 
+        # Remove any stale backup from a previous failed run before creating a fresh one
+        if self.backup_dir.exists():
+            shutil.rmtree(self.backup_dir)
         self.backup_dir.mkdir(exist_ok=True)
 
         files_to_backup = [
@@ -944,9 +948,20 @@ java -jar jstall.jar <pid>
         self.run_command(
             ['git', 'add', 'pom.xml', 'src/main/java/me/bechberger/jstall/Main.java',
              'README.md', 'CHANGELOG.md', 'jbang-catalog.json',
-             'mcp/package.json', 'mcp/src/server.ts'],
+             'mcp/package.json', 'mcp/package-lock.json', 'mcp/src/server.ts'],
             "Staging files"
         )
+        # Verify something was actually staged before committing
+        status = subprocess.run(
+            ['git', 'diff', '--cached', '--name-only'],
+            cwd=self.project_root, capture_output=True, text=True
+        )
+        if not status.stdout.strip():
+            print("✗ Failed: Staging files")
+            print("  No changes were staged. The version files may not have been modified.")
+            self.restore_backups()
+            print("\n❌ Release failed. All changes have been reverted.")
+            sys.exit(1)
         self.run_command(
             ['git', 'commit', '-m', f'Bump version to {version}'],
             "Committing changes"
@@ -1047,7 +1062,6 @@ def main():
     parser.add_argument('--patch', action='store_true', help='Bump patch version (0.0.x)')
     parser.add_argument('--no-deploy', action='store_true', help='Skip deployment to Maven Central (deploy is default)')
     parser.add_argument('--no-github-release', action='store_true', help='Skip GitHub release creation (github-release is default)')
-    parser.add_argument('--no-npm-publish', action='store_true', help='Skip npm publish of @bechberger/jstall-mcp')
     parser.add_argument('--no-push', action='store_true', help='Skip pushing to git remote (push is default)')
     parser.add_argument('--skip-tests', action='store_true', help='Skip running tests')
     parser.add_argument('--dry-run', action='store_true', help='Show what would happen without making changes')
@@ -1104,7 +1118,6 @@ def main():
     # Set defaults (deploy and github-release are ON by default)
     do_deploy = not args.no_deploy
     do_github_release = not args.no_github_release
-    do_npm_publish = not args.no_npm_publish
     do_push = not args.no_push
 
     # Validate changelog before proceeding (unless dry-run)
@@ -1145,8 +1158,6 @@ def main():
         print("  • mvn clean package")
         if do_deploy:
             print("  • mvn clean deploy -P release")
-        if do_npm_publish:
-            print("  • npm publish --access public  (mcp/)")
         print(f"  • git add pom.xml Main.java README.md CHANGELOG.md")
         print(f"  • git commit -m 'Bump version to {new_version}'")
         print(f"  • git tag -a v{new_version} -m 'Release {new_version}'")
@@ -1178,10 +1189,6 @@ def main():
 
     if do_deploy:
         print(f"  {step}. Deploy to Maven Central")
-        step += 1
-
-    if do_npm_publish:
-        print(f"  {step}. Publish @bechberger/jstall-mcp to npm")
         step += 1
 
     print(f"  {step}. Commit and tag")
@@ -1242,15 +1249,6 @@ def main():
             else:
                 bumper.deploy_release()
 
-        if do_npm_publish:
-            print("\n=== Publishing to npm ===")
-            response = input("Ready to publish @bechberger/jstall-mcp to npm? [y/N] ")
-            if response.lower() not in ['y', 'yes']:
-                print("Skipping npm publish.")
-                do_npm_publish = False
-            else:
-                bumper.deploy_npm()
-
         # Git operations
         print("\n=== Git operations ===")
         bumper.git_commit(new_version)
@@ -1287,7 +1285,6 @@ def main():
     print(f"  ✓ Tests passed" if not args.skip_tests else "  ⊘ Tests skipped")
     print(f"  ✓ Package built")
     print(f"  ✓ Deployed to Maven Central" if do_deploy else "  ⊘ Deployment skipped")
-    print(f"  ✓ Published @bechberger/jstall-mcp to npm" if do_npm_publish else "  ⊘ npm publish skipped")
     print(f"  ✓ Git commit and tag created")
     print(f"  ✓ Pushed to remote" if do_push else "  ⊘ Push skipped")
     print(f"  ✓ GitHub release created" if do_github_release else "  ⊘ GitHub release skipped")
@@ -1306,6 +1303,14 @@ def main():
     if do_deploy:
         print(f"\n📦 Maven Central:")
         print(f"  https://central.sonatype.com/artifact/me.bechberger/jstall/{new_version}")
+
+    print(f"\n📦 npm (manual step required):")
+    print(f"  The MCP package must be published manually (2FA required):")
+    print(f"  cd mcp")
+    print(f"  npm install")
+    print(f"  npm run build")
+    print(f"  node scripts/download-jar.cjs")
+    print(f"  npm publish --access public")
 
 
 if __name__ == '__main__':
