@@ -36,6 +36,7 @@ Commands:
   vm-classloader-stats  Show VM.classloader_stats grouped by classloader type
   vm-metaspace          Show VM.metaspace summary and trend
   compiler-queue        Analyze compiler queue state showing active compilations and queued tasks
+  ai                    AI-powered thread dump analysis using LLM
   list                  List running JVM processes (excluding this tool)
   processes             Detect other processes running on the system that consume high CPU time
   jvm-support           Check whether the target JVM is likely still supported (based on java.version.date)
