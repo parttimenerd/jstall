@@ -99,8 +99,7 @@ jobs:
 
   windows-test:
     runs-on: windows-latest
-    # Run weekly or on manual dispatch only — Windows runner is slow and SSH mode
-    # requires a Linux/Mac remote; Windows-as-remote is not yet supported.
+    # Run weekly or on manual dispatch only — Windows runner is slow
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
 
     steps:
@@ -113,5 +112,57 @@ jobs:
           distribution: 'sapmachine'
           cache: maven
 
-      - name: Build and test
-        run: mvn test
+      - name: Build package
+        run: mvn package -DskipTests
+
+      - name: Set up OpenSSH Server
+        shell: pwsh
+        run: |
+          Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+
+          $sshdConfig = "C:\ProgramData\ssh\sshd_config"
+          (Get-Content $sshdConfig) -replace '^#\s*PubkeyAuthentication.*', 'PubkeyAuthentication yes' |
+              Set-Content $sshdConfig
+
+          Start-Service sshd
+
+          $sshDir = "$env:USERPROFILE\.ssh"
+          New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
+          ssh-keygen -t ed25519 -f "$sshDir\id_ed25519" -N ""
+
+          $adminKeysFile = "C:\ProgramData\ssh\administrators_authorized_keys"
+          Copy-Item "$sshDir\id_ed25519.pub" $adminKeysFile
+          icacls $adminKeysFile /inheritance:r /grant "SYSTEM:(F)" /grant "Administrators:(F)"
+
+          $hostKey = (ssh-keyscan -H localhost 2>$null)
+          Add-Content "$sshDir\known_hosts" $hostKey
+
+          $result = ssh localhost "echo hello"
+          if ($result -ne "hello") {
+            Write-Error "SSH loopback smoke test failed: got '$result'"
+            exit 1
+          }
+          Write-Host "SSH loopback OK"
+
+      - name: Run jstall SSH loopback test
+        shell: pwsh
+        run: |
+          javac "$env:GITHUB_WORKSPACE\Hello.java"
+
+          $proc = Start-Process -FilePath "java" -ArgumentList "-cp", "$env:GITHUB_WORKSPACE", "Hello" `
+                    -PassThru -WindowStyle Hidden
+          $helloPid = $proc.Id
+          Write-Host "Started Hello JVM with PID $helloPid"
+
+          Start-Sleep -Seconds 10
+
+          java -jar "$env:GITHUB_WORKSPACE\target\jstall.jar" --verbose --ssh "ssh -o StrictHostKeyChecking=no localhost" status $helloPid
+          $exitCode = $LASTEXITCODE
+
+          Stop-Process -Id $helloPid -Force -ErrorAction SilentlyContinue
+
+          if ($exitCode -ne 0) {
+            Write-Error "jstall --ssh loopback test failed with exit code $exitCode"
+            exit $exitCode
+          }
+          Write-Host "jstall SSH loopback test passed"

@@ -189,6 +189,7 @@ public abstract class CommandExecutor {
     public static class RemoteCommandExecutor extends CommandExecutor {
         private static final Set<String> JVM_RELATED_COMMANDS = Set.of("jcmd", "jps", "jstack", "jmap", "jinfo", "jstat", "asprof");
         private final String sshCommandPrefix;
+        private final List<String> sshPrefixTokens;
         private final LocalCommandExecutor localExecutor = new LocalCommandExecutor();
         private boolean verbose = false;
 
@@ -212,6 +213,7 @@ public abstract class CommandExecutor {
         public RemoteCommandExecutor(String sshCommandPrefix) {
             super(true);
             this.sshCommandPrefix = sshCommandPrefix;
+            this.sshPrefixTokens = Arrays.asList(sshCommandPrefix.split("\\s+"));
         }
 
         public void setVerbose(boolean verbose) {
@@ -220,6 +222,12 @@ public abstract class CommandExecutor {
 
         public boolean isVerbose() {
             return verbose;
+        }
+
+        private CommandResult executeSshCommand(String remotePayload) throws IOException {
+            List<String> cmd = new ArrayList<>(sshPrefixTokens);
+            cmd.add(remotePayload);
+            return localExecutor.executeCommand(cmd.get(0), cmd.subList(1, cmd.size()).toArray(new String[0]));
         }
 
         /**
@@ -232,11 +240,11 @@ public abstract class CommandExecutor {
                 if (remoteProbeDone) return;
 
                 String marker = "__JSTALL_REMOTE_OK__";
-                String fullCommand = sshCommandPrefix + " " + escapeForShell("echo " + marker);
+                String remotePayload = "echo " + marker;
                 if (verbose) {
-                    System.err.println("[verbose] SSH probe: sh -c " + fullCommand);
+                    System.err.println("[verbose] SSH probe: " + sshCommandPrefix + " " + remotePayload);
                 }
-                CommandResult probe = localExecutor.executeCommand("sh", "-c", fullCommand);
+                CommandResult probe = executeSshCommand(remotePayload);
 
                 if (probe.exitCode() != 0) {
                     String details = Stream.of(probe.err(), probe.out()).filter(s -> !s.isBlank()).collect(Collectors.joining("\n"));
@@ -258,11 +266,10 @@ public abstract class CommandExecutor {
             }
 
             String remotePayload = args != null ? actualCommand + " " + escapeAndJoinArgs(args) : actualCommand;
-            String fullCommand = sshCommandPrefix + " " + escapeForShell(remotePayload);
             if (verbose) {
-                System.err.println("[verbose] SSH command: sh -c " + fullCommand);
+                System.err.println("[verbose] SSH command: " + sshCommandPrefix + " " + remotePayload);
             }
-            CommandResult result = localExecutor.executeCommand("sh", "-c", fullCommand);
+            CommandResult result = executeSshCommand(remotePayload);
             if (verbose) {
                 System.err.println("[verbose] Exit code: " + result.exitCode());
                 if (!result.out().isBlank()) {
@@ -323,7 +330,9 @@ public abstract class CommandExecutor {
     }
 
     public static String escapeForShell(String arg) {
-        // Simple escaping for shell arguments
-        return "'" + arg.replace("'", "'\\''") + "'";
+        // Double-quote escaping works on both Unix remote shells and survives Windows
+        // ProcessBuilder argument serialisation (which wraps args in "..." internally).
+        // Single-quote escaping breaks when the Windows SSH client re-quotes the payload.
+        return "\"" + arg.replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$").replace("`", "\\`") + "\"";
     }
 }
