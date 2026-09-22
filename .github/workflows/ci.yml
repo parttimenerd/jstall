@@ -119,13 +119,18 @@ jobs:
           # Install OpenSSH Server optional feature
           Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
 
+          # Ensure PubkeyAuthentication is enabled (commented out by default on some Windows images)
+          $sshdConfig = "C:\ProgramData\ssh\sshd_config"
+          (Get-Content $sshdConfig) -replace '^#\s*PubkeyAuthentication.*', 'PubkeyAuthentication yes' |
+              Set-Content $sshdConfig
+
           # Start sshd
           Start-Service sshd
 
           # Generate ed25519 keypair (no passphrase, no prompts)
           $sshDir = "$env:USERPROFILE\.ssh"
           New-Item -ItemType Directory -Force -Path $sshDir | Out-Null
-          ssh-keygen -t ed25519 -f "$sshDir\id_ed25519" -N '""'
+          ssh-keygen -t ed25519 -f "$sshDir\id_ed25519" -N ""
 
           # Wire up authorized_keys for admin users
           $adminKeysFile = "C:\ProgramData\ssh\administrators_authorized_keys"
@@ -139,7 +144,7 @@ jobs:
           Add-Content "$sshDir\known_hosts" $hostKey
 
           # Smoke-test: verify ssh localhost works
-          $result = ssh -o StrictHostKeyChecking=no localhost "echo hello"
+          $result = ssh localhost "echo hello"
           if ($result -ne "hello") {
             Write-Error "SSH loopback smoke test failed: got '$result'"
             exit 1
@@ -155,18 +160,18 @@ jobs:
           # Start background JVM
           $proc = Start-Process -FilePath "java" -ArgumentList "-cp", ".", "Hello" `
                     -PassThru -WindowStyle Hidden
-          $pid = $proc.Id
-          Write-Host "Started Hello JVM with PID $pid"
+          $helloPid = $proc.Id
+          Write-Host "Started Hello JVM with PID $helloPid"
 
           # Wait for JVM attach mechanism to become ready (Attach Listener starts ~2s in)
           Start-Sleep -Seconds 5
 
           # Run jstall via the jar with SSH loopback
-          java -jar target\jstall.jar --ssh "ssh -o StrictHostKeyChecking=no localhost" status $pid
+          java -jar target\jstall.jar --ssh "ssh -o StrictHostKeyChecking=no localhost" status $helloPid
           $exitCode = $LASTEXITCODE
 
           # Clean up
-          Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+          Stop-Process -Id $helloPid -Force -ErrorAction SilentlyContinue
 
           if ($exitCode -ne 0) {
             Write-Error "jstall --ssh loopback test failed with exit code $exitCode"
