@@ -124,9 +124,11 @@ jobs:
           $sshdConfig = "C:\ProgramData\ssh\sshd_config"
           $cfg = Get-Content $sshdConfig
           $cfg = $cfg -replace '^#\s*PubkeyAuthentication.*', 'PubkeyAuthentication yes'
-          $gitSh = (Get-Command "C:\Program Files\Git\bin\sh.exe").Source
-          $cfg += "DefaultShell $gitSh"
+          # Path must be quoted in sshd_config if it contains spaces
+          $gitSh = "C:\Program Files\Git\bin\sh.exe"
+          $cfg += "DefaultShell `"$gitSh`""
           $cfg | Set-Content $sshdConfig
+          Write-Host "sshd_config DefaultShell line: $(Select-String DefaultShell $sshdConfig)"
 
           Start-Service sshd
 
