@@ -151,15 +151,7 @@ jobs:
       - name: Run jstall SSH loopback test
         shell: pwsh
         run: |
-          # Write a minimal long-running Java program for the test
-          $helloJava = @'
-class Hello {
-    public static void main(String[] args) throws Exception {
-        Thread.sleep(300000);
-    }
-}
-'@
-          $helloJava | Out-File -FilePath "Hello.java" -Encoding utf8
+          Set-Content -Path "Hello.java" -Value "class Hello { public static void main(String[] a) throws Exception { Thread.sleep(300000); } }"
 
           javac Hello.java
 
