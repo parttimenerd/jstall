@@ -90,6 +90,14 @@ class MainTest {
             "PATH",
             fakeToolDir.toAbsolutePath() + java.io.File.pathSeparator + (originalPath != null ? originalPath : "")
         );
+        if (System.getProperty("os.name").toLowerCase().contains("win")) {
+            String originalPathext = pb.environment().get("PATHEXT");
+            String preferredPathext = ".CMD;.BAT;.EXE;.COM";
+            pb.environment().put(
+                "PATHEXT",
+                preferredPathext + (originalPathext != null && !originalPathext.isBlank() ? ";" + originalPathext : "")
+            );
+        }
 
         Process process = pb.start();
         String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
