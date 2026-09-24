@@ -1,14 +1,11 @@
 package me.bechberger.jstall.util;
 
-import me.bechberger.femtocli.RunResult;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Utility class to execute system commands and capture their output, either executes locally or remotely via SSH.
@@ -61,6 +58,11 @@ public abstract class CommandExecutor {
      * Execute the given command.
      */
     public abstract CommandResult executeCommand(String command, String... args) throws IOException;
+
+    /**
+     * Render the command exactly as it would be executed.
+     */
+    public abstract String describeCommand(String command, String... args);
 
     public abstract TemporaryFile createTemporaryFile(String prefix, String suffix) throws IOException;
 
@@ -152,6 +154,14 @@ public abstract class CommandExecutor {
         }
 
         @Override
+        public String describeCommand(String command, String... args) {
+            if (args == null || args.length == 0) {
+                return command;
+            }
+            return command + " " + String.join(" ", args);
+        }
+
+        @Override
         public TemporaryFile createTemporaryFile(String prefix, String suffix) throws IOException {
             var path = Files.createTempFile(prefix, suffix);
             return new TemporaryFile() {
@@ -220,6 +230,15 @@ public abstract class CommandExecutor {
 
         public boolean isVerbose() {
             return verbose;
+        }
+
+        @Override
+        public String describeCommand(String command, String... args) {
+            String actualCommand = JVM_RELATED_COMMANDS.contains(command) ? JDK_PATH_DISCOVERY_PREFIX + command : command;
+            if (args == null || args.length == 0) {
+                return sshCommandPrefix + " " + actualCommand;
+            }
+            return sshCommandPrefix + " " + actualCommand + " " + escapeAndJoinArgs(args);
         }
 
         private CommandResult executeSshCommand(String remotePayload) throws IOException {
@@ -292,6 +311,56 @@ public abstract class CommandExecutor {
                     if (r.exitCode() != 0) throw new IOException("Failed to read remote file: " + r.err());
                     byte[] bytes = Base64.getDecoder().decode(r.out().replaceAll("\\s", ""));
                     Files.write(destination, bytes);
+                }
+            };
+        }
+    }
+
+    /**
+     * Dry-run executor that prints the command line instead of running it.
+     */
+    public static class DryRunCommandExecutor extends CommandExecutor {
+        private final CommandExecutor delegate;
+        private static final long FAKE_PID = 12345L;
+
+        public DryRunCommandExecutor(CommandExecutor delegate) {
+            super(delegate.isRemote());
+            this.delegate = delegate;
+        }
+
+        @Override
+        public CommandResult executeCommand(String command, String... args) {
+            System.err.println("[dry-run] " + delegate.describeCommand(command, args));
+            if ("jps".equals(command)) {
+                return new CommandResult(FAKE_PID + " dry-run\n", "", 0, FAKE_PID);
+            }
+            return new CommandResult("", "", 0, -1);
+        }
+
+        @Override
+        public String describeCommand(String command, String... args) {
+            return delegate.describeCommand(command, args);
+        }
+
+        @Override
+        public TemporaryFile createTemporaryFile(String prefix, String suffix) throws IOException {
+            return new TemporaryFile() {
+                @Override
+                public String getPath() {
+                    return "<dry-run-temp>";
+                }
+
+                @Override
+                public String readContent() throws IOException {
+                    return "";
+                }
+
+                @Override
+                public void copyInto(Path destination) throws IOException {
+                }
+
+                @Override
+                public void delete() throws IOException {
                 }
             };
         }

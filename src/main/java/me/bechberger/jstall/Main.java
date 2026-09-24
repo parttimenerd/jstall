@@ -63,26 +63,35 @@ public class Main implements Runnable {
     @Option(names = {"-v", "--verbose"}, description = "Enable verbose logging of remote SSH commands and their outputs")
     private boolean verbose;
 
+    @Option(names = "--dry-run", description = "Print the command that would run instead of executing it")
+    private boolean dryRun;
+
     private volatile CommandExecutor cachedExecutor;
+
+    private CommandExecutor maybeDryRun(CommandExecutor executor) {
+        return dryRun ? new CommandExecutor.DryRunCommandExecutor(executor) : executor;
+    }
 
     public @NotNull synchronized CommandExecutor executor() {
         if (cachedExecutor == null) {
             if (sshCommandPrefix != null) {
                 var remote = new CommandExecutor.RemoteCommandExecutor(sshCommandPrefix);
                 remote.setVerbose(verbose);
-                cachedExecutor = remote;
+                cachedExecutor = maybeDryRun(remote);
             } else if (cfAppName != null) {
                 var remote = new CommandExecutor.RemoteCommandExecutor("cf ssh " + cfAppName + " -c");
                 remote.setVerbose(verbose);
-                cachedExecutor = remote;
+                cachedExecutor = maybeDryRun(remote);
             } else {
-                cachedExecutor = new CommandExecutor.LocalCommandExecutor();
+                cachedExecutor = maybeDryRun(new CommandExecutor.LocalCommandExecutor());
             }
         }
         return cachedExecutor;
     }
 
     public static void main(String[] args) {
+        // Force Windows-safe ProcessBuilder quoting before any remote command runs.
+        System.setProperty("jdk.lang.Process.allowAmbiguousCommands", "false");
         try {
             int exitCode = FemtoCli.builder()
                 .commandConfig(Main::setFemtoCliCommandConfig)
