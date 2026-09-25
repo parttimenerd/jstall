@@ -246,15 +246,17 @@ public abstract class CommandExecutor {
             cmd.add(remotePayload);
             // On Windows with allowAmbiguousCommands=false, ProcessBuilder calls CreateProcessW directly
             // and won't resolve .cmd/.bat scripts via PATHEXT. Resolve the executable ourselves; if it
-            // turns out to be a script, prepend "cmd.exe /c <absolute-path>" so it can be invoked
-            // directly without relying on PATHEXT. Each argument remains a separate ProcessBuilder token,
-            // so Java's quoting still applies correctly per-argument.
+            // turns out to be a script, invoke it via "cmd.exe /c call <absolute-path> <args>".
+            // We use "call" rather than just "/c <path>" because cmd.exe /c strips the outer quotes
+            // from the remaining command line when the first token is quoted, which would break arg
+            // passing. "call" avoids that parsing quirk.
             if (System.getProperty("os.name", "").toLowerCase().contains("win")) {
                 Path resolved = resolveExecutableOnWindows(cmd.get(0));
                 if (resolved != null) {
                     String lower = resolved.toString().toLowerCase(Locale.ROOT);
                     if (lower.endsWith(".cmd") || lower.endsWith(".bat")) {
                         cmd.set(0, resolved.toString());
+                        cmd.add(0, "call");
                         cmd.add(0, "/c");
                         cmd.add(0, System.getenv().getOrDefault("COMSPEC", "cmd.exe"));
                     } else {
