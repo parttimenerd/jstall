@@ -2,6 +2,8 @@ package me.bechberger.jstall;
 
 import me.bechberger.jstall.util.CommandExecutor;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -36,6 +38,7 @@ class MainTest {
     }
 
     @Test
+    @DisabledOnOs(OS.WINDOWS)
     void fakeSshToolSeesQuotedRemotePayload() throws Exception {
         Path tempDir = Files.createTempDirectory("jstall-fake-ssh-");
         try {
