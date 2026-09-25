@@ -173,6 +173,9 @@ public class FlameCommand implements Callable<Integer> {
             } else if (os.contains("nux") || os.contains("nix")) {
                 // Linux
                 pb = new ProcessBuilder("xdg-open", filePath.toString());
+            } else if (os.contains("win")) {
+                // Windows
+                pb = new ProcessBuilder("cmd", "/c", "start", "", filePath.toString());
             } else {
                 return false;
             }

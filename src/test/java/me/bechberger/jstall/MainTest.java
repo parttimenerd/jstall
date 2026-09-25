@@ -1,5 +1,6 @@
 package me.bechberger.jstall;
 
+import me.bechberger.jstall.util.CommandExecutor;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -71,6 +72,21 @@ class MainTest {
         } finally {
             deleteRecursively(tempDir);
         }
+    }
+
+    @Test
+    void sshPayloadContainsDollarQuotesAndJps() {
+        // escapeForShell wraps in double-quotes and escapes $ so it survives remote-shell expansion
+        String escaped = CommandExecutor.escapeForShell("$JAVA_HOME");
+        assertTrue(escaped.startsWith("\"") && escaped.endsWith("\""), "must be double-quoted: " + escaped);
+        assertTrue(escaped.contains("JAVA_HOME"), "variable name must survive escaping: " + escaped);
+
+        // RemoteCommandExecutor.describeCommand for a JVM command prepends the JDK path-discovery preamble
+        var executor = new CommandExecutor.RemoteCommandExecutor("ssh user@host");
+        String description = executor.describeCommand("jps", "-l");
+        assertTrue(description.contains("jps"), "description must include jps: " + description);
+        assertTrue(description.contains("JAVA_HOME"), "description must include JAVA_HOME discovery: " + description);
+        assertTrue(description.contains("\"-l\""), "jps arg must be quoted in description: " + description);
     }
 
     private static String runChildWithFakeTool(Path fakeToolDir, String mainClass, String... extraArgs) throws IOException, InterruptedException {

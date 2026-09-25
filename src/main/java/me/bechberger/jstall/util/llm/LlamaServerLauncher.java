@@ -31,7 +31,9 @@ public final class LlamaServerLauncher {
      */
     public static boolean isInstalled() {
         try {
-            Process p = new ProcessBuilder("which", "llama-server")
+            // "where" on Windows, "which" on Unix
+            String finder = System.getProperty("os.name", "").toLowerCase().contains("win") ? "where" : "which";
+            Process p = new ProcessBuilder(finder, "llama-server")
                 .redirectErrorStream(true)
                 .start();
             int exit = p.waitFor();
@@ -108,8 +110,7 @@ public final class LlamaServerLauncher {
         // Inherit HF_HOME / HF_HUB_CACHE so model downloads are cached
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.inheritIO(); // let server logs go to stderr/stdout of the parent
-        // Redirect to /dev/null if we want quiet operation:
-        pb.redirectOutput(ProcessBuilder.Redirect.to(Path.of("/dev/null").toFile()));
+        pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
         pb.redirectError(ProcessBuilder.Redirect.INHERIT);
 
         // Forward cache env vars

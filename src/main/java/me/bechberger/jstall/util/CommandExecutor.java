@@ -244,7 +244,58 @@ public abstract class CommandExecutor {
         private CommandResult executeSshCommand(String remotePayload) throws IOException {
             List<String> cmd = new ArrayList<>(sshPrefixTokens);
             cmd.add(remotePayload);
+            // On Windows with allowAmbiguousCommands=false, ProcessBuilder calls CreateProcessW directly
+            // and won't resolve .cmd/.bat scripts via PATHEXT. Resolve the executable ourselves; if it
+            // turns out to be a script, prepend "cmd.exe /c <absolute-path>" so it can be invoked
+            // directly without relying on PATHEXT. Each argument remains a separate ProcessBuilder token,
+            // so Java's quoting still applies correctly per-argument.
+            if (System.getProperty("os.name", "").toLowerCase().contains("win")) {
+                Path resolved = resolveExecutableOnWindows(cmd.get(0));
+                if (resolved != null) {
+                    String lower = resolved.toString().toLowerCase(Locale.ROOT);
+                    if (lower.endsWith(".cmd") || lower.endsWith(".bat")) {
+                        cmd.set(0, resolved.toString());
+                        cmd.add(0, "/c");
+                        cmd.add(0, System.getenv().getOrDefault("COMSPEC", "cmd.exe"));
+                    } else {
+                        cmd.set(0, resolved.toString());
+                    }
+                }
+            }
             return localExecutor.executeCommand(cmd.get(0), cmd.subList(1, cmd.size()).toArray(new String[0]));
+        }
+
+        /**
+         * Searches PATH (and PATHEXT on Windows) for {@code name}. Returns the absolute path of the
+         * first match, or {@code null} if nothing is found.
+         */
+        private static Path resolveExecutableOnWindows(String name) {
+            if (name.contains("/") || name.contains("\\")) {
+                return null; // already a path — let the OS handle it
+            }
+            String pathExt = System.getenv("PATHEXT");
+            List<String> extensions = new ArrayList<>();
+            if (pathExt != null) {
+                for (String ext : pathExt.split(";")) {
+                    if (!ext.isBlank()) extensions.add(ext.toLowerCase(Locale.ROOT));
+                }
+            }
+            if (extensions.isEmpty()) {
+                extensions = List.of(".exe", ".cmd", ".bat", ".com");
+            }
+            String pathEnv = System.getenv("PATH");
+            if (pathEnv == null) return null;
+            for (String dir : pathEnv.split(java.io.File.pathSeparator)) {
+                Path base = Path.of(dir).resolve(name);
+                // Try exact name first (already has extension)
+                if (Files.isRegularFile(base)) return base;
+                // Try each PATHEXT extension
+                for (String ext : extensions) {
+                    Path candidate = Path.of(dir).resolve(name + ext);
+                    if (Files.isRegularFile(candidate)) return candidate;
+                }
+            }
+            return null;
         }
 
         @Override

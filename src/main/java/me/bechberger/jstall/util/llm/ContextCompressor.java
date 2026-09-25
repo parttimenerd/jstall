@@ -119,7 +119,7 @@ public class ContextCompressor {
     /** Sum all per-state counts from the "Thread state distribution:" line. */
     private static int extractTotalThreadCount(String threadsBody) {
         if (threadsBody == null) return 0;
-        for (String line : threadsBody.split("\n")) {
+        for (String line : threadsBody.split("\\R")) {
             if (line.startsWith("Thread state distribution:")) {
                 int total = 0;
                 java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d+)\\s+[A-Z_]+").matcher(line);
@@ -133,7 +133,7 @@ public class ContextCompressor {
     /** Extract the count for a specific state from the distribution line. */
     private static int extractStateCount(String threadsBody, String state) {
         if (threadsBody == null) return 0;
-        for (String line : threadsBody.split("\n")) {
+        for (String line : threadsBody.split("\\R")) {
             if (line.startsWith("Thread state distribution:")) {
                 java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d+)\\s+" + state + "\\b").matcher(line);
                 if (m.find()) return Integer.parseInt(m.group(1));
@@ -146,7 +146,7 @@ public class ContextCompressor {
     private static double extractTotalCpuPercent(String threadsBody) {
         if (threadsBody == null) return -1;
         Pattern p = Pattern.compile("\\(([0-9]+(?:\\.[0-9]+)?)%\\s*total CPU");
-        for (String line : threadsBody.split("\n")) {
+        for (String line : threadsBody.split("\\R")) {
             Matcher m = p.matcher(line);
             if (m.find()) return Double.parseDouble(m.group(1));
         }
@@ -160,7 +160,7 @@ public class ContextCompressor {
         boolean inTable = false;
         // Match the state word but not as a suffix of another state (e.g. WAITING but not TIMED_WAITING)
         Pattern p = Pattern.compile("(?<![A-Z_])" + Pattern.quote(state) + "(?![A-Z_])");
-        for (String line : threadsBody.split("\n")) {
+        for (String line : threadsBody.split("\\R")) {
             if (line.startsWith("THREAD")) { inTable = true; continue; }
             if (line.startsWith("-")) continue;
             if (!inTable || line.isBlank()) continue;
@@ -225,7 +225,7 @@ public class ContextCompressor {
      * Original ~10 rows × 5 columns → 2 lines.
      */
     private static String compressClassloaderStats(String body) {
-        String[] lines = body.split("\n");
+        String[] lines = body.split("\\R");
         String sampleLine = null;
         int loaderCount = 0;
         int totalClasses = 0;
@@ -263,7 +263,7 @@ public class ContextCompressor {
      * to prevent the LLM from confusing committed with the actual limit.
      */
     private static String compressMetaspace(String body) {
-        String[] lines = body.split("\n");
+        String[] lines = body.split("\\R");
         String sampleLine = null;
         String bothRow = null;
         String maxLine = null;
@@ -321,7 +321,7 @@ public class ContextCompressor {
      * Strip the redundant "Details" MiB column; keep the Δ column.
      */
     private static String compressGcHeapInfo(String body) {
-        String[] lines = body.split("\n");
+        String[] lines = body.split("\\R");
         StringBuilder sb = new StringBuilder();
         boolean inTable = false;
         // Only keep heap used% (most important) and young regions (GC pressure signal)
@@ -385,7 +385,7 @@ public class ContextCompressor {
      * Keeps only application threads (top 5 max) plus the summary line.
      */
     private static String compressMostWork(String body) {
-        String[] lines = body.split("\n");
+        String[] lines = body.split("\\R");
         StringBuilder sb = new StringBuilder();
         int stackFrameCount = 0;
         boolean inStack = false;
@@ -429,7 +429,7 @@ public class ContextCompressor {
      */
     private static String compressThreadsTable(String body) {
         if (body == null || body.isBlank()) return body;
-        String[] lines = body.split("\n");
+        String[] lines = body.split("\\R");
         StringBuilder sb = new StringBuilder();
         boolean inTable = false;
 
@@ -473,7 +473,7 @@ public class ContextCompressor {
         }
 
         // Otherwise keep header + summary only
-        String firstLine = body.split("\n")[0];
+        String firstLine = body.split("\\R")[0];
         return firstLine + "\n" + summary;
     }
 
@@ -522,7 +522,7 @@ public class ContextCompressor {
             .stripTrailing();
 
         // Collapse long blocked-thread lists per bottleneck: keep first MAX_BLOCKED_SHOWN
-        String[] lines = stripped.split("\n");
+        String[] lines = stripped.split("\\R");
         StringBuilder sb = new StringBuilder();
         int blockedCount = 0;
         boolean inBlockedList = false;

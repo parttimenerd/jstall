@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 ### Removed
 ### Fixed
+- `--cf APP` and `--ssh` modes now work correctly on Windows: `.cmd`/`.bat` wrappers on PATH are resolved and invoked via `cmd.exe /c`, so fake-tool tests and real CF CLI scripts are both found when `allowAmbiguousCommands=false` is active
+- Flamegraph HTML now auto-opens in the default browser on Windows (`cmd /c start`)
+- `llama-server` detection uses `where` instead of `which` on Windows
+- Replaced hardcoded `/dev/null` redirect with `ProcessBuilder.Redirect.DISCARD` (portable)
+- All `split("\\n")` calls in analyzers and LLM utilities replaced with `split("\\R")` / `split("\\r?\\n")` to correctly handle CRLF output on Windows
+- Removed hardcoded `/tmp`/`/var/tmp` Unix-only fallback paths from `SourceTools`
 ### Security
 
 ## [0.7.2] - 2026-09-22

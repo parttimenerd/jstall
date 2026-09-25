@@ -168,7 +168,7 @@ public abstract class BaseAnalyzer implements Analyzer {
             return "";
         }
 
-        String[] lines = stackTrace.split("\n");
+        String[] lines = stackTrace.split("\\r?\\n");
         if (lines.length == 0) {
             return "";
         }

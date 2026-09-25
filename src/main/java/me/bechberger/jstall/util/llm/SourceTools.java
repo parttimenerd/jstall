@@ -42,22 +42,16 @@ public class SourceTools {
     private static List<String> buildFallbackTmpRoots() {
         List<String> roots = new ArrayList<>();
         try {
-            roots.add(Path.of(System.getProperty("java.io.tmpdir", "/tmp")).toRealPath().toString());
+            roots.add(Path.of(System.getProperty("java.io.tmpdir")).toRealPath().toString());
         } catch (IOException e) {
-            roots.add(System.getProperty("java.io.tmpdir", "/tmp"));
-        }
-        for (String candidate : new String[]{"/tmp", "/var/tmp"}) {
-            try {
-                String real = Path.of(candidate).toRealPath().toString();
-                if (!roots.contains(real)) roots.add(real);
-            } catch (IOException ignored) {}
+            roots.add(System.getProperty("java.io.tmpdir"));
         }
         return List.copyOf(roots);
     }
 
     private static List<String> buildFallbackRoots() {
         List<String> roots = new ArrayList<>(buildFallbackTmpRoots());
-        roots.add(System.getProperty("user.home", "/"));
+        roots.add(System.getProperty("user.home"));
         return List.copyOf(roots);
     }
 

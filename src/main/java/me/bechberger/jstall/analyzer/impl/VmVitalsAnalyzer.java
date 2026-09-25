@@ -78,7 +78,7 @@ public class VmVitalsAnalyzer implements Analyzer {
             return "";
         }
 
-        String[] lines = rawVitals.split("\n");
+        String[] lines = rawVitals.split("\\r?\\n");
         List<String> dataLines = new ArrayList<>();
         String headerLine = null;
         String columnHeaderLine = null;

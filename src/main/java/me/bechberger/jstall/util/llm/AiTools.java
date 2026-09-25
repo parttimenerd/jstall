@@ -313,7 +313,7 @@ public class AiTools {
         String lowerName = threadName.toLowerCase();
 
         // Find the section in raw dump
-        String[] lines = raw.split("\n");
+        String[] lines = raw.split("\\R");
         StringBuilder result = new StringBuilder();
         boolean capturing = false;
         int capturedLines = 0;

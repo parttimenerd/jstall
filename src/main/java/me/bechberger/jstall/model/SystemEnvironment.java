@@ -77,7 +77,7 @@ public record SystemEnvironment(List<Process> processes) {
 
     private static Map<Long, PsProcessInfo> parsePsOutput(String psOutput) {
         Map<Long, PsProcessInfo> infos = new HashMap<>();
-        String[] lines = psOutput.split("\n");
+        String[] lines = psOutput.split("\\r?\\n");
         for (int i = 1; i < lines.length; i++) { // skip header
             String line = lines[i].trim();
             String[] parts = line.split("\\s+");
