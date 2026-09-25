@@ -12,6 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 ### Removed
 ### Fixed
+### Security
+
+## [0.7.3] - 2026-09-25
+
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
 - `--cf APP` and `--ssh` modes now work correctly on Windows: `.cmd`/`.bat` wrappers on PATH are resolved and invoked via `cmd.exe /c`, so fake-tool tests and real CF CLI scripts are both found when `allowAmbiguousCommands=false` is active
 - Flamegraph HTML now auto-opens in the default browser on Windows (`cmd /c start`)
 - `llama-server` detection uses `where` instead of `which` on Windows
