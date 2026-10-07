@@ -417,8 +417,9 @@ public class JMXDiagnosticHelper {
      */
     private static String attachSocketExpr(long targetPid) {
         String name = ".java_pid" + targetPid;
+        // ${TMPDIR%/} strips a trailing slash — macOS sets TMPDIR=/var/folders/.../T/ with a slash
         return "$(if [ -S \"/tmp/" + name + "\" ]; then echo \"/tmp/" + name + "\"; " +
-               "elif [ -n \"$TMPDIR\" ] && [ -S \"$TMPDIR/" + name + "\" ]; then echo \"$TMPDIR/" + name + "\"; fi)";
+               "elif [ -n \"$TMPDIR\" ] && [ -S \"${TMPDIR%/}/" + name + "\" ]; then echo \"${TMPDIR%/}/" + name + "\"; fi)";
     }
 
     /**
@@ -446,10 +447,10 @@ public class JMXDiagnosticHelper {
 
         String name = ".java_pid" + pid;
         // Trigger attach-socket creation if absent, then poll up to 5 s.
-        // Check both /tmp (Linux) and $TMPDIR (macOS). cwd via /proc (Linux) or lsof (macOS).
+        // Check both /tmp (Linux) and ${TMPDIR%/} (macOS — TMPDIR ends with /). cwd via /proc (Linux) or lsof (macOS).
         executor.executeCommand("sh", "-c", CommandExecutor.shell("""
                 sock=$(if [ -S "/tmp/{{NAME}}" ]; then echo "/tmp/{{NAME}}";
-                       elif [ -n "$TMPDIR" ] && [ -S "$TMPDIR/{{NAME}}" ]; then echo "$TMPDIR/{{NAME}}"; fi)
+                       elif [ -n "$TMPDIR" ] && [ -S "${TMPDIR%/}/{{NAME}}" ]; then echo "${TMPDIR%/}/{{NAME}}"; fi)
                 if [ -S "$sock" ]; then exit 0; fi
                 CWD=$(readlink /proc/{{PID}}/cwd 2>/dev/null \\
                       || lsof -p {{PID}} -Fn 2>/dev/null | awk -F/ '/^n\\//{print "/"substr($0,3); exit}' \\
@@ -458,7 +459,7 @@ public class JMXDiagnosticHelper {
                 kill -QUIT {{PID}} 2>/dev/null
                 for i in 1 2 3 4 5 6 7 8 9 10; do
                   sleep 0.5
-                  if [ -S "/tmp/{{NAME}}" ] || { [ -n "$TMPDIR" ] && [ -S "$TMPDIR/{{NAME}}" ]; }; then exit 0; fi
+                  if [ -S "/tmp/{{NAME}}" ] || { [ -n "$TMPDIR" ] && [ -S "${TMPDIR%/}/{{NAME}}" ]; }; then exit 0; fi
                 done
                 exit 1
                 """, "NAME", name, "PID", pid).replace("\n", " "));

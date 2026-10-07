@@ -7,11 +7,13 @@ Full CLI help output for all JStall commands. For a quick overview, see the [REA
 <!-- BEGIN help -->
 ```bash
 Usage: jstall [-hV] [--file=<replayFile>] [--ssh=<sshCommandPrefix>]
-              [--cf=<cfAppName>] [--verbose] [COMMAND]
+              [--cf=<cfAppName>] [--verbose] [--dry-run] [COMMAND]
 One-shot JVM inspection tool
       --cf=<cfAppName>            Use Cloud Foundry CLI for remote execution
                                   (shortcut for --ssh 'cf ssh <app-name> -c'),
                                   only Linux/Mac support on remote
+      --dry-run                   Print the command that would run instead of
+                                  executing it
   -f, --file=<replayFile>         File path for replay mode (replay ZIP file
                                   created by record command)
   -h, --help                      Show this help message and exit.

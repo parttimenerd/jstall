@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JVMDiscovery.listJVMsFallback` wraps `jps -l` in `sh -c "... 2>&1"` so "jps: not found" errors surface in persistent-shell mode (which only captures stdout).
 - `JMXDiagnosticHelper.executeCommand` wraps `jcmd` in `sh -c "... 2>&1"` when using `RemoteCommandExecutor`, so "not found" errors trigger the attach-socket fallback in persistent-shell mode.
 - Attach-socket creation wait extended from 2 s to 5 s (10 × 0.5 s polls).
+- Attach-socket path resolution uses `${TMPDIR%/}` to strip the trailing slash that macOS sets on `$TMPDIR` (e.g. `/var/folders/.../T/`), preventing a double-slash in the socket path that caused nc to fail silently on macOS.
 
 
 ## [0.7.3] - 2026-09-25
