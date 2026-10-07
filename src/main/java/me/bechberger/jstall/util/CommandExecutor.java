@@ -20,6 +20,37 @@ import java.util.stream.IntStream;
 public abstract class CommandExecutor {
 
     /**
+     * Minimal shell-script template engine: replaces {@code {{KEY}}} placeholders with values.
+     * Strips leading indentation (determined by the first non-blank line) so that text blocks
+     * can be indented naturally in Java source without producing leading whitespace in the output.
+     */
+    static String shell(String template, Object... keyValuePairs) {
+        if (keyValuePairs.length % 2 != 0) throw new IllegalArgumentException("Expected key/value pairs");
+        // Strip shared leading whitespace (text-block style)
+        String[] lines = template.split("\n", -1);
+        int indent = Integer.MAX_VALUE;
+        for (String line : lines) {
+            if (!line.isBlank()) {
+                int spaces = 0;
+                while (spaces < line.length() && line.charAt(spaces) == ' ') spaces++;
+                indent = Math.min(indent, spaces);
+            }
+        }
+        if (indent == Integer.MAX_VALUE) indent = 0;
+        StringBuilder stripped = new StringBuilder();
+        for (String line : lines) {
+            stripped.append(line.length() >= indent ? line.substring(indent) : line).append("\n");
+        }
+        // Trim leading/trailing blank lines
+        String result = stripped.toString().stripLeading().stripTrailing();
+        // Apply substitutions
+        for (int i = 0; i < keyValuePairs.length; i += 2) {
+            result = result.replace("{{" + keyValuePairs[i] + "}}", String.valueOf(keyValuePairs[i + 1]));
+        }
+        return result;
+    }
+
+    /**
      * Exception thrown when an SSH command fails, carrying the SSH exit code.
      */
     public static class SSHCommandException extends IOException {
@@ -329,26 +360,36 @@ public abstract class CommandExecutor {
          * under the current directory then the filesystem root.
          * Used when the remote shell is POSIX sh (Linux/Mac).
          */
-        static final String JDK_PATH_DISCOVERY_PREFIX =
-                // 1. JAVA_HOME with jps (full JDK) or java (JRE-only)
-                "if [ -n \"$JAVA_HOME\" ] && [ -x \"$JAVA_HOME/bin/java\" ]; then JDK_BIN=\"$JAVA_HOME/bin\"; " +
-                "else " +
-                    // 2a. Search locally for jps first (preferred: gives jcmd too)
-                    "JDK_BIN=$(dirname \"$(find . -executable -name jps 2>/dev/null | head -1)\" 2>/dev/null); " +
-                    // 2b. No jps locally — try java (JRE-only containers)
-                    "if [ -z \"$JDK_BIN\" ] || [ \"$JDK_BIN\" = \".\" ]; then " +
-                        "JDK_BIN=$(dirname \"$(find . -executable -name java 2>/dev/null | head -1)\" 2>/dev/null); " +
-                    "fi; " +
-                    // 2c. Still nothing — search filesystem for jps
-                    "if [ -z \"$JDK_BIN\" ] || [ \"$JDK_BIN\" = \".\" ]; then " +
-                        "JDK_BIN=$(dirname \"$(find / -executable -name jps 2>/dev/null | head -1)\" 2>/dev/null); " +
-                    "fi; " +
-                    // 2d. Last resort — search filesystem for java
-                    "if [ -z \"$JDK_BIN\" ] || [ \"$JDK_BIN\" = \".\" ]; then " +
-                        "JDK_BIN=$(dirname \"$(find / -executable -name java 2>/dev/null | head -1)\" 2>/dev/null); " +
-                    "fi; " +
-                "fi; " +
-                "if [ -n \"$JDK_BIN\" ] && [ \"$JDK_BIN\" != \".\" ]; then export PATH=\"$JDK_BIN:$PATH\"; fi; ";
+        // Shell snippet that discovers a JDK/JRE bin directory and prepends it to PATH.
+        // Written as a single line (semicolons) so it can be prefixed to any command.
+        // Probe order: JAVA_HOME → command -v (instant if on PATH) → find . (CF layout) →
+        //              well-known JDK roots → find / (last resort, slow).
+        static final String JDK_PATH_DISCOVERY_PREFIX = shell("""
+                if [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+                  JDK_BIN="$JAVA_HOME/bin";
+                else
+                  JDK_BIN=$(dirname "$(command -v jps 2>/dev/null)" 2>/dev/null);
+                  if [ -z "$JDK_BIN" ] || [ "$JDK_BIN" = "." ]; then
+                    JDK_BIN=$(dirname "$(command -v java 2>/dev/null)" 2>/dev/null);
+                  fi;
+                  if [ -z "$JDK_BIN" ] || [ "$JDK_BIN" = "." ]; then
+                    JDK_BIN=$(dirname "$(find . -executable -name jps 2>/dev/null | head -1)" 2>/dev/null);
+                  fi;
+                  if [ -z "$JDK_BIN" ] || [ "$JDK_BIN" = "." ]; then
+                    JDK_BIN=$(dirname "$(find . -executable -name java 2>/dev/null | head -1)" 2>/dev/null);
+                  fi;
+                  if [ -z "$JDK_BIN" ] || [ "$JDK_BIN" = "." ]; then
+                    JDK_BIN=$(dirname "$(find /usr/lib/jvm /usr/java /opt/java /opt/jdk /opt/sapmachine -executable -name jps 2>/dev/null | head -1)" 2>/dev/null);
+                  fi;
+                  if [ -z "$JDK_BIN" ] || [ "$JDK_BIN" = "." ]; then
+                    JDK_BIN=$(dirname "$(find / -executable -name jps 2>/dev/null | head -1)" 2>/dev/null);
+                  fi;
+                fi;
+                if [ -n "$JDK_BIN" ] && [ "$JDK_BIN" != "." ]; then export PATH="$JDK_BIN:$PATH"; fi;
+                """)
+                // Collapse newlines to semicolons so the whole prefix fits on one line
+                // (required: it's prepended to commands that may themselves span one line)
+                .replace("\n", " ");
 
         public RemoteCommandExecutor(String sshCommandPrefix) {
             super(true);
@@ -513,27 +554,42 @@ public abstract class CommandExecutor {
         public List<CommandResult> executeBatch(List<BatchEntry> entries) throws IOException {
             if (entries.isEmpty()) return List.of();
 
-            // In persistent-shell mode: send each command through the open shell.
-            // The shell already has PATH set up, so no JDK discovery prefix is needed.
             PersistentShell shell = getOrCreateShell();
             if (shell != null) {
                 if (verbose) {
                     System.err.println("[verbose] SSH batch via persistent shell (" + entries.size() + " commands)");
                 }
                 try {
-                    // Execute sequentially rather than pipelining all commands before reading:
-                    // pipelining risks a deadlock when a command produces large output (e.g. a
-                    // Thread.print attach-socket response) that fills the stdout pipe buffer
-                    // before we start draining it.
-                    List<CommandResult> results = new ArrayList<>(entries.size());
+                    // Build command strings first so we can decide on execution strategy
+                    List<String> cmds = new ArrayList<>(entries.size());
                     for (BatchEntry entry : entries) {
                         StringBuilder cmd = new StringBuilder(entry.command());
                         if (entry.args() != null && entry.args().length > 0) {
                             cmd.append(" ").append(escapeAndJoinArgs(entry.args()));
                         }
-                        // Redirect stderr → stdout so "not found" errors are visible in persistent-shell output
                         cmd.append(" 2>&1");
-                        String out = shell.execute(cmd.toString());
+                        cmds.add(cmd.toString());
+                    }
+
+                    // nc-pipeline commands produce small, bounded output (attach-socket protocol
+                    // caps responses at a few KB). Fire them all at once so the remote shell can
+                    // start cmd[N+1] while we're still reading cmd[N]'s output — same latency win
+                    // as the one-shot SSH batch but over the already-open persistent connection.
+                    // Regular jcmd commands are executed sequentially to avoid the deadlock that
+                    // occurs when a large Thread.print fills the 64 KB stdout pipe buffer.
+                    boolean allNc = cmds.stream().allMatch(c -> c.contains("| nc "));
+                    List<String> outputs;
+                    if (allNc) {
+                        outputs = shell.executeAll(cmds);
+                    } else {
+                        outputs = new ArrayList<>(cmds.size());
+                        for (String cmd : cmds) {
+                            outputs.add(shell.execute(cmd));
+                        }
+                    }
+
+                    List<CommandResult> results = new ArrayList<>(entries.size());
+                    for (String out : outputs) {
                         results.add(new CommandResult(out, "", 0, -1));
                     }
                     return results;
