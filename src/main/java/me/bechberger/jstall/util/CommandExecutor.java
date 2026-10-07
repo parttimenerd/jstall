@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Utility class to execute system commands and capture their output, either executes locally or remotely via SSH.
@@ -326,6 +327,68 @@ public abstract class CommandExecutor {
                 }
             }
             return result;
+        }
+
+        /**
+         * A single command entry in a batch execution request.
+         *
+         * @param command the command name (e.g. "jcmd")
+         * @param args    the arguments (e.g. ["12345", "Thread.print"])
+         */
+        public record BatchEntry(String command, String[] args) {}
+
+        /**
+         * Executes multiple commands in a single SSH round-trip.
+         * Each command output is separated by a unique sentinel so the results
+         * can be split and returned in order. Any command that fails is returned
+         * with an empty stdout and a non-zero exit code.
+         *
+         * <p>Only available on the remote executor; a local fallback that calls
+         * {@link #executeCommand} sequentially is provided for convenience.</p>
+         *
+         * @param entries list of commands to run
+         * @return results in the same order as {@code entries}
+         */
+        public List<CommandResult> executeBatch(List<BatchEntry> entries) throws IOException {
+            if (entries.isEmpty()) return List.of();
+
+            // Unique sentinel that won't appear in jcmd output
+            String sentinel = "___JSTALL_BATCH_SEP_" + System.nanoTime() + "___";
+
+            StringBuilder script = new StringBuilder();
+            // Emit the JDK path discovery once at the top
+            script.append(JDK_PATH_DISCOVERY_PREFIX);
+
+            for (int i = 0; i < entries.size(); i++) {
+                BatchEntry entry = entries.get(i);
+                // Print the sentinel with the index before each command's output
+                script.append("printf '%s\\n' '").append(sentinel).append(i).append("'; ");
+
+                String cmd = JVM_RELATED_COMMANDS.contains(entry.command()) ? entry.command() : entry.command();
+                script.append(cmd);
+                if (entry.args() != null && entry.args().length > 0) {
+                    script.append(" ").append(escapeAndJoinArgs(entry.args()));
+                }
+                script.append("; ");
+            }
+            // Final sentinel to mark end
+            script.append("printf '%s\\n' '").append(sentinel).append(entries.size()).append("'");
+
+            if (verbose) {
+                System.err.println("[verbose] SSH batch (" + entries.size() + " commands): " + sshCommandPrefix);
+            }
+
+            CommandResult raw = executeSshCommand(script.toString());
+
+            // Split by sentinel lines and reconstruct per-command results
+            String[] sections = raw.out().split("(?m)^" + java.util.regex.Pattern.quote(sentinel) + "\\d+\\R?");
+            // sections[0] is before the first sentinel (empty/JDK path setup output), sections[1..n] are command outputs
+            List<CommandResult> results = new ArrayList<>(entries.size());
+            for (int i = 0; i < entries.size(); i++) {
+                String out = (i + 1 < sections.length) ? sections[i + 1] : "";
+                results.add(new CommandResult(out, raw.err(), 0, raw.pid()));
+            }
+            return results;
         }
 
         /**

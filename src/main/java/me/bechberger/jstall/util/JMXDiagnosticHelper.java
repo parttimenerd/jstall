@@ -10,7 +10,10 @@ import javax.management.remote.JMXServiceURL;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -49,6 +52,12 @@ public class JMXDiagnosticHelper {
     private ObjectName diagnosticCmd;
 
     private final CommandExecutor executor;
+
+    /**
+     * Cache populated by {@link #prefetchJcmd}: maps "COMMAND[ ARG...]" keys to their output.
+     * Consumed (removed) by {@link #executeCommand} on the first hit so memory doesn't grow.
+     */
+    private final Map<String, String> prefetchCache = new ConcurrentHashMap<>();
 
     /**
      * Creates a new JMXDiagnosticHelper attached to the specified JVM process.
@@ -151,6 +160,13 @@ public class JMXDiagnosticHelper {
 
     public String executeCommand(String command, String... args) throws IOException {
         if (noMBeanConnection) {
+            // Check the prefetch cache first (populated by DataCollector for remote batch runs)
+            String cacheKey = makeCacheKey(command, args);
+            String cached = prefetchCache.remove(cacheKey);
+            if (cached != null) {
+                return cached;
+            }
+
             // Fall back to jcmd if MBean connection is not available
             List<String> jcmdArgs = new ArrayList<>();
             jcmdArgs.add(String.valueOf(pid));
@@ -250,6 +266,41 @@ public class JMXDiagnosticHelper {
      */
     public CommandExecutor getExecutor() {
         return executor;
+    }
+
+    /**
+     * Prefetches the output of multiple jcmd commands in a single SSH round-trip
+     * (remote only; silently ignored when running locally via JMX).
+     * Results are cached and consumed by the next matching {@link #executeCommand} call.
+     *
+     * @param commands list of (jcmd command name, optional args) pairs to prefetch
+     */
+    public void prefetchJcmd(List<Map.Entry<String, String[]>> commands) throws IOException {
+        if (!noMBeanConnection || commands.isEmpty()) return;
+        if (!(executor instanceof CommandExecutor.RemoteCommandExecutor remote)) return;
+
+        List<CommandExecutor.RemoteCommandExecutor.BatchEntry> entries = new ArrayList<>();
+        for (Map.Entry<String, String[]> cmd : commands) {
+            List<String> jcmdArgs = new ArrayList<>();
+            jcmdArgs.add(String.valueOf(pid));
+            jcmdArgs.add(cmd.getKey());
+            if (cmd.getValue() != null) {
+                Collections.addAll(jcmdArgs, cmd.getValue());
+            }
+            entries.add(new CommandExecutor.RemoteCommandExecutor.BatchEntry("jcmd", jcmdArgs.toArray(String[]::new)));
+        }
+
+        List<CommandResult> results = remote.executeBatch(entries);
+        for (int i = 0; i < commands.size(); i++) {
+            Map.Entry<String, String[]> cmd = commands.get(i);
+            String key = makeCacheKey(cmd.getKey(), cmd.getValue());
+            prefetchCache.put(key, results.get(i).out());
+        }
+    }
+
+    private String makeCacheKey(String command, String[] args) {
+        if (args == null || args.length == 0) return command;
+        return command + " " + String.join(" ", args);
     }
 
     /**
