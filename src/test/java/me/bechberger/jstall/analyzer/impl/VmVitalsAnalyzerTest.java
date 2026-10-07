@@ -206,6 +206,62 @@ public class VmVitalsAnalyzerTest {
         assertEquals(4, output.lines().filter(line -> line.matches(".*\\d{4}-\\d{2}-\\d{2}.*")).count());
     }
 
+    private static final String SAMPLE_VM_VITALS_WITH_EXTREMES = """
+        27747:
+        Vitals:
+
+        (Vitals version 220600, pid: 27747)
+
+        Last 60 minutes:
+                              --------------------------------jvm---------------------------------
+                              --heap--- ---------meta---------      --jthr--- --cldg-- ----cls----
+                              comm used comm used csc csu gctr code num nd cr num anon num  ld uld
+        2026-03-09 18:08:17    64m  30m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4780  0   0
+        2026-03-09 18:09:17    64m  31m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4781  1   0
+        2026-03-09 18:10:17    64m  32m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4783  2   0
+        2026-03-09 18:11:17    64m  33m  18m  18m  2m  2m  21m  10m  16  3  1  96   81 4785  2   0
+
+        Samples at extremes (+ marks a maximum, - marks a minimum)
+                              --------------------------------jvm---------------------------------
+                              --heap--- ---------meta---------      --jthr--- --cldg-- ----cls----
+                              comm used comm used csc csu gctr code num nd cr num anon num  ld uld
+        2026-03-09 18:08:17    64m- 30m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4780  0   0
+        2026-03-09 18:11:17    64m  33m+ 18m  18m  2m  2m  21m  10m  16  3  1  96   81 4785  2   0
+        """;
+
+    @Test
+    @EnabledIf("isSapMachine")
+    void showsBothRecentAndExtremeSections() {
+        VmVitalsAnalyzer analyzer = new VmVitalsAnalyzer();
+
+        ResolvedData data = ResolvedData.fromDumpsAndCollectedData(
+            List.of(createDummySnapshot()),
+            Map.of("vm-vitals", List.of(new CollectedData(1L, SAMPLE_VM_VITALS_WITH_EXTREMES, Map.of())))
+        );
+
+        AnalyzerResult result = analyzer.analyze(data, Map.of("top", 2));
+
+        assertTrue(result.shouldDisplay());
+        String output = result.output();
+
+        assertTrue(output.contains("Recent samples (last 2):"), "Should label recent section");
+        assertTrue(output.contains("Samples at extremes (since start):"), "Should label extremes section");
+
+        // Recent section: top=2 => only last 2 data rows
+        assertFalse(output.contains("2026-03-09 18:08:17") && output.lines()
+                .filter(l -> l.contains("2026-03-09 18:08:17") && !l.contains("+") && !l.contains("-"))
+                .count() > 0, "First recent row should be trimmed by top=2");
+
+        // Extremes section: both rows from extremes section present
+        // The extremes rows have value+marker directly in the data (e.g. "64m-" or "33m+")
+        assertTrue(output.contains("64m- 30m"), "Minimum marker row should be present");
+        assertTrue(output.contains("33m+ 18m"), "Maximum marker row should be present");
+
+        // Headers appear twice (once per section)
+        assertEquals(2, output.lines().filter(l -> l.contains("--heap---")).count(),
+                "Header should appear in both sections");
+    }
+
     @Test
     void gcHeapInfoShowsAbsoluteValuesAndChange() {
         GcHeapInfoAnalyzer analyzer = new GcHeapInfoAnalyzer();

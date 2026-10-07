@@ -15,7 +15,8 @@ import java.util.Set;
 /**
  * Displays VM vitals information from VM.vitals jcmd command (SapMachine-specific).
  * <p>
- * Shows the last n rows of VM.vitals data (configurable via --top option, default: 5).
+ * Shows the last n recent sample rows (configurable via --top option, default: 5)
+ * followed by the full "Samples at extremes" section (historical min/max per column).
  */
 public class VmVitalsAnalyzer implements Analyzer {
 
@@ -79,29 +80,71 @@ public class VmVitalsAnalyzer implements Analyzer {
         }
 
         String[] lines = rawVitals.split("\\r?\\n");
-        List<String> dataLines = new ArrayList<>();
-        String headerLine = null;
-        String columnHeaderLine = null;
 
-        // Find header and data lines
+        // Split into two sections at the "Samples at extremes" boundary
+        int extremesStart = -1;
         for (int i = 0; i < lines.length; i++) {
-            String line = lines[i].trim();
-            
-            // Find header rows around the "comm used" line
-            if (columnHeaderLine == null && line.contains("comm") && line.contains("used")) {
-                columnHeaderLine = lines[i];
-                // The previous line typically contains the "--heap---" style grouped header.
-                if (i > 0) {
-                    String previous = lines[i - 1];
-                    if (!previous.trim().isEmpty()) {
-                        headerLine = previous;
+            if (lines[i].contains("Samples at extremes")) {
+                extremesStart = i;
+                break;
+            }
+        }
+
+        int recentEnd = extremesStart >= 0 ? extremesStart : lines.length;
+        String[] recentLines = java.util.Arrays.copyOfRange(lines, 0, recentEnd);
+        String[] extremesLines = extremesStart >= 0
+                ? java.util.Arrays.copyOfRange(lines, extremesStart, lines.length)
+                : new String[0];
+
+        String recentSection = formatSection(recentLines, topN, "Recent samples (last " + topN + ")");
+        String extremesSection = formatSection(extremesLines, -1, "Samples at extremes (since start)");
+
+        if (recentSection.isEmpty() && extremesSection.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder sb = new StringBuilder("VM Vitals:\n");
+        if (!recentSection.isEmpty()) {
+            sb.append(recentSection).append("\n");
+        }
+        if (!extremesSection.isEmpty()) {
+            if (!recentSection.isEmpty()) {
+                sb.append("\n");
+            }
+            sb.append(extremesSection).append("\n");
+        }
+        return sb.toString().trim();
+    }
+
+    /**
+     * Formats one section (recent or extremes) of VM.vitals output.
+     * Finds the 3-line header block ending with the "comm used" column line,
+     * then collects all data rows (lines starting with a date).
+     * If topN >= 0, only the last topN data rows are shown.
+     */
+    private String formatSection(String[] lines, int topN, String sectionLabel) {
+        List<String> headerLines = new ArrayList<>();
+        List<String> dataLines = new ArrayList<>();
+        int columnHeaderIdx = -1;
+
+        for (int i = 0; i < lines.length; i++) {
+            String trimmed = lines[i].trim();
+            if (columnHeaderIdx < 0 && trimmed.contains("comm") && trimmed.contains("used")) {
+                columnHeaderIdx = i;
+                // Collect up to 2 non-empty lines immediately before as grouped headers
+                List<String> before = new ArrayList<>();
+                for (int j = i - 1; j >= 0 && before.size() < 2; j--) {
+                    if (!lines[j].trim().isEmpty()) {
+                        before.add(0, lines[j]);
+                    } else {
+                        break;
                     }
                 }
+                headerLines.addAll(before);
+                headerLines.add(lines[i]);
                 continue;
             }
-            
-            // Data lines start with a date (YYYY-MM-DD)
-            if (line.matches("\\d{4}-\\d{2}-\\d{2}.*")) {
+            if (columnHeaderIdx >= 0 && trimmed.matches("\\d{4}-\\d{2}-\\d{2}.*")) {
                 dataLines.add(lines[i]);
             }
         }
@@ -110,26 +153,16 @@ public class VmVitalsAnalyzer implements Analyzer {
             return "";
         }
 
-        // Get the last N data lines
-        int startIndex = Math.max(0, dataLines.size() - topN);
-        List<String> lastNLines = dataLines.subList(startIndex, dataLines.size());
+        List<String> rows = topN >= 0 ? dataLines.subList(Math.max(0, dataLines.size() - topN), dataLines.size()) : dataLines;
 
         StringBuilder sb = new StringBuilder();
-        sb.append("VM Vitals:\n");
-        
-        // Include header if available
-        if (headerLine != null) {
-            sb.append(headerLine).append("\n");
+        sb.append(sectionLabel).append(":\n");
+        for (String h : headerLines) {
+            sb.append(h).append("\n");
         }
-        if (columnHeaderLine != null) {
-            sb.append(columnHeaderLine).append("\n");
+        for (String row : rows) {
+            sb.append(row).append("\n");
         }
-        
-        // Add the last N data lines
-        for (String line : lastNLines) {
-            sb.append(line).append("\n");
-        }
-
         return sb.toString().trim();
     }
 
