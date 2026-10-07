@@ -263,6 +263,49 @@ public class VmVitalsAnalyzerTest {
     }
 
     @Test
+    @EnabledIf("isSapMachine")
+    void extremesCapIsMaxOf10AndTop() {
+        // Build a sample with 15 extremes rows so we can verify the cap logic
+        StringBuilder sb = new StringBuilder();
+        sb.append("27747:\nVitals:\n\nLast 60 minutes:\n");
+        sb.append("                              --heap---\n");
+        sb.append("                              comm used\n");
+        for (int i = 0; i < 5; i++) {
+            sb.append(String.format("2026-03-09 18:%02d:17    64m  %2dm\n", i, 30 + i));
+        }
+        sb.append("\nSamples at extremes (+ marks a maximum, - marks a minimum)\n");
+        sb.append("                              --heap---\n");
+        sb.append("                              comm used\n");
+        for (int i = 0; i < 15; i++) {
+            sb.append(String.format("2026-03-09 19:%02d:17    64m  %2dm%s\n", i, 20 + i, i == 0 ? "-" : i == 14 ? "+" : ""));
+        }
+
+        VmVitalsAnalyzer analyzer = new VmVitalsAnalyzer();
+        ResolvedData data = ResolvedData.fromDumpsAndCollectedData(
+            List.of(createDummySnapshot()),
+            Map.of("vm-vitals", List.of(new CollectedData(1L, sb.toString(), Map.of())))
+        );
+
+        // top=2: recent shows 2 rows, extremes cap = max(10,2) = 10
+        AnalyzerResult result2 = analyzer.analyze(data, Map.of("top", 2));
+        long recentCount2 = result2.output().lines()
+                .filter(l -> l.matches("\\s*2026-03-09 18:.*")).count();
+        long extremesCount2 = result2.output().lines()
+                .filter(l -> l.matches("\\s*2026-03-09 19:.*")).count();
+        assertEquals(2, recentCount2, "top=2 should show 2 recent rows");
+        assertEquals(10, extremesCount2, "top=2 should cap extremes at max(10,2)=10");
+
+        // top=20: recent shows all 5 rows, extremes cap = max(10,20) = 20 (all 15)
+        AnalyzerResult result20 = analyzer.analyze(data, Map.of("top", 20));
+        long recentCount20 = result20.output().lines()
+                .filter(l -> l.matches("\\s*2026-03-09 18:.*")).count();
+        long extremesCount20 = result20.output().lines()
+                .filter(l -> l.matches("\\s*2026-03-09 19:.*")).count();
+        assertEquals(5, recentCount20, "top=20 should show all 5 available recent rows");
+        assertEquals(15, extremesCount20, "top=20 should cap extremes at max(10,20)=20 (all 15 fit)");
+    }
+
+    @Test
     void gcHeapInfoShowsAbsoluteValuesAndChange() {
         GcHeapInfoAnalyzer analyzer = new GcHeapInfoAnalyzer();
 

@@ -16,7 +16,7 @@ import java.util.Set;
  * Displays VM vitals information from VM.vitals jcmd command (SapMachine-specific).
  * <p>
  * Shows the last n recent sample rows (configurable via --top option, default: 5)
- * followed by the full "Samples at extremes" section (historical min/max per column).
+ * followed by the "Samples at extremes" section capped at max(10, topN) rows.
  */
 public class VmVitalsAnalyzer implements Analyzer {
 
@@ -56,7 +56,8 @@ public class VmVitalsAnalyzer implements Analyzer {
         }
 
         int top = getIntOption(options, "top", 5);
-        String vmVitalsOutput = formatVmVitals(rawVitals, top);
+        int extremesCap = Math.max(10, top);
+        String vmVitalsOutput = formatVmVitals(rawVitals, top, extremesCap);
         if (vmVitalsOutput.isEmpty()) {
             return AnalyzerResult.nothing();
         }
@@ -74,7 +75,7 @@ public class VmVitalsAnalyzer implements Analyzer {
         return defaultValue;
     }
 
-    private String formatVmVitals(String rawVitals, int topN) {
+    private String formatVmVitals(String rawVitals, int topN, int extremesCap) {
         if (rawVitals == null || rawVitals.isBlank()) {
             return "";
         }
@@ -97,7 +98,7 @@ public class VmVitalsAnalyzer implements Analyzer {
                 : new String[0];
 
         String recentSection = formatSection(recentLines, topN, "Recent samples (last " + topN + ")");
-        String extremesSection = formatSection(extremesLines, -1, "Samples at extremes (since start)");
+        String extremesSection = formatSection(extremesLines, extremesCap, "Samples at extremes (since start)");
 
         if (recentSection.isEmpty() && extremesSection.isEmpty()) {
             return "";
