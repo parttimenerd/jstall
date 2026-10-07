@@ -135,7 +135,8 @@ class JMXDiagnosticHelperAttachSocketTest {
     void buildAttachSocketShellCmd_withArg() {
         String cmd = JMXDiagnosticHelper.buildAttachSocketShellCmd(99L, "GC.heap_dump",
                 new String[]{"/tmp/out.hprof"});
-        assertTrue(cmd.contains("jcmd\\0GC.heap_dump\\0/tmp/out.hprof\\0\\0"), "cmd: " + cmd);
+        // arg is space-separated in the command field, not NUL-separated
+        assertTrue(cmd.contains("jcmd\\0GC.heap_dump /tmp/out.hprof\\0\\0\\0"), "cmd: " + cmd);
         assertTrue(cmd.contains("| nc -w 2 -U "), "cmd: " + cmd);
         assertTrue(cmd.contains("java_pid99"), "cmd: " + cmd);
     }
@@ -316,11 +317,15 @@ class JMXDiagnosticHelperAttachSocketTest {
      * an explicit socket path so tests work on both Linux ({@code /tmp}) and macOS ({@code $TMPDIR}).
      */
     private static String buildNcCmd(Path socketPath, String command, String[] args) {
-        String arg1 = (args != null && args.length > 0) ? args[0] : "";
-        String arg2 = (args != null && args.length > 1) ? args[1] : "";
-        String payload = "printf '1\\0jcmd\\0" + JMXDiagnosticHelper.escapeForPrintf(command)
-                + "\\0" + JMXDiagnosticHelper.escapeForPrintf(arg1)
-                + "\\0" + JMXDiagnosticHelper.escapeForPrintf(arg2) + "\\0'";
+        StringBuilder cmdline = new StringBuilder(JMXDiagnosticHelper.escapeForPrintf(command));
+        if (args != null) {
+            for (String arg : args) {
+                if (arg != null && !arg.isEmpty()) {
+                    cmdline.append(' ').append(JMXDiagnosticHelper.escapeForPrintf(arg));
+                }
+            }
+        }
+        String payload = "printf '1\\0jcmd\\0" + cmdline + "\\0\\0\\0'";
         return payload + " | nc -w 2 -U " + socketPath;
     }
 

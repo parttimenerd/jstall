@@ -422,17 +422,22 @@ public class JMXDiagnosticHelper {
     /**
      * Builds the full shell pipeline that sends one attach-protocol command via nc.
      *
-     * <p>Protocol (JDK 9+): {@code "1\0jcmd\0<command>\0<arg1>\0<arg2>\0"}.
-     * The operation name is always {@code "jcmd"}; the actual jcmd command
-     * ({@code Thread.print}, {@code VM.uptime}, etc.) is passed as the first argument.
+     * <p>Protocol (JDK 9+): the entire command line (command + space-separated args) is passed
+     * as a single NUL-terminated field: {@code "1\0jcmd\0<command> <arg1> <arg2>\0\0\0"}.
+     * HotSpot splits that first field on spaces to recover the command and its arguments.
+     * The subsequent NUL-separated fields are unused.
      * This format works on JDK 9–25 on both Linux (/tmp) and macOS ($TMPDIR).
      */
     static String buildAttachSocketShellCmd(long targetPid, String command, String[] args) {
-        String arg1 = (args != null && args.length > 0) ? args[0] : "";
-        String arg2 = (args != null && args.length > 1) ? args[1] : "";
-        String payload = "printf '1\\0jcmd\\0" + escapeForPrintf(command)
-                + "\\0" + escapeForPrintf(arg1)
-                + "\\0" + escapeForPrintf(arg2) + "\\0'";
+        StringBuilder cmdline = new StringBuilder(escapeForPrintf(command));
+        if (args != null) {
+            for (String arg : args) {
+                if (arg != null && !arg.isEmpty()) {
+                    cmdline.append(' ').append(escapeForPrintf(arg));
+                }
+            }
+        }
+        String payload = "printf '1\\0jcmd\\0" + cmdline + "\\0\\0\\0'";
         return payload + " | nc -w 2 -U " + attachSocketExpr(targetPid);
     }
 
