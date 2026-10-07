@@ -60,7 +60,7 @@ function commandListText(commands: CommandEntry[]): string {
 // ── Server setup ──────────────────────────────────────────────────
 
 const server = new Server(
-    { name: 'jstall', version: '0.7.3' },
+    { name: 'jstall', version: '0.8.0' },
     { capabilities: { tools: {} } },
 );
 

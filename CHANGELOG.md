@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.8.0] - 2026-10-07
+
+### Added
 - JRE-only container support: `status` and all jcmd-based diagnostics now work on containers
   without `jcmd`/`jps` by falling back to the HotSpot attach socket via `nc -U`.
   Requires `netcat-openbsd` or `nmap-ncat` on the container. Supports JDK 9–25 on Linux and macOS.
@@ -17,8 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Remote JDK discovery no longer runs a slow `find /` scan when `jps` is already on PATH;
   `command -v jps` is tried first (~1 ms vs 3+ seconds on some hosts).
 - `getThreadDump()` called `executeCommand` with arguments reversed; thread dumps via JMX now work correctly.
-- Attach-socket path on macOS used a double slash (`$TMPDIR` ends with `/`); fixed by stripping
-  the trailing slash with `${TMPDIR%/}`.
 - `jcmd: not found` errors were silently swallowed in persistent-shell mode (stderr not captured);
   now wrapped in `sh -c "... 2>&1"` so the fallback to attach-socket mode triggers correctly.
 - Persistent-shell batch execution could deadlock when `Thread.print` output exceeded the 64 KB

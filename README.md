@@ -529,7 +529,7 @@ The AI makes up to 5 tool-call rounds before producing its final answer. Progres
 <dependency>
     <groupId>me.bechberger</groupId>
     <artifactId>jstall</artifactId>
-    <version>0.7.3</version>
+    <version>0.8.0</version>
 </dependency>
 ```
 
