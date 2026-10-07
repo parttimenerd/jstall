@@ -8,18 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- JRE-only container support: `status` (and all jcmd-based diagnostics) now work on containers without `jcmd`/`jps` by falling back to the HotSpot attach socket via `nc -U` (requires `netcat-openbsd` or `nmap-ncat`). Protocol: `1\0jcmd\0<command>\0<args>\0` (JDK 9–25, Linux and macOS). Socket is created on demand via the SIGQUIT attach-handshake if absent.
-- Automatic nc availability probe: before switching to attach-socket mode, jstall checks that `nc -U` is supported; if not, a clear error message is shown with install instructions instead of silently returning empty output.
-- Retry on blank nc response: `executeViaAttachSocket` retries once after re-triggering socket creation, handling races where the socket is not yet ready.
-- Persistent-shell `executeBatch` now runs commands sequentially instead of pipelining all stdin before reading stdout, preventing deadlocks on large outputs (e.g. Thread.print filling the 64 KB pipe buffer).
-- `JMXDiagnosticHelperAttachSocketTest`: comprehensive test suite covering `escapeForPrintf`, `stripAttachReturnCode`, `buildAttachSocketShellCmd`, multi-round Thread.print via real attach socket, full fallback-to-nc integration test (Linux), and nc-absent error path.
+- JRE-only container support: `status` and all jcmd-based diagnostics now work on containers
+  without `jcmd`/`jps` by falling back to the HotSpot attach socket via `nc -U`.
+  Requires `netcat-openbsd` or `nmap-ncat` on the container. Supports JDK 9–25 on Linux and macOS.
+  The attach socket is created on demand if absent; a clear error is shown if `nc` is missing.
 
-### Changed
-- `JVMDiscovery.listJVMsFallback` wraps `jps -l` in `sh -c "... 2>&1"` so "jps: not found" errors surface in persistent-shell mode (which only captures stdout).
-- `JMXDiagnosticHelper.executeCommand` wraps `jcmd` in `sh -c "... 2>&1"` when using `RemoteCommandExecutor`, so "not found" errors trigger the attach-socket fallback in persistent-shell mode.
-- Attach-socket creation wait extended from 2 s to 5 s (10 × 0.5 s polls).
-- Attach-socket path resolution uses `${TMPDIR%/}` to strip the trailing slash that macOS sets on `$TMPDIR` (e.g. `/var/folders/.../T/`), preventing a double-slash in the socket path that caused nc to fail silently on macOS.
-
+### Fixed
+- Remote JDK discovery no longer runs a slow `find /` scan when `jps` is already on PATH;
+  `command -v jps` is tried first (~1 ms vs 3+ seconds on some hosts).
+- `getThreadDump()` called `executeCommand` with arguments reversed; thread dumps via JMX now work correctly.
+- Attach-socket path on macOS used a double slash (`$TMPDIR` ends with `/`); fixed by stripping
+  the trailing slash with `${TMPDIR%/}`.
+- `jcmd: not found` errors were silently swallowed in persistent-shell mode (stderr not captured);
+  now wrapped in `sh -c "... 2>&1"` so the fallback to attach-socket mode triggers correctly.
+- Persistent-shell batch execution could deadlock when `Thread.print` output exceeded the 64 KB
+  pipe buffer; nc-pipeline commands are now pipelined while jcmd commands run sequentially.
 
 ## [0.7.3] - 2026-09-25
 

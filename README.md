@@ -88,6 +88,40 @@ All analysis commands also support the special target `all` to analyze every dis
 | `--cf=<app>` | Cloud Foundry remote execution (shortcut for `--ssh 'cf ssh <app> -c'`) |
 | `-v, --verbose` | Verbose logging of remote commands |
 
+### JRE-Only Containers (no `jcmd`/`jps` installed)
+
+When running against a container that only has a JRE (no JDK tools like `jcmd` or `jps`),
+jstall automatically falls back to the **HotSpot attach socket** — a Unix-domain socket
+that every HotSpot JVM creates on demand. This works on JDK 9–25 (OpenJDK, SapMachine, etc.)
+on Linux and macOS.
+
+**Requirement:** `netcat` with Unix-socket support (`-U` flag).
+Install on the container if absent:
+
+```bash
+# Debian/Ubuntu
+apt-get install netcat-openbsd
+
+# RHEL/CentOS/Fedora
+yum install nmap-ncat
+```
+
+**How it works:**
+
+1. jstall tries `jcmd` first. If the output contains `not found` or `No such file`, it
+   permanently switches to attach-socket mode for that session.
+2. The attach socket is located at `/tmp/.java_pid<PID>` (Linux) or
+   `$TMPDIR/.java_pid<PID>` (macOS). If it doesn't exist yet, jstall triggers creation
+   by writing `.attach_pid<PID>` into the JVM's working directory and sending `SIGQUIT`,
+   then polls for up to 5 seconds.
+3. Diagnostic commands are sent as `printf '1\0jcmd\0<command>\0<arg>\0\0' | nc -w 2 -U <socket>`.
+   This is the standard HotSpot attach protocol (the same one `jcmd` uses internally).
+4. When running via `--ssh` or `--cf`, all commands in a batch are pipelined over the
+   single persistent SSH connection — no extra round-trips.
+
+**Limitations:** `flame` (async-profiler) requires a full JDK on the container and is not
+available in JRE-only mode. All other commands (`status`, `threads`, `deadlock`, etc.) work.
+
 ### Filtering and Multi-Execution
 
 Use **filter strings** to match JVMs by main class name instead of PIDs:

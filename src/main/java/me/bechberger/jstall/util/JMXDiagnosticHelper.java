@@ -22,22 +22,63 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Helper class for executing diagnostic commands on remote JVM processes via JMX.
+ * Executes diagnostic commands on a JVM process using the best available mechanism.
  *
- * <p>This class uses the Attach API to connect to a target JVM and execute
- * diagnostic commands through the DiagnosticCommandMBean.
- * <p>If it fails, it tries to fall back to jcmd
+ * <h2>Execution strategies (tried in order)</h2>
+ * <ol>
+ *   <li><b>JMX via Attach API</b> — used for local JVMs when the target runs the same JDK
+ *       major version as jstall itself. Fastest; requires {@code tools.jar} / {@code jdk.attach}.</li>
+ *   <li><b>jcmd</b> — used for remote JVMs (SSH/CF) and cross-version local JVMs.
+ *       Requires a full JDK on the remote host.</li>
+ *   <li><b>HotSpot attach socket via {@code nc}</b> — JRE-only fallback. Used when {@code jcmd}
+ *       is absent (output contains "not found"). Requires only a JRE on the remote host plus
+ *       {@code netcat} with {@code -U} support ({@code netcat-openbsd} or {@code nmap-ncat}).
+ *       Once selected, the mode is locked for the lifetime of this helper instance.</li>
+ * </ol>
  *
- * <p>Example usage:
+ * <h2>HotSpot attach-socket protocol</h2>
+ * <p>Every HotSpot JVM (JDK 9–25) exposes a Unix-domain socket at
+ * {@code /tmp/.java_pid<PID>} (Linux) or {@code $TMPDIR/.java_pid<PID>} (macOS) once the
+ * attach subsystem has been initialized. The socket accepts framed requests in the form:
+ * <pre>
+ *   1\0jcmd\0&lt;command&gt;\0&lt;arg1&gt;\0&lt;arg2&gt;\0
+ * </pre>
+ * and returns a numeric return code on the first line (0 = success, anything else = error),
+ * followed by the command output on subsequent lines.
+ *
+ * <p>jstall sends this payload via:
+ * <pre>
+ *   printf '1\0jcmd\0Thread.print\0\0\0' | nc -w 2 -U /tmp/.java_pid&lt;PID&gt;
+ * </pre>
+ *
+ * <p>If the socket does not exist yet, jstall triggers creation via the standard attach
+ * handshake: it writes {@code .attach_pid&lt;PID&gt;} into the JVM's working directory and
+ * sends {@code SIGQUIT}. The JVM's Signal Dispatcher thread creates the socket asynchronously;
+ * jstall polls for up to 5 seconds (10 × 0.5 s).
+ *
+ * <p>In batch mode (multiple commands per SSH round-trip), all {@code nc} pipelines are
+ * sent to the persistent shell's stdin simultaneously, so the JVM can handle them
+ * concurrently — the only synchronization point is reading each command's output in order.
+ *
+ * <h2>Prefetch cache</h2>
+ * <p>{@link #prefetchJcmd} populates an internal cache with results from a single SSH
+ * round-trip. Each cached entry is consumed exactly once by the next matching
+ * {@link #executeCommand} call and then discarded.
+ *
+ * <h2>Example</h2>
  * <pre>{@code
  * // Get thread dump
- * String threadDump = JMXDiagnosticHelper.executeCommand(12345, "Thread.print");
+ * String threadDump = helper.executeCommand("Thread.print");
  *
- * // Get heap dump
- * String heapInfo = JMXDiagnosticHelper.executeCommand(12345, "GC.heap_info");
+ * // Get heap info
+ * String heapInfo = helper.executeCommand("GC.heap_info");
  *
- * // Execute command with arguments
- * String gcRun = JMXDiagnosticHelper.executeCommand(12345, "GC.run");
+ * // Batch-prefetch two commands in a single SSH call (remote only)
+ * helper.prefetchJcmd(List.of(
+ *     Map.entry("Thread.print", new String[0]),
+ *     Map.entry("VM.system_properties", new String[0])
+ * ));
+ * String dump = helper.executeCommand("Thread.print");  // instant — from cache
  * }</pre>
  */
 public class JMXDiagnosticHelper {
@@ -278,7 +319,7 @@ public class JMXDiagnosticHelper {
      * @throws IOException if the operation fails
      */
     public String getThreadDump() throws IOException {
-        return executeCommand("threadPrint", "Thread.print");
+        return executeCommand("Thread.print");
     }
 
     /**
