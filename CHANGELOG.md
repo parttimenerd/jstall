@@ -8,11 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- JRE-only container support: `status` (and all jcmd-based diagnostics) now work on containers without `jcmd`/`jps` by falling back to the HotSpot attach socket via `nc -U` (requires `netcat-openbsd` or `nmap-ncat`). Protocol: `1\0jcmd\0<command>\0<args>\0` (JDK 9–25, Linux and macOS). Socket is created on demand via the SIGQUIT attach-handshake if absent.
+- Automatic nc availability probe: before switching to attach-socket mode, jstall checks that `nc -U` is supported; if not, a clear error message is shown with install instructions instead of silently returning empty output.
+- Retry on blank nc response: `executeViaAttachSocket` retries once after re-triggering socket creation, handling races where the socket is not yet ready.
+- Persistent-shell `executeBatch` now runs commands sequentially instead of pipelining all stdin before reading stdout, preventing deadlocks on large outputs (e.g. Thread.print filling the 64 KB pipe buffer).
+- `JMXDiagnosticHelperAttachSocketTest`: comprehensive test suite covering `escapeForPrintf`, `stripAttachReturnCode`, `buildAttachSocketShellCmd`, multi-round Thread.print via real attach socket, full fallback-to-nc integration test (Linux), and nc-absent error path.
+
 ### Changed
-### Deprecated
-### Removed
-### Fixed
-### Security
+- `JVMDiscovery.listJVMsFallback` wraps `jps -l` in `sh -c "... 2>&1"` so "jps: not found" errors surface in persistent-shell mode (which only captures stdout).
+- `JMXDiagnosticHelper.executeCommand` wraps `jcmd` in `sh -c "... 2>&1"` when using `RemoteCommandExecutor`, so "not found" errors trigger the attach-socket fallback in persistent-shell mode.
+- Attach-socket creation wait extended from 2 s to 5 s (10 × 0.5 s polls).
+
 
 ## [0.7.3] - 2026-09-25
 

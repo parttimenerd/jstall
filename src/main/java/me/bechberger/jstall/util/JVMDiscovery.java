@@ -221,11 +221,24 @@ public class JVMDiscovery {
 
     private List<JVMProcess> listJVMsFallback(String filter, boolean excludeSelf) throws IOException {
         boolean hasFilter = filter != null && !filter.isBlank();
-        var result = executor.executeCommand("jps", "-l");
+        // Wrap jps in sh -c with JDK_PATH_DISCOVERY_PREFIX so:
+        //   - One-shot SSH sees the full prefix in ARG1 (required by tests + JRE-only detection)
+        //   - Persistent-shell mode captures "jcmd: not found" via 2>&1 (stderr is not otherwise read)
+        // The persistent shell already bootstrapped PATH, so the prefix is a fast no-op there.
+        String jpsCmd = CommandExecutor.RemoteCommandExecutor.JDK_PATH_DISCOVERY_PREFIX + "jps -l 2>&1";
+        var result = executor.executeCommand("sh", "-c", jpsCmd);
+
+        String combined = result.out() + result.err();
+        // jps is absent in JRE-only containers (OpenJDK buildpack); fall back to /proc or ps
+        boolean jpsNotFound = combined.contains("not found") || combined.contains("No such file")
+                || (result.exitCode() != 0 && combined.isBlank());
+        if (jpsNotFound) {
+            return listJVMsViaProcOrPs(filter);
+        }
 
         // Distinguish SSH/command errors from empty JVM discovery
         if (result.exitCode() != 0) {
-            String errorDetail = result.err().isBlank() ? result.out().trim() : result.err().trim();
+            String errorDetail = combined.trim();
             if (errorDetail.isBlank()) {
                 errorDetail = "exit code " + result.exitCode();
             }
@@ -261,6 +274,89 @@ public class JVMDiscovery {
             }
             return new JVMProcess(pid, descriptor);
         }).filter(Objects::nonNull).toList();
+    }
+
+    /**
+     * JRE-only containers lack jps/jcmd. Find Java PIDs from /proc (Linux) or ps.
+     * Reads /proc/&lt;pid&gt;/cmdline to identify java processes and extract the main class.
+     */
+    private List<JVMProcess> listJVMsViaProcOrPs(String filter) throws IOException {
+        boolean hasFilter = filter != null && !filter.isBlank();
+
+        // Try /proc first (Linux containers).
+        // Filter by executable name (first null-separated token) being the java binary,
+        // not just any process whose cmdline contains the word "java" (which would match
+        // the shell running this very loop).
+        var procResult = executor.executeCommand("sh", "-c",
+            "for d in /proc/[0-9]*/exe; do " +
+            "  pid=$(echo $d | cut -d/ -f3); " +
+            "  exe=$(readlink $d 2>/dev/null); " +
+            "  case \"$exe\" in */java) " +
+            "    cmd=$(cat /proc/$pid/cmdline 2>/dev/null | tr '\\0' ' ' | head -c 4096); " +
+            "    echo \"$pid $cmd\";; " +
+            "  esac; " +
+            "done 2>/dev/null");
+
+        if (procResult.exitCode() == 0 && !procResult.out().isBlank()) {
+            return parseJavaProcessLines(procResult.out(), filter);
+        }
+
+        // Fall back to ps
+        var psResult = executor.executeCommand("sh", "-c",
+            "ps -eo pid,args 2>/dev/null | grep -v grep | grep java || " +
+            "ps aux 2>/dev/null | grep -v grep | grep java");
+        if (psResult.exitCode() != 0 && psResult.out().isBlank()) {
+            throw new IOException("No JVMs found: jps not available and /proc and ps both failed");
+        }
+        return parseJavaProcessLines(psResult.out(), filter);
+    }
+
+    private List<JVMProcess> parseJavaProcessLines(String output, String filter) {
+        boolean hasFilter = filter != null && !filter.isBlank();
+        List<JVMProcess> result = new ArrayList<>();
+        for (String line : output.lines().toList()) {
+            String trimmed = line.trim();
+            if (trimmed.isBlank()) continue;
+            String[] parts = trimmed.split("\\s+", 2);
+            long pid;
+            try {
+                pid = Long.parseLong(parts[0]);
+            } catch (NumberFormatException e) {
+                continue;
+            }
+            // Extract main class from command line (last non-flag token or -jar argument)
+            String cmdline = parts.length > 1 ? parts[1] : "";
+            String descriptor = extractMainClass(cmdline);
+            if (hasFilter && !descriptor.toLowerCase().contains(filter.toLowerCase())) {
+                continue;
+            }
+            result.add(new JVMProcess(pid, descriptor));
+        }
+        return result;
+    }
+
+    private static String extractMainClass(String cmdline) {
+        String[] tokens = cmdline.split("\\s+");
+        boolean nextIsJar = false;
+        boolean skipNext = false;
+        // JVM flags that consume the next token as a value (not the main class)
+        java.util.Set<String> flagsWithValue = java.util.Set.of(
+            "-cp", "-classpath", "--class-path", "-p", "--module-path",
+            "--upgrade-module-path", "--add-modules", "--add-opens", "--add-exports",
+            "--add-reads", "-d", "--patch-module");
+        for (String token : tokens) {
+            if (skipNext) { skipNext = false; continue; }
+            if (token.equals("-jar")) { nextIsJar = true; continue; }
+            if (nextIsJar) return token;
+            // Skip java binary
+            if (token.endsWith("/java") || token.equals("java")) continue;
+            // Skip flags and their values
+            if (flagsWithValue.contains(token)) { skipNext = true; continue; }
+            if (token.startsWith("-")) continue;
+            // First non-flag, non-java token is the main class
+            return token;
+        }
+        return cmdline.isBlank() ? "<unknown>" : cmdline;
     }
 
     /**

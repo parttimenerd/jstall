@@ -324,16 +324,28 @@ public abstract class CommandExecutor {
         }
 
         /**
-         * Shell snippet that discovers a JDK bin directory and prepends it to PATH.
-         * Prefers JAVA_HOME if set, then searches from . and finally from /.
+         * Shell snippet that discovers a JDK/JRE bin directory and prepends it to PATH.
+         * Prefers JAVA_HOME if set; otherwise searches for jps (full JDK) or java (JRE-only)
+         * under the current directory then the filesystem root.
          * Used when the remote shell is POSIX sh (Linux/Mac).
          */
-        private static final String JDK_PATH_DISCOVERY_PREFIX =
-                "if [ -n \"$JAVA_HOME\" ] && [ -x \"$JAVA_HOME/bin/jps\" ]; then JDK_BIN=\"$JAVA_HOME/bin\"; " +
+        static final String JDK_PATH_DISCOVERY_PREFIX =
+                // 1. JAVA_HOME with jps (full JDK) or java (JRE-only)
+                "if [ -n \"$JAVA_HOME\" ] && [ -x \"$JAVA_HOME/bin/java\" ]; then JDK_BIN=\"$JAVA_HOME/bin\"; " +
                 "else " +
+                    // 2a. Search locally for jps first (preferred: gives jcmd too)
                     "JDK_BIN=$(dirname \"$(find . -executable -name jps 2>/dev/null | head -1)\" 2>/dev/null); " +
+                    // 2b. No jps locally — try java (JRE-only containers)
+                    "if [ -z \"$JDK_BIN\" ] || [ \"$JDK_BIN\" = \".\" ]; then " +
+                        "JDK_BIN=$(dirname \"$(find . -executable -name java 2>/dev/null | head -1)\" 2>/dev/null); " +
+                    "fi; " +
+                    // 2c. Still nothing — search filesystem for jps
                     "if [ -z \"$JDK_BIN\" ] || [ \"$JDK_BIN\" = \".\" ]; then " +
                         "JDK_BIN=$(dirname \"$(find / -executable -name jps 2>/dev/null | head -1)\" 2>/dev/null); " +
+                    "fi; " +
+                    // 2d. Last resort — search filesystem for java
+                    "if [ -z \"$JDK_BIN\" ] || [ \"$JDK_BIN\" = \".\" ]; then " +
+                        "JDK_BIN=$(dirname \"$(find / -executable -name java 2>/dev/null | head -1)\" 2>/dev/null); " +
                     "fi; " +
                 "fi; " +
                 "if [ -n \"$JDK_BIN\" ] && [ \"$JDK_BIN\" != \".\" ]; then export PATH=\"$JDK_BIN:$PATH\"; fi; ";
@@ -509,17 +521,19 @@ public abstract class CommandExecutor {
                     System.err.println("[verbose] SSH batch via persistent shell (" + entries.size() + " commands)");
                 }
                 try {
-                    List<String> cmds = new ArrayList<>(entries.size());
+                    // Execute sequentially rather than pipelining all commands before reading:
+                    // pipelining risks a deadlock when a command produces large output (e.g. a
+                    // Thread.print attach-socket response) that fills the stdout pipe buffer
+                    // before we start draining it.
+                    List<CommandResult> results = new ArrayList<>(entries.size());
                     for (BatchEntry entry : entries) {
                         StringBuilder cmd = new StringBuilder(entry.command());
                         if (entry.args() != null && entry.args().length > 0) {
                             cmd.append(" ").append(escapeAndJoinArgs(entry.args()));
                         }
-                        cmds.add(cmd.toString());
-                    }
-                    List<String> outputs = shell.executeAll(cmds);
-                    List<CommandResult> results = new ArrayList<>(entries.size());
-                    for (String out : outputs) {
+                        // Redirect stderr → stdout so "not found" errors are visible in persistent-shell output
+                        cmd.append(" 2>&1");
+                        String out = shell.execute(cmd.toString());
                         results.add(new CommandResult(out, "", 0, -1));
                     }
                     return results;

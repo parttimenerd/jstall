@@ -55,7 +55,7 @@ class MainTest {
             );
             assertTrue(sshOutput.contains("ARGC=2"), sshOutput);
             assertTrue(sshOutput.contains("ARG0=user@host"), sshOutput);
-            assertTrue(sshOutput.contains("ARG1=if [ -n \"$JAVA_HOME\""), sshOutput);
+            assertTrue(sshOutput.contains("ARG1=sh \"-c\" \"if [ -n"), sshOutput);
             assertTrue(sshOutput.contains("jps"), sshOutput);
 
             String cfOutput = runChildWithFakeTool(
@@ -70,7 +70,7 @@ class MainTest {
             assertTrue(cfOutput.contains("ARG0=ssh"), cfOutput);
             assertTrue(cfOutput.contains("ARG1=demo-app"), cfOutput);
             assertTrue(cfOutput.contains("ARG2=-c"), cfOutput);
-            assertTrue(cfOutput.contains("ARG3=if [ -n \"$JAVA_HOME\""), cfOutput);
+            assertTrue(cfOutput.contains("ARG3=sh \"-c\" \"if [ -n"), cfOutput);
             assertTrue(cfOutput.contains("jps"), cfOutput);
         } finally {
             deleteRecursively(tempDir);

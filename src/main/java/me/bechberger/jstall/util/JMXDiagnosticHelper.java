@@ -54,6 +54,18 @@ public class JMXDiagnosticHelper {
     private final CommandExecutor executor;
 
     /**
+     * Whether we've determined that jcmd is absent and the attach socket should be used instead.
+     * Null = unknown (first command will probe), true = use attach socket, false = use jcmd.
+     */
+    private Boolean useAttachSocket = null;
+
+    /**
+     * Whether nc with -U (Unix-domain socket) support is available on the target system.
+     * Null = unknown (checked on first nc attempt), true/false after the probe.
+     */
+    private Boolean ncAvailable = null;
+
+    /**
      * Cache populated by {@link #prefetchJcmd}: maps "COMMAND[ ARG...]" keys to their output.
      * Consumed (removed) by {@link #executeCommand} on the first hit so memory doesn't grow.
      */
@@ -167,14 +179,36 @@ public class JMXDiagnosticHelper {
                 return cached;
             }
 
-            // Fall back to jcmd if MBean connection is not available
+            // For remote execution: try jcmd first; if absent (JRE-only container), use the
+            // HotSpot attach socket via nc (works without any JDK tools installed).
+            if (Boolean.TRUE.equals(useAttachSocket)) {
+                return executeViaAttachSocket(command, args);
+            }
+
+            // Fall back to jcmd if MBean connection is not available.
             List<String> jcmdArgs = new ArrayList<>();
             jcmdArgs.add(String.valueOf(pid));
             jcmdArgs.add(command);
             if (args != null && args.length > 0) {
                 Collections.addAll(jcmdArgs, args);
             }
-            CommandResult result = executor.executeCommand("jcmd", jcmdArgs.toArray(String[]::new));
+            CommandResult result;
+            if (executor instanceof CommandExecutor.RemoteCommandExecutor) {
+                // Wrap in sh -c "... 2>&1" so that "jcmd: not found" errors appear in stdout
+                // (persistent shell merges only stdout; stderr would be lost otherwise).
+                String jcmdLine = "jcmd " + String.join(" ", jcmdArgs);
+                result = executor.executeCommand("sh", "-c", jcmdLine + " 2>&1");
+            } else {
+                result = executor.executeCommand("jcmd", jcmdArgs.toArray(String[]::new));
+            }
+            String combined = result.out() + result.err();
+            // Detect jcmd-not-found: switch permanently to attach socket mode for this session
+            if (combined.contains("not found") || combined.contains("No such file")) {
+                useAttachSocket = true;
+                ensureAttachSocket();
+                return executeViaAttachSocket(command, args);
+            }
+            useAttachSocket = false;
             if (executor.isRemote() && result.exitCode() != 0 && result.out().isBlank()) {
                 String detail = result.err().isBlank() ? "(no output)" : result.err().trim();
                 throw new CommandExecutor.SSHCommandException(
@@ -279,6 +313,13 @@ public class JMXDiagnosticHelper {
         if (!noMBeanConnection || commands.isEmpty()) return;
         if (!(executor instanceof CommandExecutor.RemoteCommandExecutor remote)) return;
 
+        // If we already know jcmd is absent, use the attach socket batch path
+        if (Boolean.TRUE.equals(useAttachSocket)) {
+            ensureAttachSocket();
+            prefetchViaAttachSocket(commands);
+            return;
+        }
+
         List<CommandExecutor.RemoteCommandExecutor.BatchEntry> entries = new ArrayList<>();
         for (Map.Entry<String, String[]> cmd : commands) {
             List<String> jcmdArgs = new ArrayList<>();
@@ -291,12 +332,78 @@ public class JMXDiagnosticHelper {
         }
 
         List<CommandResult> results = remote.executeBatch(entries);
+        boolean jcmdAbsent = false;
+        for (int i = 0; i < commands.size(); i++) {
+            String out = results.get(i).out();
+            if (out.contains("not found") || out.contains("No such file")) {
+                jcmdAbsent = true;
+                break;
+            }
+        }
+        if (jcmdAbsent) {
+            // jcmd absent — switch to attach socket mode and redo prefetch
+            useAttachSocket = true;
+            ensureAttachSocket();
+            prefetchViaAttachSocket(commands);
+            return;
+        }
+        useAttachSocket = false;
         for (int i = 0; i < commands.size(); i++) {
             Map.Entry<String, String[]> cmd = commands.get(i);
-            String key = makeCacheKey(cmd.getKey(), cmd.getValue());
-            prefetchCache.put(key, results.get(i).out());
+            prefetchCache.put(makeCacheKey(cmd.getKey(), cmd.getValue()), results.get(i).out());
         }
     }
+
+    /**
+     * Prefetches multiple commands via the attach socket, batching all nc calls into a single
+     * SSH round-trip using the persistent shell's pipelining.
+     */
+    private void prefetchViaAttachSocket(List<Map.Entry<String, String[]>> commands) throws IOException {
+        if (!(executor instanceof CommandExecutor.RemoteCommandExecutor remote)) return;
+
+        // Build each command as a complete shell pipeline. We pass the entire pipeline as
+        // the BatchEntry command (no args), bypassing escapeAndJoinArgs which would corrupt
+        // the null bytes inside the printf literal.
+        List<CommandExecutor.RemoteCommandExecutor.BatchEntry> entries = new ArrayList<>(commands.size());
+        for (Map.Entry<String, String[]> cmd : commands) {
+            String shellCmd = buildAttachSocketShellCmd(pid, cmd.getKey(), cmd.getValue());
+            entries.add(new CommandExecutor.RemoteCommandExecutor.BatchEntry(shellCmd, null));
+        }
+
+        List<CommandResult> results = remote.executeBatch(entries);
+        for (int i = 0; i < commands.size(); i++) {
+            Map.Entry<String, String[]> cmd = commands.get(i);
+            String body = stripAttachReturnCode(results.get(i).out());
+            prefetchCache.put(makeCacheKey(cmd.getKey(), cmd.getValue()), body);
+        }
+    }
+
+    /**
+     * Builds the full shell pipeline that sends one attach-protocol command via nc.
+     *
+     * <p>Protocol (JDK 9+): {@code "1\0jcmd\0<command>\0<arg1>\0<arg2>\0"}.
+     * The operation name is always {@code "jcmd"}; the actual jcmd command
+     * ({@code Thread.print}, {@code VM.uptime}, etc.) is passed as the first argument.
+     * This format works on JDK 9–25 and both Linux and macOS.
+     */
+    static String buildAttachSocketShellCmd(long targetPid, String command, String[] args) {
+        String arg1 = (args != null && args.length > 0) ? args[0] : "";
+        String arg2 = (args != null && args.length > 1) ? args[1] : "";
+        String payload = "printf '1\\0jcmd\\0" + escapeForPrintf(command)
+                + "\\0" + escapeForPrintf(arg1)
+                + "\\0" + escapeForPrintf(arg2) + "\\0'";
+        return payload + " | nc -w 2 -U /tmp/.java_pid" + targetPid;
+    }
+
+    /** Strips the numeric return-code first line from an attach-protocol response. Returns "" on failure. */
+    static String stripAttachReturnCode(String out) {
+        if (out == null || out.isEmpty()) return "";
+        int nl = out.indexOf('\n');
+        if (nl < 0) return "";
+        return "0".equals(out.substring(0, nl).trim()) ? out.substring(nl + 1) : "";
+    }
+
+
 
     private String makeCacheKey(String command, String[] args) {
         if (args == null || args.length == 0) return command;
@@ -304,10 +411,77 @@ public class JMXDiagnosticHelper {
     }
 
     /**
-     * Closes the JMX connection and detaches from the target JVM.
+     * Ensures the HotSpot attach socket {@code /tmp/.java_pid<PID>} exists.
+     * If absent, triggers socket creation via the standard attach-handshake: write
+     * {@code .attach_pid<PID>} into the process's cwd and send SIGQUIT, then poll
+     * up to 5 seconds for the socket to appear.
      * <p>
-     * Safe to call multiple times and also when using remote commands.
+     * Also probes whether {@code nc -U} (Unix-domain socket support) is available and
+     * sets {@link #ncAvailable} accordingly. Throws {@link IOException} if nc is absent,
+     * since the attach-socket path cannot work without it.
      */
+    private void ensureAttachSocket() throws IOException {
+        // Probe nc -U availability if not yet known
+        if (ncAvailable == null) {
+            CommandResult ncProbe = executor.executeCommand("sh", "-c", "nc -h 2>&1 | grep -q '\\-U' && echo yes || echo no");
+            ncAvailable = "yes".equals(ncProbe.out().trim());
+        }
+        if (!ncAvailable) {
+            throw new IOException(
+                "JRE-only container detected (jcmd absent) but nc with -U (Unix-domain socket) support is not available. " +
+                "Install netcat (e.g. 'apt-get install netcat-openbsd' or 'yum install nmap-ncat') to enable attach-socket diagnostics.");
+        }
+
+        String socketPath = "/tmp/.java_pid" + pid;
+        // Trigger attach-socket creation if absent, then poll up to 5 s.
+        // Sending SIGQUIT to the JVM causes it to create the attach socket and print a thread dump to stderr;
+        // the .attach_pid<PID> sentinel tells the JVM's Signal Dispatcher to create the socket on the next signal.
+        executor.executeCommand("sh", "-c",
+            "test -S " + socketPath + " && exit 0; " +
+            "CWD=$(readlink /proc/" + pid + "/cwd 2>/dev/null || echo /tmp); " +
+            "touch \"$CWD/.attach_pid" + pid + "\" 2>/dev/null; " +
+            "kill -QUIT " + pid + " 2>/dev/null; " +
+            "for i in 1 2 3 4 5 6 7 8 9 10; do sleep 0.5; test -S " + socketPath + " && exit 0; done; " +
+            "exit 1");
+    }
+
+    /**
+     * Sends a single diagnostic command to the JVM via the HotSpot attach socket.
+     *
+     * <p>Protocol: write {@code "1\0jcmd\0cmd\0arg1\0arg2\0"} to the Unix-domain socket;
+     * first response line is a numeric return code (0 = success), rest is the output.
+     * {@code nc -w 2} provides a safety-net timeout in case the socket is slow to close.
+     * The full pipeline is sent as a single command string to avoid shell-escaping corruption
+     * of the {@code \0} null bytes inside the printf literal.
+     * <p>
+     * If the nc command produces no output at all (socket not yet ready or nc not available),
+     * retries once after re-triggering attach-socket creation.
+     */
+    private String executeViaAttachSocket(String command, String... args) throws IOException {
+        // Pass the full pipeline as the command (no args) so it reaches the remote shell verbatim,
+        // bypassing escapeAndJoinArgs which would corrupt \0 inside the printf literal.
+        String shellCmd = buildAttachSocketShellCmd(pid, command, args) + " 2>&1";
+        CommandResult result = executor.executeCommand(shellCmd);
+        String body = stripAttachReturnCode(result.out());
+        if (!body.isBlank()) {
+            return body;
+        }
+        // Retry: socket may have been slow to appear; re-trigger and wait
+        ensureAttachSocket();
+        result = executor.executeCommand(shellCmd);
+        body = stripAttachReturnCode(result.out());
+        if (body.isBlank() && !result.out().isBlank()) {
+            // nc ran but the JVM returned a non-zero status code — log the raw response
+            throw new IOException("Attach-socket command '" + command + "' failed: " + result.out().trim());
+        }
+        return body;
+    }
+
+    static String escapeForPrintf(String s) {
+        return s.replace("\\", "\\\\").replace("'", "'\\''");
+    }
+
+
     public void cleanup() {
         if (noMBeanConnection) {
             return;

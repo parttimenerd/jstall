@@ -56,7 +56,6 @@ public class StatusAnalyzer extends BaseAnalyzer {
 
     @Override
     public DumpRequirement dumpRequirement() {
-        // Needs multiple dumps for MostWorkAnalyzer
         return DumpRequirement.MANY;
     }
 
@@ -92,7 +91,8 @@ public class StatusAnalyzer extends BaseAnalyzer {
             AnalyzerOutput sectionContent;
 
             if (sub.dumpRequirement() == DumpRequirement.MANY && dumpCount < 2) {
-                // Not enough dumps yet — show placeholder
+                // Only 1 dump — still collecting (JRE-only containers use attach socket so they
+                // do produce dumps; this branch is only hit in live mode during the first interval)
                 sectionContent = new AnalyzerOutput.TextOutput("Collecting data... (need 2 samples)");
             } else {
                 try {
