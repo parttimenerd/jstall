@@ -34,25 +34,9 @@ public class JcmdRequirement implements DataRequirement {
     
     @Override
     public String getType() {
-        // Use standardized names for common commands
         return switch (command) {
             case "Thread.print" -> "thread-dumps";
             case "VM.system_properties" -> "system-properties";
-            case "VM.flags" -> "vm-flags";
-            case "VM.command_line" -> "vm-command-line";
-            case "GC.heap_info" -> "gc-heap-info";
-            case "GC.class_histogram" -> "gc-class-histogram";
-            case "GC.finalizer_info" -> "gc-finalizer-info";
-            case "VM.classes" -> "vm-classes";
-            case "VM.class_hierarchy" -> "vm-class-hierarchy";
-            case "VM.classloader_stats" -> "vm-classloader-stats";
-            case "VM.classloaders" -> "vm-classloaders";
-            case "VM.metaspace" -> "vm-metaspace";
-            case "VM.native_memory" -> "vm-native-memory";
-            case "VM.uptime" -> "vm-uptime";
-            case "VM.info" -> "vm-info";
-            case "Compiler.queue" -> "compiler-queue";
-            case "Compiler.codecache" -> "compiler-codecache";
             default -> sanitizeCommandName(command);
         };
     }
@@ -150,7 +134,9 @@ public class JcmdRequirement implements DataRequirement {
      * Replaces dots and special characters with dashes.
      */
     private String sanitizeCommandName(String cmd) {
-        return cmd.replaceAll("[^a-zA-Z0-9-]", "_");
+        // lowercase and replace dots/underscores/non-alnum with dashes
+        // e.g. VM.vitals → vm-vitals, GC.heap_info → gc-heap-info
+        return cmd.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("-+", "-").replaceAll("^-|-$", "");
     }
     
     public String getCommand() {
