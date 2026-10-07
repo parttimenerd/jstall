@@ -524,17 +524,15 @@ public class JMXDiagnosticHelper {
      * retries once after re-triggering attach-socket creation.
      */
     private String executeViaAttachSocket(String command, String... args) throws IOException {
-        // Pass the full pipeline as the command (no args) so it reaches the remote shell verbatim,
-        // bypassing escapeAndJoinArgs which would corrupt \0 inside the printf literal.
         String shellCmd = buildAttachSocketShellCmd(pid, command, args) + " 2>&1";
-        CommandResult result = executor.executeCommand(shellCmd);
+        CommandResult result = executor.executeCommand("sh", "-c", shellCmd);
         String body = stripAttachReturnCode(result.out());
         if (!body.isBlank()) {
             return body;
         }
         // Retry: socket may have been slow to appear; re-trigger and wait
         ensureAttachSocket();
-        result = executor.executeCommand(shellCmd);
+        result = executor.executeCommand("sh", "-c", shellCmd);
         body = stripAttachReturnCode(result.out());
         if (body.isBlank() && !result.out().isBlank()) {
             // nc ran but the JVM returned a non-zero status code — log the raw response
