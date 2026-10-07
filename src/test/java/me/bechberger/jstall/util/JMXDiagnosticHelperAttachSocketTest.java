@@ -214,12 +214,18 @@ class JMXDiagnosticHelperAttachSocketTest {
         assumeTrue(childPid > 0, "Child JVM did not start");
         assumeTrue(attachSocketExists(), "Attach socket not present for child PID " + childPid);
 
-        // Fake executor: jcmd always reports "not found"; all other commands run locally
+        // Fake executor: jcmd always reports "not found"; all other commands run locally.
+        // Check command.equals("jcmd") — not flat.contains("jcmd") — so that the nc pipeline
+        // (which contains the literal string "jcmd" inside a printf payload) is not intercepted.
         CommandExecutor fakeExecutor = new CommandExecutor(true) {
             @Override
             public CommandResult executeCommand(String command, String... args) throws java.io.IOException {
-                String flat = command + (args != null ? " " + String.join(" ", args) : "");
-                if (flat.contains("jcmd")) {
+                if (command.equals("jcmd")) {
+                    return new CommandResult("sh: jcmd: command not found", "", 127, -1);
+                }
+                // Also catch "sh -c jcmd ..." which is the remote-executor wrapping
+                if (command.equals("sh") && args != null && args.length >= 2
+                        && args[1].startsWith("jcmd ")) {
                     return new CommandResult("sh: jcmd: command not found", "", 127, -1);
                 }
                 return new CommandExecutor.LocalCommandExecutor().executeCommand(command, args);
@@ -253,11 +259,16 @@ class JMXDiagnosticHelperAttachSocketTest {
         CommandExecutor fakeExecutor = new CommandExecutor(true) {
             @Override
             public CommandResult executeCommand(String command, String... args) {
-                String flat = command + (args != null ? " " + String.join(" ", args) : "");
-                if (flat.contains("jcmd")) {
+                // Intercept jcmd invocations (not printf/nc pipelines that mention "jcmd" in payload)
+                if (command.equals("jcmd")) {
+                    return new CommandResult("sh: jcmd: command not found", "", 127, -1);
+                }
+                if (command.equals("sh") && args != null && args.length >= 2
+                        && args[1].startsWith("jcmd ")) {
                     return new CommandResult("sh: jcmd: command not found", "", 127, -1);
                 }
                 // Simulate nc not found: nc probe returns "no"
+                String flat = command + (args != null ? " " + String.join(" ", args) : "");
                 if (flat.contains("nc -h")) {
                     return new CommandResult("no", "", 0, -1);
                 }
