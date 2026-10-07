@@ -40,9 +40,12 @@ public class CompilerQueueAnalyzer implements Analyzer {
 
     @Override
     public DataRequirements getDataRequirements(Map<String, Object> options) {
-        int samples = getIntOption(options, "samples", 3);
+        int dumpCount = getIntOption(options, "dump-count", 0);
+        // Use the global dump count when available; otherwise fall back to 3 samples.
+        // This avoids an extra sleep cycle when the dump count matches other requirements.
+        int samples = dumpCount > 0 ? dumpCount : getIntOption(options, "samples", 3);
         long intervalMs = getLongOption(options, "interval", 2000L);
-        
+
         return DataRequirements.builder()
                 .addThreadDump()
                 .addJcmd("Compiler.queue", samples, intervalMs)

@@ -1,6 +1,10 @@
 package me.bechberger.jstall.util;
 
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -203,6 +207,121 @@ public abstract class CommandExecutor {
         private final List<String> sshPrefixTokens;
         private final LocalCommandExecutor localExecutor = new LocalCommandExecutor();
         private boolean verbose = false;
+        private boolean usePersistentShell = true;
+        private PersistentShell persistentShell = null;
+
+        /**
+         * Manages a single long-lived SSH shell process.
+         * Commands are written to its stdin; sentinel-delimited output is read from stdout.
+         * All access is serialized via {@code synchronized} to avoid interleaving.
+         */
+        private class PersistentShell {
+            private final Process process;
+            private final OutputStream stdin;
+            private final BufferedReader stdout;
+            private final String sentinel;
+            private boolean dead = false;
+
+            PersistentShell() throws IOException {
+                List<String> cmd = new ArrayList<>(sshPrefixTokens);
+                // Open an interactive shell — no -c flag, just "cf ssh APP"
+                // Remove any trailing "-c" from the prefix (cf ssh APP -c -> cf ssh APP)
+                if (!cmd.isEmpty() && cmd.get(cmd.size() - 1).equals("-c")) {
+                    cmd = cmd.subList(0, cmd.size() - 1);
+                }
+                ProcessBuilder pb = new ProcessBuilder(cmd);
+                pb.redirectErrorStream(false);
+                process = pb.start();
+                stdin  = process.getOutputStream();
+                stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
+                // Use a fixed sentinel; nanoTime() is embedded so it's unique per session
+                sentinel = "___JSTALL_PS_" + System.nanoTime() + "___";
+                // Bootstrap: set up PATH on the remote shell (single line, no output needed — read until ready sentinel)
+                sendLine(JDK_PATH_DISCOVERY_PREFIX + " printf '%s\\n' '" + sentinel + "READY'");
+                readUntilSentinel(sentinel + "READY");
+                if (verbose) {
+                    System.err.println("[verbose] Persistent SSH shell ready: " + cmd);
+                }
+            }
+
+            /** Send one line to the remote shell stdin. */
+            private synchronized void sendLine(String line) throws IOException {
+                stdin.write((line + "\n").getBytes(StandardCharsets.UTF_8));
+                stdin.flush();
+            }
+
+            /**
+             * Execute a remote command and return its stdout output.
+             * Appends a sentinel echo so we know when the command finished.
+             */
+            synchronized String execute(String remoteCommand) throws IOException {
+                if (dead) throw new IOException("Persistent shell is no longer alive");
+                String tag = sentinel + System.nanoTime();
+                sendLine(remoteCommand + "; printf '%s\\n' '" + tag + "'");
+                return readUntilSentinel(tag);
+            }
+
+            /**
+             * Fire all commands to stdin immediately (pipelined), then collect outputs.
+             * Much faster than calling {@link #execute} in a loop because the remote shell
+             * can start executing cmd[1] while we're still reading cmd[0]'s output.
+             */
+            synchronized List<String> executeAll(List<String> remoteCommands) throws IOException {
+                if (dead) throw new IOException("Persistent shell is no longer alive");
+                // Assign each command a unique tag and fire them all at once
+                List<String> tags = new ArrayList<>(remoteCommands.size());
+                for (String cmd : remoteCommands) {
+                    String tag = sentinel + System.nanoTime() + "_" + tags.size();
+                    tags.add(tag);
+                    sendLine(cmd + "; printf '%s\\n' '" + tag + "'");
+                }
+                // Now drain: read each block until its sentinel
+                List<String> outputs = new ArrayList<>(remoteCommands.size());
+                for (String tag : tags) {
+                    outputs.add(readUntilSentinel(tag));
+                }
+                return outputs;
+            }
+
+            private String readUntilSentinel(String tag) throws IOException {
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = stdout.readLine()) != null) {
+                    if (line.equals(tag)) return sb.toString();
+                    sb.append(line).append("\n");
+                }
+                dead = true;
+                throw new IOException("Persistent shell stdout closed unexpectedly (looking for sentinel)");
+            }
+
+            synchronized void close() {
+                dead = true;
+                try { stdin.write("exit\n".getBytes(StandardCharsets.UTF_8)); stdin.flush(); } catch (IOException ignored) {}
+                try { process.waitFor(3, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                process.destroyForcibly();
+            }
+
+            boolean isAlive() { return !dead && process.isAlive(); }
+        }
+
+        /** Returns the persistent shell, creating it on first call. Returns null if not in persistent mode. */
+        private synchronized PersistentShell getOrCreateShell() {
+            if (!usePersistentShell) return null;
+            if (persistentShell == null || !persistentShell.isAlive()) {
+                try {
+                    persistentShell = new PersistentShell();
+                    // Register close on JVM exit
+                    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                        if (persistentShell != null) persistentShell.close();
+                    }));
+                } catch (IOException e) {
+                    if (verbose) System.err.println("[verbose] Failed to open persistent shell, falling back: " + e.getMessage());
+                    usePersistentShell = false;
+                    return null;
+                }
+            }
+            return persistentShell;
+        }
 
         /**
          * Shell snippet that discovers a JDK bin directory and prepends it to PATH.
@@ -233,7 +352,16 @@ public abstract class CommandExecutor {
             return verbose;
         }
 
-        @Override
+        /** When {@code false}, always use a fresh {@code cf ssh} process per call (old behavior). Default is {@code true}. */
+        public void setUsePersistentShell(boolean use) {
+            this.usePersistentShell = use;
+        }
+
+        public boolean isUsingPersistentShell() {
+            return usePersistentShell;
+        }
+
+
         public String describeCommand(String command, String... args) {
             String actualCommand = JVM_RELATED_COMMANDS.contains(command) ? JDK_PATH_DISCOVERY_PREFIX + command : command;
             if (args == null || args.length == 0) {
@@ -303,6 +431,27 @@ public abstract class CommandExecutor {
 
         @Override
         public CommandResult executeCommand(String command, String... args) throws IOException {
+            // JVM-related commands need PATH discovery only when spawning a fresh SSH process.
+            // In persistent-shell mode the shell was already bootstrapped with the correct PATH.
+            PersistentShell shell = getOrCreateShell();
+            if (shell != null) {
+                String remotePayload = args != null && args.length > 0
+                        ? command + " " + escapeAndJoinArgs(args)
+                        : command;
+                if (verbose) {
+                    System.err.println("[verbose] SSH (persistent) command: " + remotePayload);
+                }
+                try {
+                    String out = shell.execute(remotePayload);
+                    return new CommandResult(out, "", 0, -1);
+                } catch (IOException e) {
+                    if (verbose) System.err.println("[verbose] Persistent shell error, falling back: " + e.getMessage());
+                    usePersistentShell = false;
+                    persistentShell = null;
+                    // fall through to per-command path below
+                }
+            }
+
             String actualCommand;
             if (JVM_RELATED_COMMANDS.contains(command)) {
                 actualCommand = JDK_PATH_DISCOVERY_PREFIX + command;
@@ -352,6 +501,37 @@ public abstract class CommandExecutor {
         public List<CommandResult> executeBatch(List<BatchEntry> entries) throws IOException {
             if (entries.isEmpty()) return List.of();
 
+            // In persistent-shell mode: send each command through the open shell.
+            // The shell already has PATH set up, so no JDK discovery prefix is needed.
+            PersistentShell shell = getOrCreateShell();
+            if (shell != null) {
+                if (verbose) {
+                    System.err.println("[verbose] SSH batch via persistent shell (" + entries.size() + " commands)");
+                }
+                try {
+                    List<String> cmds = new ArrayList<>(entries.size());
+                    for (BatchEntry entry : entries) {
+                        StringBuilder cmd = new StringBuilder(entry.command());
+                        if (entry.args() != null && entry.args().length > 0) {
+                            cmd.append(" ").append(escapeAndJoinArgs(entry.args()));
+                        }
+                        cmds.add(cmd.toString());
+                    }
+                    List<String> outputs = shell.executeAll(cmds);
+                    List<CommandResult> results = new ArrayList<>(entries.size());
+                    for (String out : outputs) {
+                        results.add(new CommandResult(out, "", 0, -1));
+                    }
+                    return results;
+                } catch (IOException e) {
+                    if (verbose) System.err.println("[verbose] Persistent shell batch error, falling back: " + e.getMessage());
+                    usePersistentShell = false;
+                    persistentShell = null;
+                    // fall through to one-shot SSH batch below
+                }
+            }
+
+            // Fallback: one-shot SSH invocation with all commands concatenated
             // Unique sentinel that won't appear in jcmd output
             String sentinel = "___JSTALL_BATCH_SEP_" + System.nanoTime() + "___";
 
