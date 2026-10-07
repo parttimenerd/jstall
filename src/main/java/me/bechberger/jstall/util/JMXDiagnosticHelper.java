@@ -384,7 +384,7 @@ public class JMXDiagnosticHelper {
      * <p>Protocol (JDK 9+): {@code "1\0jcmd\0<command>\0<arg1>\0<arg2>\0"}.
      * The operation name is always {@code "jcmd"}; the actual jcmd command
      * ({@code Thread.print}, {@code VM.uptime}, etc.) is passed as the first argument.
-     * This format works on JDK 9–25 and both Linux and macOS.
+     * This format works on JDK 9–25 on both Linux (/tmp) and macOS ($TMPDIR).
      */
     static String buildAttachSocketShellCmd(long targetPid, String command, String[] args) {
         String arg1 = (args != null && args.length > 0) ? args[0] : "";
@@ -392,7 +392,7 @@ public class JMXDiagnosticHelper {
         String payload = "printf '1\\0jcmd\\0" + escapeForPrintf(command)
                 + "\\0" + escapeForPrintf(arg1)
                 + "\\0" + escapeForPrintf(arg2) + "\\0'";
-        return payload + " | nc -w 2 -U /tmp/.java_pid" + targetPid;
+        return payload + " | nc -w 2 -U " + attachSocketExpr(targetPid);
     }
 
     /** Strips the numeric return-code first line from an attach-protocol response. Returns "" on failure. */
@@ -411,7 +411,19 @@ public class JMXDiagnosticHelper {
     }
 
     /**
-     * Ensures the HotSpot attach socket {@code /tmp/.java_pid<PID>} exists.
+     * Shell expression that resolves the HotSpot attach socket path for a given PID.
+     * Checks /tmp first (Linux), then $TMPDIR (macOS/BSD).
+     * Evaluates to the socket path, or empty string if not found.
+     */
+    private static String attachSocketExpr(long targetPid) {
+        String name = ".java_pid" + targetPid;
+        return "$(if [ -S \"/tmp/" + name + "\" ]; then echo \"/tmp/" + name + "\"; " +
+               "elif [ -n \"$TMPDIR\" ] && [ -S \"$TMPDIR/" + name + "\" ]; then echo \"$TMPDIR/" + name + "\"; fi)";
+    }
+
+    /**
+     * Ensures the HotSpot attach socket exists (Linux: {@code /tmp/.java_pid<PID>},
+     * macOS: {@code $TMPDIR/.java_pid<PID>}).
      * If absent, triggers socket creation via the standard attach-handshake: write
      * {@code .attach_pid<PID>} into the process's cwd and send SIGQUIT, then poll
      * up to 5 seconds for the socket to appear.
@@ -432,17 +444,24 @@ public class JMXDiagnosticHelper {
                 "Install netcat (e.g. 'apt-get install netcat-openbsd' or 'yum install nmap-ncat') to enable attach-socket diagnostics.");
         }
 
-        String socketPath = "/tmp/.java_pid" + pid;
+        String name = ".java_pid" + pid;
         // Trigger attach-socket creation if absent, then poll up to 5 s.
-        // Sending SIGQUIT to the JVM causes it to create the attach socket and print a thread dump to stderr;
-        // the .attach_pid<PID> sentinel tells the JVM's Signal Dispatcher to create the socket on the next signal.
-        executor.executeCommand("sh", "-c",
-            "test -S " + socketPath + " && exit 0; " +
-            "CWD=$(readlink /proc/" + pid + "/cwd 2>/dev/null || echo /tmp); " +
-            "touch \"$CWD/.attach_pid" + pid + "\" 2>/dev/null; " +
-            "kill -QUIT " + pid + " 2>/dev/null; " +
-            "for i in 1 2 3 4 5 6 7 8 9 10; do sleep 0.5; test -S " + socketPath + " && exit 0; done; " +
-            "exit 1");
+        // Check both /tmp (Linux) and $TMPDIR (macOS). cwd via /proc (Linux) or lsof (macOS).
+        executor.executeCommand("sh", "-c", CommandExecutor.shell("""
+                sock=$(if [ -S "/tmp/{{NAME}}" ]; then echo "/tmp/{{NAME}}";
+                       elif [ -n "$TMPDIR" ] && [ -S "$TMPDIR/{{NAME}}" ]; then echo "$TMPDIR/{{NAME}}"; fi)
+                if [ -S "$sock" ]; then exit 0; fi
+                CWD=$(readlink /proc/{{PID}}/cwd 2>/dev/null \\
+                      || lsof -p {{PID}} -Fn 2>/dev/null | awk -F/ '/^n\\//{print "/"substr($0,3); exit}' \\
+                      || echo /tmp)
+                touch "$CWD/.attach_pid{{PID}}" 2>/dev/null
+                kill -QUIT {{PID}} 2>/dev/null
+                for i in 1 2 3 4 5 6 7 8 9 10; do
+                  sleep 0.5
+                  if [ -S "/tmp/{{NAME}}" ] || { [ -n "$TMPDIR" ] && [ -S "$TMPDIR/{{NAME}}" ]; }; then exit 0; fi
+                done
+                exit 1
+                """, "NAME", name, "PID", pid).replace("\n", " "));
     }
 
     /**

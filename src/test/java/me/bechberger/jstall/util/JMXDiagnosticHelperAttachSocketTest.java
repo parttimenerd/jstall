@@ -127,7 +127,8 @@ class JMXDiagnosticHelperAttachSocketTest {
     void buildAttachSocketShellCmd_noArgs() {
         String cmd = JMXDiagnosticHelper.buildAttachSocketShellCmd(12345L, "VM.uptime", null);
         assertTrue(cmd.startsWith("printf '1\\0jcmd\\0VM.uptime\\0\\0\\0'"), "cmd: " + cmd);
-        assertTrue(cmd.endsWith("| nc -w 2 -U /tmp/.java_pid12345"), "cmd: " + cmd);
+        assertTrue(cmd.contains("| nc -w 2 -U "), "cmd: " + cmd);
+        assertTrue(cmd.contains("java_pid12345"), "cmd: " + cmd);
     }
 
     @Test
@@ -135,7 +136,8 @@ class JMXDiagnosticHelperAttachSocketTest {
         String cmd = JMXDiagnosticHelper.buildAttachSocketShellCmd(99L, "GC.heap_dump",
                 new String[]{"/tmp/out.hprof"});
         assertTrue(cmd.contains("jcmd\\0GC.heap_dump\\0/tmp/out.hprof\\0\\0"), "cmd: " + cmd);
-        assertTrue(cmd.endsWith("| nc -w 2 -U /tmp/.java_pid99"), "cmd: " + cmd);
+        assertTrue(cmd.contains("| nc -w 2 -U "), "cmd: " + cmd);
+        assertTrue(cmd.contains("java_pid99"), "cmd: " + cmd);
     }
 
     @Test
