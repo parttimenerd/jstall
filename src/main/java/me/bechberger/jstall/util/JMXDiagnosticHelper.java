@@ -508,7 +508,7 @@ public class JMXDiagnosticHelper {
                   if [ -S "/tmp/{{NAME}}" ] || { [ -n "$TMPDIR" ] && [ -S "${TMPDIR%/}/{{NAME}}" ]; }; then exit 0; fi
                 done
                 exit 1
-                """, "NAME", name, "PID", pid).replace("\n", " "));
+                """, "NAME", name, "PID", pid));
     }
 
     /**
