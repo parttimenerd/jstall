@@ -59,7 +59,8 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
         if (vitalsSamples.isEmpty()) {
             return AnalyzerResult.ok("""
                 VM.vitals is not available on this JVM.
-                It is currently exposed by SapMachine. On other JVMs, start with `jstall status`
+                It is a SapMachine-specific feature (https://sapmachine.io) that exposes detailed
+                JVM counters sampled over time. On other JVMs, start with `jstall status`
                 and, if you want memory detail, `jstall gc-heap-info` or `jstall vm-metaspace`.
                 """.trim());
         }
