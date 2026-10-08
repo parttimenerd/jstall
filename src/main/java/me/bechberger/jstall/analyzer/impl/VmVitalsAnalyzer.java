@@ -151,6 +151,13 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             return "";
         }
 
+        // Extremes section: sort chronologically so they read like a timeline
+        if (extremesSection) {
+            rowsToFormat = rowsToFormat.stream()
+                .sorted(Comparator.comparing(DataRow::timestamp))
+                .toList();
+        }
+
         StringBuilder sb = new StringBuilder();
 
         String suffix = extremesSection ? "marked samples since start" : "samples, newest last";

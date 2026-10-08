@@ -115,8 +115,15 @@ public class VmVitalsObservations {
                     }
                     prev = val;
                 }
-                // Flaky: more than 30% of non-flat transitions reverse direction
-                flaky = transitions >= 3 && reversals * 100 / transitions > 30;
+                // Flaky: more than 30% of non-flat transitions reverse direction,
+                // AND range is significant (≥5% relative for byte values, ≥5 absolute for plain integers)
+                boolean enoughRange = maxBytes > 0 && (maxBytes - minBytes) * 100 / maxBytes >= 5;
+                if (fv.isAvailable() && fv.original() != null) {
+                    String orig = fv.original().trim();
+                    boolean isInteger = !orig.isEmpty() && Character.isDigit(orig.charAt(orig.length() - 1));
+                    if (isInteger) enoughRange = (maxBytes - minBytes) >= 5;
+                }
+                flaky = transitions >= 3 && reversals * 100 / transitions > 30 && enoughRange;
             }
             if (minBytes == Long.MAX_VALUE) { minBytes = 0; maxBytes = 0; }
 
