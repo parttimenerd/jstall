@@ -66,7 +66,7 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
 
         String rawVitals = vitalsSamples.get(vitalsSamples.size() - 1).rawData();
         if (rawVitals == null || rawVitals.isBlank()) {
-            return AnalyzerResult.nothing();
+            return AnalyzerResult.ok("VM.vitals returned no data for this JVM.");
         }
 
         VmVitalsOutput parsed = VmVitalsParser.parse(rawVitals);

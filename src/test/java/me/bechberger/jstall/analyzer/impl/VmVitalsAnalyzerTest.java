@@ -183,8 +183,9 @@ public class VmVitalsAnalyzerTest {
         );
         
         AnalyzerResult result = analyzer.analyze(data, Map.of());
-        
-        assertFalse(result.shouldDisplay());
+
+        assertTrue(result.shouldDisplay());
+        assertTrue(result.output().contains("no data"));
     }
 
     @Test
