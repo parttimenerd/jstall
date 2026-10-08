@@ -19,7 +19,7 @@ public record VmVitalsSection(
 
     /**
      * Returns up to N rows for display, oldest first (newest-last).
-     * Raw rows are stored newest-first as parsed from the vitals output.
+     * Rows are stored newest-first as they appear in VM.vitals output.
      * If N < 0, returns all rows in oldest-first order.
      */
     public List<DataRow> getTopRows(int topN) {
@@ -27,7 +27,7 @@ public record VmVitalsSection(
         if (topN >= 0 && topN < source.size()) {
             source = source.subList(0, topN);
         }
-        // Reverse so oldest is first (newest last) for display
+        // Reverse: newest-first stored → oldest-first for display
         List<DataRow> result = new java.util.ArrayList<>(source);
         java.util.Collections.reverse(result);
         return result;

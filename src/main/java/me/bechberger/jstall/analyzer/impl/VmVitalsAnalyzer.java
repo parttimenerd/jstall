@@ -172,21 +172,25 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             String colName = columnNames.get(i);
             String value = i < valueList.size() ? valueList.get(i) : "";
             String marker = row.extremeMarkers().get(colName);
-            String cell = marker != null ? value + marker : value;
 
-            int width = i < colWidths.size() ? colWidths.get(i) : cell.length();
-            // Right-align within the column width; if cell exceeds width just use it
-            if (cell.length() < width) {
-                sb.append(" ".repeat(width - cell.length()));
+            int width = i < colWidths.size() ? colWidths.get(i) : value.length();
+            // Right-align value within column width; marker (+/-) counts toward width
+            int cellWidth = value.length() + (marker != null ? 1 : 0);
+            if (cellWidth < width) {
+                sb.append(" ".repeat(width - cellWidth));
             }
-            sb.append(cell);
+            sb.append(value);
+            if (marker != null) sb.append(marker);
 
             if (i < columnNames.size() - 1) {
                 sb.append("  ");
             }
         }
 
-        return sb.toString();
+        // Strip trailing whitespace (empty trailing columns produce padding)
+        int end = sb.length();
+        while (end > 0 && sb.charAt(end - 1) == ' ') end--;
+        return sb.substring(0, end);
     }
 
     /** Derives per-column display widths from the column-name header line. */

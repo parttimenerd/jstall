@@ -69,15 +69,15 @@ public class VmVitalsAnalyzerTest {
             [nmt]: only shown if NMT is available and activated
              [cs]: only shown on 64-bit if class space is active
         (Vitals version 220600, pid: 27747)
-        
+
         Last 60 minutes:
                               --------------------------------jvm---------------------------------
                               --heap--- ---------meta---------      --jthr--- --cldg-- ----cls----
                               comm used comm used csc csu gctr code num nd cr num anon num  ld uld
-        2026-03-09 18:08:17    64m  30m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4780  0   0
-        2026-03-09 18:09:17    64m  31m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4781  1   0
-        2026-03-09 18:10:17    64m  32m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4783  2   0
         2026-03-09 18:11:17    64m  33m  18m  18m  2m  2m  21m  10m  16  3  1  96   81 4785  2   0
+        2026-03-09 18:10:17    64m  32m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4783  2   0
+        2026-03-09 18:09:17    64m  31m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4781  1   0
+        2026-03-09 18:08:17    64m  30m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4780  0   0
         """;
 
     private static ThreadDumpSnapshot createDummySnapshot() {
@@ -242,10 +242,10 @@ public class VmVitalsAnalyzerTest {
                               --------------------------------jvm---------------------------------
                               --heap--- ---------meta---------      --jthr--- --cldg-- ----cls----
                               comm used comm used csc csu gctr code num nd cr num anon num  ld uld
-        2026-03-09 18:08:17    64m  30m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4780  0   0
-        2026-03-09 18:09:17    64m  31m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4781  1   0
-        2026-03-09 18:10:17    64m  32m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4783  2   0
         2026-03-09 18:11:17    64m  33m  18m  18m  2m  2m  21m  10m  16  3  1  96   81 4785  2   0
+        2026-03-09 18:10:17    64m  32m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4783  2   0
+        2026-03-09 18:09:17    64m  31m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4781  1   0
+        2026-03-09 18:08:17    64m  30m  17m  17m  2m  2m  21m  10m  15  3  0  95   80 4780  0   0
 
         Samples at extremes (+ marks a maximum, - marks a minimum)
                               --------------------------------jvm---------------------------------
@@ -423,9 +423,9 @@ public class VmVitalsAnalyzerTest {
         assertNotNull(recentSection, "Should have recent section");
         assertEquals(4, recentSection.dataRows().size(), "Should parse 4 data rows");
         
-        // Check first row timestamp
+        // Check first stored row timestamp (rows are newest-first, matching real SapMachine output)
         DataRow firstRow = recentSection.dataRows().get(0);
-        assertEquals(LocalDateTime.of(2026, 3, 9, 18, 8, 17), firstRow.timestamp(),
+        assertEquals(LocalDateTime.of(2026, 3, 9, 18, 11, 17), firstRow.timestamp(),
             "Should parse timestamp correctly");
     }
 
