@@ -152,11 +152,23 @@ public class VmVitalsObservations {
                 } else {
                     long delta = row.latestVal().getBytes() - row.firstVal().getBytes();
                     if (delta > 0) {
-                        arrow = "↑";
-                        deltaStr = " +" + fmtDelta(row.latestVal(), delta);
+                        // Suppress sub-noise: skip if delta < 0.5% of first value (byte cols)
+                        // or < 2 absolute (integer cols)
+                        String orig = row.firstVal().original() != null ? row.firstVal().original().trim() : "";
+                        boolean isInteger = !orig.isEmpty() && Character.isDigit(orig.charAt(orig.length() - 1));
+                        boolean noise = isInteger
+                                ? delta < 2
+                                : row.firstVal().getBytes() > 0 && delta * 200 / row.firstVal().getBytes() < 1;
+                        if (noise) { arrow = "→"; }
+                        else { arrow = "↑"; deltaStr = " +" + fmtDelta(row.latestVal(), delta); }
                     } else if (delta < 0) {
-                        arrow = "↓";
-                        deltaStr = " -" + fmtDelta(row.latestVal(), -delta);
+                        String orig = row.firstVal().original() != null ? row.firstVal().original().trim() : "";
+                        boolean isInteger = !orig.isEmpty() && Character.isDigit(orig.charAt(orig.length() - 1));
+                        boolean noise = isInteger
+                                ? -delta < 2
+                                : row.firstVal().getBytes() > 0 && (-delta) * 200 / row.firstVal().getBytes() < 1;
+                        if (noise) { arrow = "→"; }
+                        else { arrow = "↓"; deltaStr = " -" + fmtDelta(row.latestVal(), -delta); }
                     } else {
                         arrow = "→";
                     }

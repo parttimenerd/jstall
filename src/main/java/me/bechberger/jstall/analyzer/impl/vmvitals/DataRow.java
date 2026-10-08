@@ -118,6 +118,13 @@ public record DataRow(
         return new DataRow(timestamp, values, parsedValues, extremeMarkers, valueList);
     }
 
+    /** Returns a copy of this row with additional extreme markers merged in from another row. */
+    public DataRow withMergedMarkers(DataRow other) {
+        Map<String, String> merged = new LinkedHashMap<>(extremeMarkers);
+        merged.putAll(other.extremeMarkers);
+        return new DataRow(timestamp, values, parsedValues, merged, valueList);
+    }
+
     public Map<String, ParsedValue> computeDeltas(DataRow previous) {
         if (previous == null) {
             return Map.of();

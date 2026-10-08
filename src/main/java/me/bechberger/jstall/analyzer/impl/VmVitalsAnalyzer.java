@@ -151,11 +151,12 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             return "";
         }
 
-        // Extremes section: sort chronologically so they read like a timeline
+        // Extremes section: sort chronologically and merge rows sharing the same timestamp
         if (extremesSection) {
             rowsToFormat = rowsToFormat.stream()
                 .sorted(Comparator.comparing(DataRow::timestamp))
                 .toList();
+            rowsToFormat = mergeByTimestamp(rowsToFormat);
         }
 
         StringBuilder sb = new StringBuilder();
@@ -241,6 +242,18 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             }
         }
         return widths;
+    }
+
+    private List<DataRow> mergeByTimestamp(List<DataRow> rows) {
+        List<DataRow> merged = new ArrayList<>();
+        for (DataRow row : rows) {
+            if (!merged.isEmpty() && merged.get(merged.size() - 1).timestamp().equals(row.timestamp())) {
+                merged.set(merged.size() - 1, merged.get(merged.size() - 1).withMergedMarkers(row));
+            } else {
+                merged.add(row);
+            }
+        }
+        return merged;
     }
 
     private boolean isExtremesSection(VmVitalsSection section) {        return section.name().toLowerCase(Locale.ROOT).contains("extremes");
