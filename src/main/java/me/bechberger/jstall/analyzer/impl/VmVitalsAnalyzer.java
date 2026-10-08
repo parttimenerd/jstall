@@ -161,9 +161,13 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
 
         StringBuilder sb = new StringBuilder();
 
-        String suffix = extremesSection ? "marked samples since start" : "samples, newest last";
-        sb.append(String.format("%s (showing %d of %d %s):\n",
-            normalizeSectionName(section.name()), rowsToFormat.size(), section.dataRows().size(), suffix));
+        if (extremesSection) {
+            sb.append(String.format("%s — %d of %d:\n",
+                normalizeSectionName(section.name()), rowsToFormat.size(), section.dataRows().size()));
+        } else {
+            sb.append(String.format("%s — %d of %d samples:\n",
+                normalizeSectionName(section.name()), rowsToFormat.size(), section.dataRows().size()));
+        }
 
         for (String headerLine : section.headerLines()) {
             sb.append(headerLine).append("\n");

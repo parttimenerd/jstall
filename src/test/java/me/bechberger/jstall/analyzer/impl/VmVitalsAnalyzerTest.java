@@ -164,7 +164,7 @@ public class VmVitalsAnalyzerTest {
         
         assertTrue(result.shouldDisplay());
         String output = result.output();
-        assertTrue(output.contains("Last 60 minutes (showing 2 of 4 samples"), "Should preserve the section title and show truncation");
+        assertTrue(output.contains("Last 60 minutes — 2 of 4 samples"), "Should preserve the section title and show truncation");
         // Should only show last 2 data lines
         assertEquals(2, output.lines().filter(line -> line.matches(".*\\d{4}-\\d{2}-\\d{2}.*")).count());
         assertTrue(output.contains("2026-03-09 18:10:17"), "Should contain second-to-last line");
@@ -271,8 +271,8 @@ public class VmVitalsAnalyzerTest {
         String output = result.output();
 
         // Should have both sections
-        assertTrue(output.contains("Last 60 minutes (showing 2 of 4 samples"), "Should preserve recent section title");
-        assertTrue(output.contains("Samples at extremes (showing 2 of 2 marked samples"), "Should explain extremes section size");
+        assertTrue(output.contains("Last 60 minutes — 2 of 4 samples"), "Should preserve recent section title");
+        assertTrue(output.contains("Samples at extremes — 2 of 2"), "Should explain extremes section size");
         
         // Should have timestamps from both sections
         assertTrue(output.contains("2026-03-09 18:10:17"), "Should have recent rows");
@@ -594,7 +594,7 @@ public class VmVitalsAnalyzerTest {
         assertTrue(output.contains("heap-comm:") || output.contains("heap-comm "), "Should show legend entries");
         
         // Should show recent samples with the original section title and truncation info
-        assertTrue(output.contains("Last 60 minutes (showing 2 of 4 samples"), "Should show recent samples section");
+        assertTrue(output.contains("Last 60 minutes — 2 of 4 samples"), "Should show recent samples section");
         
         // Should show only 2 data rows
         long dataRowCount = output.lines()
