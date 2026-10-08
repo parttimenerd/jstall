@@ -129,7 +129,7 @@ public class SourceTools {
         if (results.isEmpty()) {
             for (String fallback : FALLBACK_TMP_ROOTS) {
                 Path fallbackPath = Path.of(fallback).toAbsolutePath().normalize();
-                if (fallbackPath.equals(root)) continue;
+                if (fallbackPath.equals(root) || root.startsWith(fallbackPath)) continue;
                 if (!Files.isDirectory(fallbackPath)) continue;
                 List<String> fallbackResults = searchInRoot(fallbackPath, effectivePattern);
                 if (!fallbackResults.isEmpty()) {
@@ -251,7 +251,7 @@ public class SourceTools {
         if (hits.isEmpty()) {
             for (String fallback : FALLBACK_TMP_ROOTS) {
                 Path fallbackPath = Path.of(fallback).toAbsolutePath().normalize();
-                if (fallbackPath.equals(root) || !Files.isDirectory(fallbackPath)) continue;
+                if (fallbackPath.equals(root) || root.startsWith(fallbackPath) || !Files.isDirectory(fallbackPath)) continue;
                 hits = grepInRoot(fallbackPath, compiled, fileMatcher, flatFileMatcher);
                 if (!hits.isEmpty()) break;
             }
