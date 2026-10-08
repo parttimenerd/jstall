@@ -18,13 +18,19 @@ public record VmVitalsSection(
     }
 
     /**
-     * Returns the last N rows, or all rows if N < 0.
+     * Returns up to N rows for display, oldest first (newest-last).
+     * Raw rows are stored newest-first as parsed from the vitals output.
+     * If N < 0, returns all rows in oldest-first order.
      */
     public List<DataRow> getTopRows(int topN) {
-        if (topN < 0 || topN >= dataRows.size()) {
-            return dataRows;
+        List<DataRow> source = dataRows;
+        if (topN >= 0 && topN < source.size()) {
+            source = source.subList(0, topN);
         }
-        return dataRows.subList(dataRows.size() - topN, dataRows.size());
+        // Reverse so oldest is first (newest last) for display
+        List<DataRow> result = new java.util.ArrayList<>(source);
+        java.util.Collections.reverse(result);
+        return result;
     }
 }
 

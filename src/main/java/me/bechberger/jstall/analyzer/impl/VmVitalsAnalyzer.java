@@ -95,7 +95,7 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
         String sections = vitals.sections().stream()
             .map(s -> formatSection(s, topN, extremesCap))
             .filter(s -> !s.isEmpty())
-            .collect(Collectors.joining("\n"));
+            .collect(Collectors.joining("\n\n"));
 
         if (sections.isEmpty()) {
             return "";
@@ -150,14 +150,19 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             sb.append(headerLine).append("\n");
         }
 
+        // Derive column widths from the column-name header line (last header line)
+        List<Integer> colWidths = deriveColumnWidths(
+                section.headerLines().isEmpty() ? "" : section.headerLines().get(section.headerLines().size() - 1),
+                section.columnNames());
+
         for (DataRow row : rowsToFormat) {
-            sb.append(formatDataRow(row, section.columnNames())).append("\n");
+            sb.append(formatDataRow(row, section.columnNames(), colWidths)).append("\n");
         }
 
         return sb.toString().trim();
     }
 
-    private String formatDataRow(DataRow row, List<String> columnNames) {
+    private String formatDataRow(DataRow row, List<String> columnNames, List<Integer> colWidths) {
         StringBuilder sb = new StringBuilder();
         sb.append(row.timestamp().format(DataRow.TIMESTAMP_FORMATTER));
         sb.append("    ");
@@ -167,8 +172,14 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             String colName = columnNames.get(i);
             String value = i < valueList.size() ? valueList.get(i) : "";
             String marker = row.extremeMarkers().get(colName);
+            String cell = marker != null ? value + marker : value;
 
-            sb.append(marker != null ? value + marker : value);
+            int width = i < colWidths.size() ? colWidths.get(i) : cell.length();
+            // Right-align within the column width; if cell exceeds width just use it
+            if (cell.length() < width) {
+                sb.append(" ".repeat(width - cell.length()));
+            }
+            sb.append(cell);
 
             if (i < columnNames.size() - 1) {
                 sb.append("  ");
@@ -178,8 +189,39 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
         return sb.toString();
     }
 
-    private boolean isExtremesSection(VmVitalsSection section) {
-        return section.name().toLowerCase(Locale.ROOT).contains("extremes");
+    /** Derives per-column display widths from the column-name header line. */
+    private List<Integer> deriveColumnWidths(String headerLine, List<String> columnNames) {
+        int dataStart = DataRow.TIMESTAMP_FORMATTER.format(java.time.LocalDateTime.now()).length() + 4;
+        if (headerLine.length() <= dataStart) {
+            return columnNames.stream().map(String::length).toList();
+        }
+        String dataPart = headerLine.substring(Math.min(dataStart, headerLine.length()));
+        // Find start of each column token
+        List<Integer> starts = new ArrayList<>();
+        boolean inToken = false;
+        for (int i = 0; i < dataPart.length(); i++) {
+            if (!Character.isWhitespace(dataPart.charAt(i)) && !inToken) {
+                starts.add(i);
+                inToken = true;
+            } else if (Character.isWhitespace(dataPart.charAt(i))) {
+                inToken = false;
+            }
+        }
+        List<Integer> widths = new ArrayList<>();
+        for (int i = 0; i < columnNames.size(); i++) {
+            if (i < starts.size()) {
+                // End of this token = start of next token minus 2-space gap, or end of dataPart
+                int tokenEnd = (i + 1 < starts.size()) ? starts.get(i + 1) - 2 : dataPart.length();
+                int colWidth = tokenEnd - starts.get(i);
+                widths.add(Math.max(colWidth, columnNames.get(i).length()));
+            } else {
+                widths.add(columnNames.get(i).length());
+            }
+        }
+        return widths;
+    }
+
+    private boolean isExtremesSection(VmVitalsSection section) {        return section.name().toLowerCase(Locale.ROOT).contains("extremes");
     }
 
     private String normalizeSectionName(String sectionName) {

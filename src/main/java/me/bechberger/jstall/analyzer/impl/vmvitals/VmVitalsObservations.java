@@ -31,7 +31,7 @@ public class VmVitalsObservations {
         DataRow latest = section.dataRows().stream()
                 .max(java.util.Comparator.comparing(DataRow::timestamp)).orElseThrow();
 
-        String trendTable = buildTrendTable(section, legend, first, latest);
+        String trendTable = buildTrendTable(section, legend);
         List<String> observations = buildObservations(legend, section.columnNames(), first, latest);
 
         if (trendTable.isEmpty() && observations.isEmpty()) {
@@ -64,20 +64,29 @@ public class VmVitalsObservations {
         return null;
     }
 
-    private static String buildTrendTable(VmVitalsSection section, List<LegendEntry> legend,
-                                           DataRow first, DataRow latest) {
+    private static String buildTrendTable(VmVitalsSection section, List<LegendEntry> legend) {
         record TrendRow(String key, ParsedValue firstVal, ParsedValue latestVal,
                         boolean flaky, long minBytes, long maxBytes) {}
         List<TrendRow> rows = new ArrayList<>();
 
-        List<DataRow> allRows = section.dataRows();
+        // Sort rows oldest→newest for consistent direction
+        List<DataRow> allRows = section.dataRows().stream()
+                .sorted(java.util.Comparator.comparing(DataRow::timestamp))
+                .toList();
         List<String> colNames = section.columnNames();
         for (int i = 0; i < colNames.size(); i++) {
             if (isDeltaColumn(legend, colNames, i)) {
                 continue;
             }
-            ParsedValue fv = parseAt(first, i);
-            ParsedValue lv = parseAt(latest, i);
+
+            // Use first/last *available* value per column to avoid ? from incomplete rows
+            ParsedValue fv = ParsedValue.parse(null);
+            ParsedValue lv = ParsedValue.parse(null);
+            for (DataRow r : allRows) {
+                ParsedValue pv = parseAt(r, i);
+                if (pv.isAvailable()) { if (!fv.isAvailable()) fv = pv; lv = pv; }
+            }
+
             if (!fv.isAvailable() && !lv.isAvailable()) {
                 continue;
             }
