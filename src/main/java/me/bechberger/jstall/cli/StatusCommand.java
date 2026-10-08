@@ -12,14 +12,14 @@ import java.util.Map;
  */
 @Command(
     name = "status",
-    description = "Run multiple analyzers over thread dumps (default command)"
+    description = "Best first check: summarize JVM health, hot threads, memory, deadlocks, and lock contention"
 )
 public class StatusCommand extends BaseAnalyzerCommand {
 
-    @Option(names = "--top", description = "Number of top threads (default: 3)")
+    @Option(names = "--top", description = "How many hottest threads to show in status tables (default: 3, -1 = all)")
     private int top = 3;
 
-    @Option(names = "--no-native", description = "Ignore threads without stack traces (typically native/system threads)")
+    @Option(names = "--no-native", description = "Hide threads without Java stack traces (typically native/system threads)")
     private boolean noNative = false;
 
     @Override

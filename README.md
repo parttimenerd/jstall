@@ -193,7 +193,7 @@ For full command reference with all options, see [docs/COMMANDS.md](docs/COMMAND
 
 | Command | Description | Key Options |
 |---------|-------------|-------------|
-| `status` | Run multiple analyzers (default command) | `--top=<n>`, `--intelligent-filter`, `--full`, `--no-native` |
+| `status` | Best first check for a JVM: health, hot threads, memory, deadlocks, and lock contention | `--top=<n>`, `--intelligent-filter`, `--full`, `--no-native` |
 | `deadlock` | Detect JVM-reported thread deadlocks | |
 | `most-work` | Identify threads doing the most work | `--top=<n>`, `--stack-depth=<n>`, `--intelligent-filter` |
 | `threads` | List all threads sorted by CPU time | `--no-native` |
@@ -206,7 +206,7 @@ For full command reference with all options, see [docs/COMMANDS.md](docs/COMMAND
 | `list` | List running JVM processes | `--no-truncate` |
 | `processes` | Detect high-CPU non-JVM processes | |
 | `jvm-support` | Check if JVM version is still supported | |
-| `vm-vitals` | Show VM.vitals (SapMachine) | |
+| `vm-vitals` | SapMachine-only JVM/process/system vitals with recent trends, extremes, and automated observations | `--top=<n>` |
 | `gc-heap-info` | Show GC heap info and change | |
 | `vm-classloader-stats` | Show classloader stats | |
 | `vm-metaspace` | Show metaspace summary and trend | |
@@ -229,15 +229,72 @@ For full command reference with all options, see [docs/COMMANDS.md](docs/COMMAND
 
 ### `status` (default)
 
-Runs deadlock detection, most-work, threads, dependency-graph, and dependency-tree over shared thread dumps. Requires at least 2 dumps.
+This is the **best first command to run** when you are not yet sure what is wrong.
+It combines one short sampling window into a single report that answers the most common questions:
+
+- Is there a deadlock?
+- Which threads are doing the most work?
+- Are threads blocked on locks?
+- Is heap or metaspace usage growing?
+- Is the JVM badly outdated?
+
+Requires at least 2 dumps.
 
 Also performs a **JVM support check**: collects `java.version.date` from `jcmd VM.system_properties` and warns if the JVM is > 4 months old (exit code 10 if > 1 year old).
 
 ```bash
 jstall status 12345
 jstall status MyApplication --top 5 --intelligent-filter
+jstall status MyApplication --top -1
+jstall status MyApplication --live
 jstall status all --full
 ```
+
+Use `--top -1` if you want the full hot-thread tables instead of the default short summary.
+
+---
+
+### `vm-vitals`
+
+Use this when the target runs **SapMachine** and you want a compact time series of JVM, process,
+and host/container memory statistics without starting a profiler.
+
+Unlike a one-shot counter dump, `VM.vitals` already contains buffered history, so `jstall vm-vitals`
+is often the quickest way to answer questions like:
+
+- Did RSS / heap / metaspace just spike?
+- Are class loads or thread counts climbing?
+- Which values hit recent minima or maxima?
+
+`jstall` shows only the legend entries for the columns that actually appear in the report.
+After the raw data table, it appends a **Trends** section (first-to-last value per column with
+a direction arrow: `→` stable, `↑`/`↓` monotone, `~` oscillating) and an **Observations** section
+that fires automatic signals such as possible class leaks, thread leaks, or memory pressure.
+
+```bash
+jstall vm-vitals 12345
+jstall vm-vitals MyApplication --top 10
+jstall vm-vitals MyApplication --top -1
+```
+
+Example output (truncated):
+
+```
+Trends (361 samples, 13:20 → 14:19):
+  heap-comm    1.60 GB →   1.60 GB  →
+  heap-used  477.00 MB →  73.00 MB  ~ (range: 9.00 MB – 988.00 MB)
+  meta-comm  704.00 KB →   6.00 MB  ↑ +5.31 MB
+  meta-used  572.00 KB →   6.00 MB  ↑ +5.44 MB
+  cldg-num          10 →        55  ↑ +45
+  cls-num          876 →      2416  ↑ +1540
+
+Observations:
+  * metaspace growing ↑ 5.44 MB over window — possible class leak
+  * loaded class count grew +1540 (from 876 to 2416) — possible classloader leak
+```
+
+If VM.vitals is unavailable, `jstall` tells you that clearly and points you to `status`,
+`gc-heap-info`, and `vm-metaspace` instead.
 
 ---
 

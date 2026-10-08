@@ -100,6 +100,8 @@ public class DataRequirements {
     private DataRequirement createWithNewSchedule(DataRequirement req, CollectionSchedule schedule) {
         if (req instanceof SystemEnvironmentRequirement) {
             return new SystemEnvironmentRequirement(schedule);
+        } else if (req instanceof DeferredJcmdRequirement deferredJcmdRequirement) {
+            return new DeferredJcmdRequirement(deferredJcmdRequirement.getCommand(), deferredJcmdRequirement.getArgs(), schedule);
         } else if (req instanceof JcmdRequirement jcmd) {
             return new JcmdRequirement(jcmd.getCommand(), jcmd.getArgs(), schedule);
         } else if (req instanceof AsyncProfilerWindowRequirement profileRequirement) {
@@ -121,6 +123,14 @@ public class DataRequirements {
                 asyncProfilerWindowRequirement.getSchedule(),
                 asyncProfilerWindowRequirement.getEvent(),
                 true
+            );
+        }
+        if (req instanceof DeferredJcmdRequirement deferredJcmdRequirement) {
+            String[] args = deferredJcmdRequirement.getArgs();
+            return new DeferredJcmdRequirement(
+                deferredJcmdRequirement.getCommand(),
+                args == null ? null : args.clone(),
+                deferredJcmdRequirement.getSchedule()
             );
         }
         if (req instanceof JcmdRequirement jcmdRequirement) {
@@ -330,6 +340,18 @@ public class DataRequirements {
          */
         public Builder addJcmdOnce(String command) {
             requirements.add(new JcmdRequirement(command, null, CollectionSchedule.once()));
+            return this;
+        }
+
+        /**
+         * Adds a jcmd command that should be collected once at the end of a multi-sample interval.
+         */
+        public Builder addDeferredJcmdAtEnd(String command, String[] args, int count, long intervalMs) {
+            requirements.add(new DeferredJcmdRequirement(
+                command,
+                args,
+                CollectionSchedule.intervals(count, intervalMs)
+            ));
             return this;
         }
         

@@ -21,7 +21,7 @@ import java.nio.file.Path;
 @Command(
     name = "jstall",
     description = "One-shot JVM inspection tool",
-    version = "0.8.1",
+    version = "0.8.2",
     subcommands = {
         RecordMainCommand.class,
         StatusCommand.class,
@@ -49,7 +49,7 @@ import java.nio.file.Path;
 )
 public class Main implements Runnable {
 
-    public static final String VERSION = "0.8.1";
+    public static final String VERSION = "0.8.2";
 
     @Option(names = {"-f", "--file"}, description = "File path for replay mode (replay ZIP file created by record command)")
     private Path replayFile;
@@ -128,7 +128,7 @@ public class Main implements Runnable {
         System.out.println("Available commands:");
         System.out.println("  record            - Record diagnostics and manage recording archives");
         System.out.println("  list              - List running JVM processes (optionally filter by name)");
-        System.out.println("  status            - Show overall status (deadlocks + most active threads)");
+        System.out.println("  status            - Best first check: JVM health, hot threads, memory, deadlocks, and lock contention");
         System.out.println("  deadlock          - Check for deadlocks");
         System.out.println("  most-work         - Show threads doing the most work");
         System.out.println("  flame             - Generate flame graph");
@@ -136,7 +136,7 @@ public class Main implements Runnable {
         System.out.println("  waiting-threads   - Identify threads waiting without progress");
         System.out.println("  dependency-graph  - Show thread dependencies (lock wait relationships)");
         System.out.println("  dependency-tree   - Show non deadlock thread dependencies over time");
-        System.out.println("  vm-vitals         - Show VM.vitals (if available)");
+        System.out.println("  vm-vitals         - SapMachine-only JVM/process/system vitals, trends, and extremes");
         System.out.println("  gc-heap-info      - Show GC.heap_info last absolute values and deltas");
         System.out.println("  compiler-queue    - Show compiler queue");
         System.out.println("  vm-classloader-stats - Show VM classloader statistics");

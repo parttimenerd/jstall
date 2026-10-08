@@ -14,6 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
+## [0.8.2] - 2026-10-08
+
+### Added
+- `vm-vitals`: robust rewrite of the parser covering all SapMachine 11–27 text and CSV variants
+- `vm-vitals`: **Trends** table after the raw data — one row per non-delta column showing first value, last value, and a direction arrow (`→` stable, `↑`/`↓` monotone with net delta, `~` oscillating with value range)
+- `vm-vitals`: **Observations** section with automatic signals: heap pressure >80%, heap growing >5%, metaspace growing, metaspace near GC threshold, thread count grew ≥5, class count grew ≥50, CPU steal >10%, swap growing, RSS growing
+- `vm-vitals`: fixed duplicate-column-name data loss (heap-comm and meta-comm both named `comm` in the table; now tracked positionally)
+
+### Changed
+- `vm-vitals`: legend entries no longer show noise tags like `[cs]` or `[linux]` in descriptions; `[delta]` note still shown
+
 ## [0.8.1] - 2026-10-07
 
 ### Added

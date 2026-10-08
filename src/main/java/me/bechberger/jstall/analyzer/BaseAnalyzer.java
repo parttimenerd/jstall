@@ -38,7 +38,12 @@ public abstract class BaseAnalyzer implements Analyzer {
      */
     protected int getIntOption(Map<String, Object> options, String key, int defaultValue) {
         Object value = options.get(key);
-        return value instanceof Integer ? (Integer) value : defaultValue;
+        return value instanceof Number n ? n.intValue() : defaultValue;
+    }
+
+    protected long getLongOption(Map<String, Object> options, String key, long defaultValue) {
+        Object value = options.get(key);
+        return value instanceof Number n ? n.longValue() : defaultValue;
     }
 
     /**

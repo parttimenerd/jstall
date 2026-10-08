@@ -1,24 +1,25 @@
 package me.bechberger.jstall.analyzer.impl;
 
-import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
+import me.bechberger.jstall.analyzer.BaseAnalyzer;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.analyzer.ResolvedData;
+import me.bechberger.jstall.analyzer.impl.vmvitals.*;
 import me.bechberger.jstall.provider.requirement.CollectedData;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Displays VM vitals information from VM.vitals jcmd command (SapMachine-specific).
  * <p>
+ * Uses a robust data model to parse VM vitals output, then filters the legend
+ * to only show entries relevant to the actual columns present in the data.
  * Shows the last n recent sample rows (configurable via --top option, default: 5)
  * followed by the "Samples at extremes" section capped at max(10, topN) rows.
  */
-public class VmVitalsAnalyzer implements Analyzer {
+public class VmVitalsAnalyzer extends BaseAnalyzer {
 
     @Override
     public String name() {
@@ -37,17 +38,30 @@ public class VmVitalsAnalyzer implements Analyzer {
 
     @Override
     public DataRequirements getDataRequirements(Map<String, Object> options) {
-        return DataRequirements.builder()
-            .addThreadDump()
-            .addJcmdOnce("VM.vitals")
-            .build();
+        int dumpCount = getIntOption(options, "dump-count", defaultDumpCount());
+        long intervalMs = getLongOption(options, "interval", defaultIntervalMs());
+
+        DataRequirements.Builder builder = DataRequirements.builder()
+            .addThreadDump();
+
+        if (dumpCount > 1 && intervalMs > 0) {
+            builder.addDeferredJcmdAtEnd("VM.vitals", null, dumpCount, intervalMs);
+        } else {
+            builder.addJcmdOnce("VM.vitals");
+        }
+
+        return builder.build();
     }
 
     @Override
     public AnalyzerResult analyze(ResolvedData data, Map<String, Object> options) {
         List<CollectedData> vitalsSamples = data.collectedData("vm-vitals");
         if (vitalsSamples.isEmpty()) {
-            return AnalyzerResult.ok("VM.vitals not available (requires SapMachine JVM)");
+            return AnalyzerResult.ok("""
+                VM.vitals is not available on this JVM.
+                It is currently exposed by SapMachine. On other JVMs, start with `jstall status`
+                and, if you want memory detail, `jstall gc-heap-info` or `jstall vm-metaspace`.
+                """.trim());
         }
 
         String rawVitals = vitalsSamples.get(vitalsSamples.size() - 1).rawData();
@@ -55,116 +69,131 @@ public class VmVitalsAnalyzer implements Analyzer {
             return AnalyzerResult.nothing();
         }
 
+        VmVitalsOutput parsed = VmVitalsParser.parse(rawVitals);
+        if (parsed == null) {
+            return AnalyzerResult.ok(formatRawFallback(rawVitals));
+        }
+
         int top = getIntOption(options, "top", 5);
-        int extremesCap = Math.max(10, top);
-        String vmVitalsOutput = formatVmVitals(rawVitals, top, extremesCap);
+        String vmVitalsOutput = formatVmVitals(parsed, top);
         if (vmVitalsOutput.isEmpty()) {
-            return AnalyzerResult.nothing();
+            return AnalyzerResult.ok(formatRawFallback(rawVitals));
         }
 
         return AnalyzerResult.ok(vmVitalsOutput);
     }
 
-    private int getIntOption(Map<String, Object> options, String key, int defaultValue) {
-        Object value = options.get(key);
-        if (value instanceof Integer i) {
-            return i;
-        } else if (value instanceof Number n) {
-            return n.intValue();
+    /**
+     * Formats VM vitals output with filtered legend + top recent samples + extremes.
+     */
+    private String formatVmVitals(VmVitalsOutput vitals, int topN) {
+        if (vitals.sections().isEmpty()) {
+            return "";
         }
-        return defaultValue;
+
+        int extremesCap = Math.max(10, topN);
+        String sections = vitals.sections().stream()
+            .map(s -> formatSection(s, topN, extremesCap))
+            .filter(s -> !s.isEmpty())
+            .collect(Collectors.joining("\n"));
+
+        if (sections.isEmpty()) {
+            return "";
+        }
+
+        String legend = renderFilteredLegend(vitals.filteredLegend());
+        String body = legend.isEmpty() ? sections : legend + "\n\n" + sections;
+
+        String observations = VmVitalsObservations.analyze(vitals);
+        return observations.isEmpty() ? body : body + "\n\n" + observations;
     }
 
-    private String formatVmVitals(String rawVitals, int topN, int extremesCap) {
-        if (rawVitals == null || rawVitals.isBlank()) {
+    private String renderFilteredLegend(VmVitalsLegend filteredLegend) {
+        if (filteredLegend.entries().isEmpty()) {
             return "";
         }
 
-        String[] lines = rawVitals.split("\\r?\\n");
+        StringBuilder sb = new StringBuilder();
+        sb.append("VM.vitals legend (filtered by active columns shown below):\n\n");
 
-        // Split into two sections at the "Samples at extremes" boundary
-        int extremesStart = -1;
-        for (int i = 0; i < lines.length; i++) {
-            if (lines[i].contains("Samples at extremes")) {
-                extremesStart = i;
-                break;
-            }
+        for (LegendEntry entry : filteredLegend.entries()) {
+            sb.append(String.format("%15s: %s\n", entry.key(), entry.description().replaceAll("\\s*\\[[a-z0-9]+]", "").trim()));
         }
 
-        int recentEnd = extremesStart >= 0 ? extremesStart : lines.length;
-        String[] recentLines = java.util.Arrays.copyOfRange(lines, 0, recentEnd);
-        String[] extremesLines = extremesStart >= 0
-                ? java.util.Arrays.copyOfRange(lines, extremesStart, lines.length)
-                : new String[0];
-
-        String recentSection = formatSection(recentLines, topN, "Recent samples (last " + topN + ")");
-        String extremesSection = formatSection(extremesLines, extremesCap, "Samples at extremes (since start)");
-
-        if (recentSection.isEmpty() && extremesSection.isEmpty()) {
-            return "";
+        boolean hasDelta = filteredLegend.conditions().stream().anyMatch(c -> "delta".equals(c.tag()));
+        if (hasDelta) {
+            sb.append("\n  [delta]: values refer to the previous measurement.\n");
         }
 
-        StringBuilder sb = new StringBuilder("VM Vitals:\n");
-        if (!recentSection.isEmpty()) {
-            sb.append(recentSection).append("\n");
-        }
-        if (!extremesSection.isEmpty()) {
-            if (!recentSection.isEmpty()) {
-                sb.append("\n");
-            }
-            sb.append(extremesSection).append("\n");
-        }
         return sb.toString().trim();
     }
 
     /**
-     * Formats one section (recent or extremes) of VM.vitals output.
-     * Finds the 3-line header block ending with the "comm used" column line,
-     * then collects all data rows (lines starting with a date).
-     * If topN >= 0, only the last topN data rows are shown.
+     * Formats a single section with headers and data rows.
      */
-    private String formatSection(String[] lines, int topN, String sectionLabel) {
-        List<String> headerLines = new ArrayList<>();
-        List<String> dataLines = new ArrayList<>();
-        int columnHeaderIdx = -1;
+    private String formatSection(VmVitalsSection section, int topN, int extremesCap) {
+        boolean extremesSection = isExtremesSection(section);
+        int rowsToShow = extremesSection ? extremesCap : topN;
+        List<DataRow> rowsToFormat = section.getTopRows(rowsToShow);
 
-        for (int i = 0; i < lines.length; i++) {
-            String trimmed = lines[i].trim();
-            if (columnHeaderIdx < 0 && trimmed.contains("comm") && trimmed.contains("used")) {
-                columnHeaderIdx = i;
-                // Collect up to 2 non-empty lines immediately before as grouped headers
-                List<String> before = new ArrayList<>();
-                for (int j = i - 1; j >= 0 && before.size() < 2; j--) {
-                    if (!lines[j].trim().isEmpty()) {
-                        before.add(0, lines[j]);
-                    } else {
-                        break;
-                    }
-                }
-                headerLines.addAll(before);
-                headerLines.add(lines[i]);
-                continue;
-            }
-            if (columnHeaderIdx >= 0 && trimmed.matches("\\d{4}-\\d{2}-\\d{2}.*")) {
-                dataLines.add(lines[i]);
-            }
-        }
-
-        if (dataLines.isEmpty()) {
+        if (rowsToFormat.isEmpty()) {
             return "";
         }
 
-        List<String> rows = topN >= 0 ? dataLines.subList(Math.max(0, dataLines.size() - topN), dataLines.size()) : dataLines;
-
         StringBuilder sb = new StringBuilder();
-        sb.append(sectionLabel).append(":\n");
-        for (String h : headerLines) {
-            sb.append(h).append("\n");
+
+        String suffix = extremesSection ? "marked samples since start" : "samples, newest last";
+        sb.append(String.format("%s (showing %d of %d %s):\n",
+            normalizeSectionName(section.name()), rowsToFormat.size(), section.dataRows().size(), suffix));
+
+        for (String headerLine : section.headerLines()) {
+            sb.append(headerLine).append("\n");
         }
-        for (String row : rows) {
-            sb.append(row).append("\n");
+
+        for (DataRow row : rowsToFormat) {
+            sb.append(formatDataRow(row, section.columnNames())).append("\n");
         }
+
         return sb.toString().trim();
+    }
+
+    private String formatDataRow(DataRow row, List<String> columnNames) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(row.timestamp().format(DataRow.TIMESTAMP_FORMATTER));
+        sb.append("    ");
+
+        List<String> valueList = row.valueList();
+        for (int i = 0; i < columnNames.size(); i++) {
+            String colName = columnNames.get(i);
+            String value = i < valueList.size() ? valueList.get(i) : "";
+            String marker = row.extremeMarkers().get(colName);
+
+            sb.append(marker != null ? value + marker : value);
+
+            if (i < columnNames.size() - 1) {
+                sb.append("  ");
+            }
+        }
+
+        return sb.toString();
+    }
+
+    private boolean isExtremesSection(VmVitalsSection section) {
+        return section.name().toLowerCase(Locale.ROOT).contains("extremes");
+    }
+
+    private String normalizeSectionName(String sectionName) {
+        String normalized = sectionName.endsWith(":") ? sectionName.substring(0, sectionName.length() - 1) : sectionName;
+        if (normalized.startsWith("Samples at extremes")) {
+            return "Samples at extremes";
+        }
+        return normalized;
+    }
+
+    private String formatRawFallback(String rawVitals) {
+        return "VM.vitals output was returned but could not be parsed reliably. "
+            + "Showing the raw output below so you can still inspect it:\n\n"
+            + rawVitals.trim();
     }
 
 }

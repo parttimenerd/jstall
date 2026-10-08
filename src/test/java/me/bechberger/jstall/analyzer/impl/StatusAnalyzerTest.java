@@ -6,7 +6,10 @@ import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.analyzer.ResolvedData;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jstall.provider.requirement.CollectedData;
+import me.bechberger.jstall.provider.requirement.CollectionSchedule;
 import me.bechberger.jstall.provider.requirement.DataRequirement;
+import me.bechberger.jstall.provider.requirement.IntervalWindowRequirement;
+import me.bechberger.jstall.provider.requirement.JcmdRequirement;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.parser.ThreadDumpParser;
 import org.junit.jupiter.api.Test;
@@ -179,6 +182,39 @@ class StatusAnalyzerTest {
             .collect(Collectors.toSet());
 
         assertEquals(expectedRequirementTypes, requirementTypes);
+    }
+
+    @Test
+    void testStatusUsesDeferredVmVitalsForMultiSampleCollection() {
+        VmVitalsAnalyzer analyzer = new VmVitalsAnalyzer();
+
+        DataRequirement vitalsRequirement = analyzer.getDataRequirements(Map.of(
+                "dump-count", 2,
+                "interval", 5000L
+            )).getRequirements().stream()
+            .filter(req -> req.getType().equals("vm-vitals"))
+            .findFirst()
+            .orElseThrow();
+
+        assertInstanceOf(IntervalWindowRequirement.class, vitalsRequirement);
+        assertEquals(new CollectionSchedule(2, 5000L, true), vitalsRequirement.getSchedule());
+    }
+
+    @Test
+    void testLiveModeUsesRegularVmVitalsCollectionEachCycle() {
+        VmVitalsAnalyzer analyzer = new VmVitalsAnalyzer();
+
+        DataRequirement vitalsRequirement = analyzer.getDataRequirements(Map.of(
+                "dump-count", 1,
+                "interval", 5000L
+            )).getRequirements().stream()
+            .filter(req -> req.getType().equals("vm-vitals"))
+            .findFirst()
+            .orElseThrow();
+
+        assertInstanceOf(JcmdRequirement.class, vitalsRequirement);
+        assertFalse(vitalsRequirement instanceof IntervalWindowRequirement);
+        assertEquals(CollectionSchedule.once(), vitalsRequirement.getSchedule());
     }
 
     @Test

@@ -12,11 +12,11 @@ import java.util.Map;
  */
 @Command(
     name = "vm-vitals",
-    description = "Show VM.vitals (if available)"
+    description = "SapMachine-only: show recent JVM/process/system vitals, trends, and extremes"
 )
 public class VmVitalsCommand extends BaseAnalyzerCommand {
 
-    @Option(names = "--top", description = "Number of VM.vitals rows to show (default: 5)")
+    @Option(names = "--top", description = "Number of recent VM.vitals samples to show (default: 5, -1 = all)")
     private int top = 5;
 
     @Override
@@ -26,11 +26,6 @@ public class VmVitalsCommand extends BaseAnalyzerCommand {
 
     @Override
     protected Map<String, Object> getAdditionalOptions() {
-        // Validate --top parameter
-        if (top != -1 && top <= 0) {
-            throw new IllegalArgumentException(
-                "--top must be a positive integer (>= 1) or -1 to show all rows");
-        }
-        return Map.of("top", top);
+        return Map.of("top", getTop(top));
     }
 }

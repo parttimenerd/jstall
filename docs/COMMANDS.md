@@ -25,7 +25,7 @@ One-shot JVM inspection tool
   -V, --version                   Print version information and exit.
 Commands:
   record                Record all data into a zip for later analysis
-  status                Run multiple analyzers over thread dumps (default command)
+  status                Best first check: summarize JVM health, hot threads, memory, deadlocks, and lock contention
   deadlock              Detect JVM-reported thread deadlocks
   most-work             Identify threads doing the most work across dumps
   flame                 Generate a flamegraph of the application using async-profiler
@@ -33,7 +33,7 @@ Commands:
   waiting-threads       Identify threads waiting without progress (potentially starving)
   dependency-graph      Show thread dependencies
   dependency-tree       Show non deadlock thread dependencies over time
-  vm-vitals             Show VM.vitals (if available)
+  vm-vitals             SapMachine-only: show recent JVM/process/system vitals, trends, and extremes
   gc-heap-info          Show GC.heap_info last absolute values and change
   vm-classloader-stats  Show VM.classloader_stats grouped by classloader type
   vm-metaspace          Show VM.metaspace summary and trend
@@ -69,7 +69,11 @@ List running JVM processes (excluding this tool)
 
 ## `status` (default)
 
-Runs multiple analyzers (deadlock, most-work, threads, dependency-graph, dependency-tree) over shared thread dumps.
+This is the **best first command to run** when you want to understand what a JVM is doing.
+It combines one short sampling window into a single report covering deadlocks, hot threads,
+full thread tables, lock dependencies, GC/heap details, metaspace, VM.vitals (if available),
+other busy OS processes, and JVM support status.
+
 Requires at least 2 thread dumps (collected automatically from live JVMs, or pass multiple dump files).
 
 <!-- BEGIN help_status -->
@@ -78,7 +82,7 @@ Usage: jstall status [-hV] [--dump-count=<count>] [--interval=<interval>]
                      [--keep] [--intelligent-filter] [--full] [--live]
                      [--keep-samples=<keepSamples>] [--file=<replayFile>]
                      [--color] [--top=<top>] [--no-native] [<targets>...]
-Run multiple analyzers over thread dumps (default command)
+Best first check: summarize JVM health, hot threads, memory, deadlocks, and lock contention
       [<targets>...]              PID, 'all', filter or dump files (or replay
                                   ZIP as first argument)
       --color                     Enable colored output in live mode
@@ -99,9 +103,10 @@ Run multiple analyzers over thread dumps (default command)
                                   default is 0
   -l, --live                      Live mode: repeatedly collect and display,
                                   like watch (Linux/macOS only)
-      --no-native                 Ignore threads without stack traces (typically
-                                  native/system threads)
-      --top=<top>                 Number of top threads (default: 3)
+      --no-native                 Hide threads without Java stack traces
+                                  (typically native/system threads)
+      --top=<top>                 How many hottest threads to show in status
+                                  tables (default: 3, -1 = all)
   -V, --version                   Print version information and exit.
 ```
 <!-- END help_status -->
@@ -608,7 +613,11 @@ Commands:
 
 ## `vm-vitals`
 
-Shows VM.vitals output (if available on the target JVM, e.g. SapMachine).
+Use this when the target runs **SapMachine** and you want recent JVM/process/system vitals,
+their trends, and the samples that hit recent minima or maxima.
+
+If VM.vitals is unavailable on the target JVM, jstall explains that and points you to
+`status`, `gc-heap-info`, and `vm-metaspace` instead.
 
 <!-- BEGIN help_vm_vitals -->
 ```
@@ -616,7 +625,7 @@ Usage: jstall vm-vitals [-hV] [--dump-count=<count>] [--interval=<interval>]
                         [--keep] [--intelligent-filter] [--full] [--live]
                         [--keep-samples=<keepSamples>] [--file=<replayFile>]
                         [--color] [--top=<top>] [<targets>...]
-Show VM.vitals (if available)
+SapMachine-only: show recent JVM/process/system vitals, trends, and extremes
       [<targets>...]              PID, 'all', filter or dump files (or replay
                                   ZIP as first argument)
       --color                     Enable colored output in live mode
@@ -637,10 +646,92 @@ Show VM.vitals (if available)
                                   default is 0
   -l, --live                      Live mode: repeatedly collect and display,
                                   like watch (Linux/macOS only)
-      --top=<top>                 Number of VM.vitals rows to show (default: 5)
+      --top=<top>                 Number of recent VM.vitals samples to show
+                                  (default: 5, -1 = all)
   -V, --version                   Print version information and exit.
 ```
 <!-- END help_vm_vitals -->
+
+### Output sections
+
+After collecting samples `vm-vitals` prints three sections:
+
+1. **Legend** — human-readable description of every column present in the output.
+   Columns tagged `[delta]` (e.g. `cr`, `ld`, `uld`) show the change since the previous sample.
+2. **Recent samples table** — the last N samples (controlled by `--top`, default 5), newest last.
+3. **Trends** — one row per non-delta column showing the first and last value across the full
+   window plus a direction indicator:
+   - `→` stable (no net change)
+   - `↑ +X` / `↓ -X` monotonically growing or shrinking, with net delta
+   - `~ (range: min – max)` oscillating (e.g. heap-used bouncing with GC cycles)
+4. **Observations** — automatic signals fired when a threshold is crossed (only shown when at
+   least one fires).
+
+### Observations signals and thresholds
+
+| Signal | Threshold |
+|---|---|
+| High memory pressure | heap-used > 80 % of heap-committed |
+| Possible allocation pressure | heap-used growing > 5 % |
+| Possible class leak | metaspace-used has any positive net delta |
+| Near metaspace expansion trigger | metaspace-used > 75 % of GC threshold |
+| Possible thread leak | thread count grew ≥ 5 |
+| Possible classloader leak | class count grew ≥ 50 |
+| Host over-committed | CPU steal > 10 % |
+| OS-level memory pressure | swap growing |
+| Possible native memory leak | RSS growing |
+
+### Example output
+
+```
+VM.vitals legend (filtered by active columns shown below):
+
+      heap-comm: Java Heap Size, committed
+      heap-used: Java Heap Size, used
+      meta-comm: Meta Space Size (class+nonclass), committed
+      meta-used: Meta Space Size (class+nonclass), used
+       meta-csc: Class Space Size, committed
+       meta-csu: Class Space Size, used
+      meta-gctr: GC threshold
+           code: Code cache, committed
+       jthr-num: Number of java threads
+        jthr-nd: Number of non-demon java threads
+        jthr-cr: Threads created [delta]
+       cldg-num: Classloader Data
+      cldg-anon: Anonymous CLD
+        cls-num: Classes (instance + array)
+         cls-ld: Class loaded [delta]
+        cls-uld: Classes unloaded [delta]
+
+  [delta]: values refer to the previous measurement.
+
+Last 60 minutes (showing 3 of 361 samples, newest last):
+                      ----------------------------------jvm-----------------------------------
+                      --heap--- ----------meta----------      --jthr--- --cldg-- -----cls-----
+                      comm used comm used csc  csu  gctr code num nd cr num anon num  ld   uld 
+2026-10-08 13:20:47    1.6g  905m  704k  572k  128k  40k  21m  7m  15  5  0  10  7  876  0  0
+2026-10-08 13:50:22    1.6g  210m    2m    2m  384k 341k  21m  7m  16  5  0  28 25 1540  0  0
+2026-10-08 14:19:03    1.6g   73m    6m    6m  896k 815k  21m  7m  17  5  0  55 52 2416  0  0
+
+Trends (361 samples, 13:20 → 14:19):
+  heap-comm    1.60 GB →   1.60 GB  →
+  heap-used  477.00 MB →  73.00 MB  ~ (range: 9.00 MB – 988.00 MB)
+  meta-comm  704.00 KB →   6.00 MB  ↑ +5.31 MB
+  meta-used  572.00 KB →   6.00 MB  ↑ +5.44 MB
+  meta-csc   128.00 KB → 896.00 KB  ↑ +768.00 KB
+  meta-csu    40.00 KB → 815.00 KB  ↑ +775.00 KB
+  meta-gctr   21.00 MB →  21.00 MB  →
+  code         7.00 MB →   7.00 MB  →
+  jthr-num          15 →        17  ~ (range: 15 – 21)
+  jthr-nd            5 →         5  →
+  cldg-num          10 →        55  ↑ +45
+  cldg-anon          7 →        52  ↑ +45
+  cls-num          876 →      2416  ↑ +1540
+
+Observations:
+  * metaspace growing ↑ 5.44 MB over window — possible class leak
+  * loaded class count grew +1540 (from 876 to 2416) — possible classloader leak
+```
 
 ---
 
