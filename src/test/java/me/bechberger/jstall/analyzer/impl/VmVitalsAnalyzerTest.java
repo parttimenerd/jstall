@@ -142,7 +142,7 @@ public class VmVitalsAnalyzerTest {
         
         assertTrue(result.shouldDisplay());
         String output = result.output();
-        assertTrue(output.contains("filtered by active columns"), "Should indicate legend is filtered");
+        assertTrue(output.contains("VM.vitals legend"), "Should indicate legend is filtered");
         assertTrue(output.contains("--heap---"), "Should contain heap header");
         assertTrue(output.contains("2026-03-09 18:08:17"), "Should contain first data line");
         assertTrue(output.contains("2026-03-09 18:11:17"), "Should contain last data line");
@@ -588,7 +588,7 @@ public class VmVitalsAnalyzerTest {
         String output = result.output();
         
         // Should show filtered legend
-        assertTrue(output.contains("filtered by active columns"), "Should indicate legend is filtered");
+        assertTrue(output.contains("VM.vitals legend"), "Should indicate legend is filtered");
         
         // Should show legend entries
         assertTrue(output.contains("heap-comm:") || output.contains("heap-comm "), "Should show legend entries");

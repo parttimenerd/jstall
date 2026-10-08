@@ -127,12 +127,9 @@ public class VmVitalsObservations {
             return "";
         }
 
-        int keyWidth = rows.stream().mapToInt(r -> r.key().length()).max().orElse(8);
-        int valWidth = rows.stream()
-                .mapToInt(r -> Math.max(fmtVal(r.firstVal()).length(), fmtVal(r.latestVal()).length()))
-                .max().orElse(6);
-
-        StringBuilder sb = new StringBuilder();
+        // Compute arrows first so we can filter stable rows
+        record RenderedRow(String key, String fStr, String lStr, String arrow, String deltaStr) {}
+        List<RenderedRow> rendered = new ArrayList<>();
         for (TrendRow row : rows) {
             String fStr = fmtVal(row.firstVal());
             String lStr = fmtVal(row.latestVal());
@@ -142,7 +139,6 @@ public class VmVitalsObservations {
             if (row.firstVal().isAvailable() && row.latestVal().isAvailable()) {
                 if (row.flaky()) {
                     arrow = "~";
-                    // Show oscillation range
                     String minStr = fmtDelta(row.latestVal(), row.minBytes());
                     String maxStr = fmtDelta(row.latestVal(), row.maxBytes());
                     deltaStr = " (range: " + minStr + " – " + maxStr + ")";
@@ -161,13 +157,30 @@ public class VmVitalsObservations {
             } else {
                 arrow = "?";
             }
+            rendered.add(new RenderedRow(row.key(), fStr, lStr, arrow, deltaStr));
+        }
 
+        // Only keep rows with movement (↑, ↓, ~) — skip stable → rows
+        List<RenderedRow> active = rendered.stream()
+                .filter(r -> !r.arrow().equals("→"))
+                .toList();
+        if (active.isEmpty()) {
+            return "";
+        }
+
+        int keyWidth = active.stream().mapToInt(r -> r.key().length()).max().orElse(8);
+        int valWidth = active.stream()
+                .mapToInt(r -> Math.max(r.fStr().length(), r.lStr().length()))
+                .max().orElse(6);
+
+        StringBuilder sb = new StringBuilder();
+        for (RenderedRow row : active) {
             sb.append(String.format("  %-" + keyWidth + "s  %s → %s  %s%s\n",
                     row.key(),
-                    padLeft(fStr, valWidth),
-                    padLeft(lStr, valWidth),
-                    arrow,
-                    deltaStr));
+                    padLeft(row.fStr(), valWidth),
+                    padLeft(row.lStr(), valWidth),
+                    row.arrow(),
+                    row.deltaStr()));
         }
         return sb.toString();
     }
@@ -248,6 +261,18 @@ public class VmVitalsObservations {
             if (delta >= 50) {
                 obs.add(String.format("loaded class count grew +%d (from %d to %d) — possible classloader leak",
                         delta, clsNumFirst.getBytes(), clsNum.getBytes()));
+            }
+        }
+
+        // Code cache growing > 20%
+        ParsedValue codeLatest = findValue(legend, colNames, latest, "code", "code", -1);
+        ParsedValue codeFirst = findValue(legend, colNames, first, "code", "code", -1);
+        if (codeLatest.isAvailable() && codeFirst.isAvailable() && codeFirst.getBytes() > 0) {
+            long delta = codeLatest.getBytes() - codeFirst.getBytes();
+            int pct = (int) (100L * delta / codeFirst.getBytes());
+            if (pct >= 20) {
+                obs.add(String.format("code cache growing ↑ %s (+%d%% over window) — sustained JIT compilation activity",
+                        Cell.formatBytes(delta), pct));
             }
         }
 

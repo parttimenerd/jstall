@@ -113,11 +113,22 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             return "";
         }
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("VM.vitals legend (filtered by active columns shown below):\n\n");
+        List<LegendEntry> entries = filteredLegend.entries();
+        List<String> lines = new ArrayList<>();
+        for (LegendEntry entry : entries) {
+            lines.add(String.format("%15s: %s", entry.key(), entry.description().replaceAll("\\s*\\[[a-z0-9]+]", "").trim()));
+        }
 
-        for (LegendEntry entry : filteredLegend.entries()) {
-            sb.append(String.format("%15s: %s\n", entry.key(), entry.description().replaceAll("\\s*\\[[a-z0-9]+]", "").trim()));
+        // Two-column layout: pair entries side-by-side
+        int colWidth = lines.stream().mapToInt(String::length).max().orElse(40);
+        StringBuilder sb = new StringBuilder();
+        sb.append("VM.vitals legend:\n\n");
+        for (int i = 0; i < lines.size(); i += 2) {
+            if (i + 1 < lines.size()) {
+                sb.append(String.format("%-" + colWidth + "s    %s\n", lines.get(i), lines.get(i + 1)));
+            } else {
+                sb.append(lines.get(i)).append("\n");
+            }
         }
 
         boolean hasDelta = filteredLegend.conditions().stream().anyMatch(c -> "delta".equals(c.tag()));
