@@ -3,7 +3,9 @@ package me.bechberger.jstall.analyzer.impl.vmvitals;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * Robust parser for VM vitals output based on the SapMachine Vitals format grammar.
@@ -25,7 +27,7 @@ public class VmVitalsParser {
     );
 
     private static final Pattern LEGEND_ENTRY_PATTERN = Pattern.compile(
-        "^\\s*([a-z0-9-]+):\\s*(.*)$"
+        "^\\s*([a-z][a-z0-9-]*):\\s*(.*)$"
     );
     private static final Pattern CONDITION_NOTE_PATTERN = Pattern.compile(
         "^\\s*\\[([a-z0-9]+)\\]:\\s*(.*)$"
@@ -193,6 +195,12 @@ public class VmVitalsParser {
     }
 
     private List<VmVitalsSection> parseSections() {
+        // Build a set of known short names from the legend for column-header detection.
+        // Short name = part after last '-' (e.g. "heap-comm" → "comm").
+        Set<String> legendShortNames = legend == null ? Set.of() :
+            legend.entries().stream()
+                .flatMap(e -> Stream.of(e.shortName(), e.key()))
+                .collect(Collectors.toSet());
         List<VmVitalsSection> result = new ArrayList<>();
 
         int i = 0;
@@ -206,7 +214,7 @@ public class VmVitalsParser {
                     .filter(j -> isSectionHeader(lines[j].trim()))
                     .findFirst().orElse(lines.length);
 
-                VmVitalsSection section = parseSection(sectionName, sectionStart, sectionEnd);
+                VmVitalsSection section = parseSection(sectionName, sectionStart, sectionEnd, legendShortNames);
                 if (section != null && !section.dataRows().isEmpty()) {
                     result.add(section);
                 }
@@ -222,8 +230,12 @@ public class VmVitalsParser {
 
     /**
      * Parses a single section: header lines, column names, and data rows.
+     * Uses legendShortNames (short names + full keys from the legend) to identify
+     * the column-names header line. Falls back to a pattern-based heuristic when
+     * the legend is empty (e.g., stripped output or future formats).
      */
-    private VmVitalsSection parseSection(String sectionName, int startIdx, int endIdx) {
+    private VmVitalsSection parseSection(String sectionName, int startIdx, int endIdx,
+                                          Set<String> legendShortNames) {
         List<String> headerLines = new ArrayList<>();
         List<String> columnNames = new ArrayList<>();
         List<Integer> columnStarts = List.of();
@@ -246,10 +258,7 @@ public class VmVitalsParser {
 
             if (columnHeaderIdx < 0) {
                 List<String> potentialColumns = parseColumnNames(trimmed);
-                boolean hasCommonColumns = potentialColumns.stream()
-                    .anyMatch(c -> c.matches("^(comm|used|num|code|cr|nd|ld|uld|csu|csc|gctr|anon|cpu-|heap-|meta-|rss-|swap-|cldg-|cls-).*$"));
-
-                if (hasCommonColumns && potentialColumns.size() >= 2) {
+                if (isColumnNamesLine(potentialColumns, legendShortNames)) {
                     columnHeaderIdx = i;
                     colHeaderDataStart = headerDataStart(line);
                     columnStarts = parseColumnStartOffsets(line);
@@ -291,6 +300,30 @@ public class VmVitalsParser {
 
     private static boolean isAllDashes(String s) {
         return !s.isEmpty() && s.chars().allMatch(c -> c == '-');
+    }
+
+    /**
+     * Returns true if the given tokens look like a VM.vitals column-names line.
+     * Primary check: when the legend is populated, at least one token must be a known
+     * legend short name or full key. Fallback when legend is empty: all tokens must
+     * look like VM.vitals identifiers (lowercase, digits, and hyphens only, non-empty)
+     * and at least 2 tokens must be present.
+     */
+    private static boolean isColumnNamesLine(List<String> tokens, Set<String> legendShortNames) {
+        if (tokens.size() < 2) return false;
+        // All tokens must be valid VM.vitals identifiers: [a-z0-9-]+
+        boolean allLookLikeIds = tokens.stream()
+            .allMatch(t -> t.matches("[a-z][a-z0-9-]*"));
+        if (!allLookLikeIds) return false;
+        if (!legendShortNames.isEmpty()) {
+            // At least half the tokens must be known legend names to avoid false positives
+            // (e.g., catching sub-header dash-label lines that partially match)
+            long knownCount = tokens.stream().filter(legendShortNames::contains).count();
+            return knownCount * 2 >= tokens.size();
+        }
+        // No legend: fall back to pattern-based check
+        return tokens.stream().anyMatch(c -> c.matches(
+            "^(comm|used|num|code|cr|nd|ld|uld|csu|csc|gctr|anon|avail|virt|thr|cpu-.*|heap-.*|meta-.*|rss-.*|swap-.*|cldg-.*|cls-.*)$"));
     }
 
     private List<String> parseColumnNames(String trimmedHeaderLine) {
