@@ -6,6 +6,7 @@ import java.util.*;
 
 /**
  * Parsed VM.vitals data row with raw values, parsed values, and optional extreme markers.
+ * extremeMarkers is keyed by positional index (as String) to handle duplicate column names.
  */
 public record DataRow(
     LocalDateTime timestamp,
@@ -28,10 +29,23 @@ public record DataRow(
         return parsedValues.get(columnName);
     }
 
+    /** Returns the extreme marker ('+' or '-') for the column at the given positional index, or null. */
+    public String getExtremeMarker(int columnIndex) {
+        return extremeMarkers.get(String.valueOf(columnIndex));
+    }
+
+    /** @deprecated Use {@link #getExtremeMarker(int)} with positional index instead. */
+    @Deprecated
     public String getExtremeMarker(String columnName) {
         return extremeMarkers.get(columnName);
     }
 
+    public boolean isExtreme(int columnIndex) {
+        return extremeMarkers.containsKey(String.valueOf(columnIndex));
+    }
+
+    /** @deprecated Use {@link #isExtreme(int)} with positional index instead. */
+    @Deprecated
     public boolean isExtreme(String columnName) {
         return extremeMarkers.containsKey(columnName);
     }
@@ -165,7 +179,7 @@ public record DataRow(
             String colName = columnNames.get(i);
             String actualValue = part;
             if (part.endsWith("+") || part.endsWith("-")) {
-                extremeMarkers.put(colName, part.substring(part.length() - 1));
+                extremeMarkers.put(String.valueOf(i), part.substring(part.length() - 1));
                 actualValue = part.substring(0, part.length() - 1);
             }
 

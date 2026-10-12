@@ -115,9 +115,9 @@ public class VmVitalsImprovementsTest {
         DataRow row = DataRow.parse(line, columns);
         assertNotNull(row);
         
-        assertEquals("-", row.getExtremeMarker("comm"));
-        assertTrue(row.isExtreme("comm"));
-        assertFalse(row.isExtreme("used"));
+        assertEquals("-", row.getExtremeMarker(0)); // column 0 ("comm") has the marker
+        assertTrue(row.isExtreme(0));
+        assertFalse(row.isExtreme(1)); // "used" has no marker
     }
 
     @Test

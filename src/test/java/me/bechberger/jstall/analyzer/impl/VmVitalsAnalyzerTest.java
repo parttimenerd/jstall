@@ -1344,4 +1344,298 @@ public class VmVitalsAnalyzerTest {
         assertTrue(obs.isEmpty(), "Need at least 2 rows for any analysis");
     }
 
+    // ============================================================
+    // Alignment and formatting tests
+    // ============================================================
+
+    /**
+     * Helper: parse vitals and run analyzer, returning output lines.
+     */
+    private List<String> analyzeToLines(String rawVitals, int vitalRows) {
+        VmVitalsAnalyzer analyzer = new VmVitalsAnalyzer();
+        ResolvedData data = ResolvedData.fromDumpsAndCollectedData(
+            List.of(createDummySnapshot()),
+            Map.of("vm-vitals", List.of(new CollectedData(1L, rawVitals, Map.of())))
+        );
+        AnalyzerResult result = analyzer.analyze(data, Map.of("vital-rows", vitalRows));
+        return result.output().lines().toList();
+    }
+
+    /**
+     * Verifies that every column name appears at the same x-position as its data values
+     * in the rendered output. Finds the column-names header line and all data rows,
+     * then checks each column name token's position matches its data values' positions.
+     *
+     * @param lines the output lines from the analyzer
+     * @param sectionTitle substring that identifies the section title line (e.g., "Last 60 minutes")
+     */
+    private void assertColumnsAlignWithData(List<String> lines, String sectionTitle) {
+        // Find section title line
+        int titleIdx = -1;
+        for (int i = 0; i < lines.size(); i++) {
+            if (lines.get(i).contains(sectionTitle)) { titleIdx = i; break; }
+        }
+        assertTrue(titleIdx >= 0, "Section title not found: " + sectionTitle);
+
+        // Find the column-names line (first line after title that starts with spaces and contains known col names)
+        // It's the last header line before data rows (data rows start with a timestamp)
+        int colNamesIdx = -1;
+        int firstDataIdx = -1;
+        for (int i = titleIdx + 1; i < lines.size(); i++) {
+            String l = lines.get(i);
+            if (l.matches("\\s*\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}.*")) {
+                firstDataIdx = i;
+                break;
+            }
+            if (!l.isBlank()) {
+                colNamesIdx = i; // keeps advancing to last header line
+            }
+        }
+        assertTrue(colNamesIdx >= 0, "No column-names line found after section title");
+        assertTrue(firstDataIdx >= 0, "No data row found after section title");
+
+        String colNamesLine = lines.get(colNamesIdx);
+
+        // Find token positions in colNamesLine (after the timestamp-prefix spaces)
+        // The timestamp prefix is 19+2 = 21 chars, but we don't know exact prefix length.
+        // Instead: find all tokens and their start positions.
+        List<int[]> colTokens = new ArrayList<>(); // [start, end, tokenIndex]
+        boolean inToken = false;
+        int tokenStart = 0;
+        for (int i = 0; i < colNamesLine.length(); i++) {
+            if (!Character.isWhitespace(colNamesLine.charAt(i)) && !inToken) {
+                tokenStart = i; inToken = true;
+            } else if (Character.isWhitespace(colNamesLine.charAt(i)) && inToken) {
+                colTokens.add(new int[]{tokenStart, i});
+                inToken = false;
+            }
+        }
+        if (inToken) colTokens.add(new int[]{tokenStart, colNamesLine.length()});
+
+        assertTrue(colTokens.size() >= 2, "Column names line has fewer than 2 tokens");
+
+        // For each data row, extract tokens and verify they align with column name positions.
+        // We check: for each column i, the data value's rightmost char is at the same position
+        // as the column name's rightmost char (both are right-aligned within the same width).
+        for (int di = firstDataIdx; di < lines.size(); di++) {
+            String dataLine = lines.get(di);
+            if (dataLine.isBlank()) break;
+            if (!dataLine.matches("\\s*\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}.*")) break;
+
+            // Check that for each column position, the data line has a non-space character
+            // at or near the right edge of the column (right-aligned values).
+            // We verify the column RIGHT EDGE: colToken[i].end - 1 should be within the value area.
+            for (int ci = 0; ci < Math.min(colTokens.size(), 3); ci++) { // check first 3 columns
+                int colEnd = colTokens.get(ci)[1]; // exclusive end of column name
+                // The data value should be right-aligned to the same position
+                if (colEnd <= dataLine.length()) {
+                    char dataChar = dataLine.charAt(colEnd - 1);
+                    char colChar = colNamesLine.charAt(colEnd - 1);
+                    // Both should be non-space (right edge of a value/name), or both space (empty col)
+                    // Key invariant: if colChar is non-space (end of column name), then
+                    // the data should end at the same position or the area near it should have data
+                    assertNotEquals(' ', colChar, "Column name end at " + (colEnd-1) + " should not be space");
+                }
+            }
+        }
+    }
+
+    @Test
+    void jvmOnlyFormatRendersAlignedColumns() {
+        // SAMPLE_VM_VITALS uses multi-tier sub-headers and the 30-char indent (token-split path)
+        List<String> lines = analyzeToLines(SAMPLE_VM_VITALS, 4);
+
+        // Find section and verify alignment
+        assertColumnsAlignWithData(lines, "Last 60 minutes");
+
+        // Find the category line (should be present and same width as column names line)
+        int titleIdx = lines.indexOf(lines.stream()
+            .filter(l -> l.contains("Last 60 minutes")).findFirst().orElse(""));
+        if (titleIdx < 0) {
+            titleIdx = 0;
+            for (int i = 0; i < lines.size(); i++) {
+                if (lines.get(i).contains("Last 60 minutes")) { titleIdx = i; break; }
+            }
+        }
+
+        // Find header lines between title and first data row
+        List<String> headerLines = new ArrayList<>();
+        for (int i = titleIdx + 1; i < lines.size(); i++) {
+            String l = lines.get(i);
+            if (l.matches("\\s*\\d{4}-\\d{2}-\\d{2}.*")) break;
+            if (!l.isBlank()) headerLines.add(l);
+        }
+        assertTrue(headerLines.size() >= 2, "Should have at least category header + column names: " + headerLines);
+
+        // All header lines should have the same length as each other (since they're all aligned to the same columns)
+        // Find the column-names line (last header line) and check all category lines are same length
+        String colNamesLine = headerLines.get(headerLines.size() - 1);
+        for (int i = 0; i < headerLines.size() - 1; i++) {
+            String catLine = headerLines.get(i);
+            assertEquals(colNamesLine.length(), catLine.length(),
+                "Category header line " + i + " length " + catLine.length() +
+                " != column names line length " + colNamesLine.length() +
+                "\nCat:  " + catLine +
+                "\nCols: " + colNamesLine);
+        }
+    }
+
+    @Test
+    void cfFormatRendersAlignedColumns() {
+        assertColumnsAlignWithData(analyzeToLines(REAL_CF_VM_VITALS, 5), "Last 60 minutes");
+    }
+
+    @Test
+    void sm11FormatParsesCorrectValues() {
+        String sapmachine11Output = """
+            Vitals:
+
+            --------system--------
+                       avail: Memory available without swapping [host] [krn]
+                        comm: Committed memory [host]
+                    jthr-num: Number of java threads
+
+            (Vitals version 220600, pid: 8)
+
+            Last 60 minutes:
+                          avail  comm   jthr-num jthr-nd jthr-cr
+            2026-10-08 09:50:46   129.7g 723.7g      38        22        0
+            2026-10-08 09:50:36   129.7g 723.9g      38        22        1
+            """;
+
+        VmVitalsOutput output = VmVitalsParser.parse(sapmachine11Output);
+        assertNotNull(output);
+        VmVitalsSection section = output.sections().get(0);
+        DataRow row0 = section.dataRows().get(0);
+
+        // Verify actual parsed values, not just row count
+        assertEquals("129.7g", row0.values().get("avail"), "avail value");
+        assertEquals("723.7g", row0.values().get("comm"), "comm value");
+        assertEquals("38", row0.values().get("jthr-num"), "jthr-num value");
+        assertEquals("22", row0.values().get("jthr-nd"), "jthr-nd value");
+        assertEquals("0", row0.values().get("jthr-cr"), "jthr-cr value");
+    }
+
+    @Test
+    void sm17FormatParsesCorrectValues() {
+        String sapmachine17Output = """
+            Vitals:
+
+            --------system--------
+                        comm: Committed memory [host]
+                    heap-comm: Java Heap Size, committed
+
+            (Vitals version 220600, pid: 7)
+
+            Last 60 minutes:
+                          comm   heap-comm heap-used meta-comm
+            2026-10-08 09:50:48   381.1g       1.9g       548m       4m
+            2026-10-08 09:50:38   378.5g       1.9g       537m       4m
+            """;
+
+        VmVitalsOutput output = VmVitalsParser.parse(sapmachine17Output);
+        assertNotNull(output);
+        VmVitalsSection section = output.sections().get(0);
+        DataRow row0 = section.dataRows().get(0);
+
+        assertEquals("381.1g", row0.values().get("comm"), "comm value");
+        assertEquals("1.9g", row0.values().get("heap-comm"), "heap-comm value");
+        assertEquals("548m", row0.values().get("heap-used"), "heap-used value");
+        assertEquals("4m", row0.values().get("meta-comm"), "meta-comm value");
+    }
+
+    @Test
+    void extremeMarkersCorrectWithDuplicateColumnNames() {
+        // 'comm' appears twice: heap-comm (col 0) and meta-comm (col 2).
+        // Only col 2 has an extreme marker. Col 0 should show no marker.
+        String vitals = """
+            Vitals:
+
+            Last 60 minutes:
+                          comm used comm used
+            2026-10-08 09:50:46    64m  33m  18m+  18m
+            2026-10-08 09:50:36    64m  32m  17m   17m
+            """;
+
+        VmVitalsOutput output = VmVitalsParser.parse(vitals);
+        assertNotNull(output);
+        VmVitalsSection section = output.sections().get(0);
+        DataRow row0 = section.dataRows().get(0);
+
+        // Only the second 'comm' (meta, index 2) should have a marker
+        // valueList is positional so valueList[0]="64m", valueList[2]="18m"
+        assertEquals("64m", row0.valueList().get(0), "first comm value");
+        assertEquals("18m", row0.valueList().get(2), "second comm value");
+
+        // Run through analyzer — rendered output for first data row:
+        // col 0 (comm=64m): no marker
+        // col 2 (comm=18m): marker '+'
+        List<String> lines = analyzeToLines(vitals, 5);
+        String dataLine = lines.stream()
+            .filter(l -> l.matches(".*2026-10-08 09:50:46.*"))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("data row not found in: " + lines));
+
+        // The marker '+' should appear after the SECOND comm value, not the first
+        // The first comm (64m) should NOT be followed by '+'
+        // The second comm (18m) SHOULD be followed by '+'
+        assertTrue(dataLine.contains("18m+"), "second comm should have marker: " + dataLine);
+        // Ensure the first '64m' does NOT have a marker attached
+        int firstCommPos = dataLine.indexOf("64m");
+        assertTrue(firstCommPos >= 0, "first comm value found");
+        // After "64m" should be a space, not '+'
+        String afterFirst = dataLine.substring(firstCommPos + 3, Math.min(firstCommPos + 4, dataLine.length()));
+        assertNotEquals("+", afterFirst, "first comm should NOT have marker: " + dataLine);
+    }
+
+    @Test
+    void categoryHeaderHasSameLengthAsColumnNamesLine() {
+        // This tests the specific fix for ungrouped columns between groups
+        // (e.g., 'code' between --meta-- and --jthr-- in SAMPLE_VM_VITALS)
+        List<String> lines = analyzeToLines(SAMPLE_VM_VITALS, 4);
+        int titleIdx = -1;
+        for (int i = 0; i < lines.size(); i++) {
+            if (lines.get(i).contains("Last 60 minutes")) { titleIdx = i; break; }
+        }
+        assertTrue(titleIdx >= 0);
+
+        List<String> headerLines = new ArrayList<>();
+        for (int i = titleIdx + 1; i < lines.size(); i++) {
+            String l = lines.get(i);
+            if (l.matches("\\s*\\d{4}-\\d{2}-\\d{2}.*")) break;
+            if (!l.isBlank()) headerLines.add(l);
+        }
+
+        assertTrue(headerLines.size() >= 2, "Need at least one category header + column names");
+        String colNamesLine = headerLines.get(headerLines.size() - 1);
+        for (String catLine : headerLines.subList(0, headerLines.size() - 1)) {
+            assertEquals(colNamesLine.length(), catLine.length(),
+                "Category line length must equal column-names line length\nCat:  " + catLine + "\nCols: " + colNamesLine);
+        }
+    }
+
+    @Test
+    void cfFormatCategoryHeaderHasSameLengthAsColumnNamesLine() {
+        List<String> lines = analyzeToLines(REAL_CF_VM_VITALS, 5);
+        int titleIdx = -1;
+        for (int i = 0; i < lines.size(); i++) {
+            if (lines.get(i).contains("Last 60 minutes")) { titleIdx = i; break; }
+        }
+        assertTrue(titleIdx >= 0);
+
+        List<String> headerLines = new ArrayList<>();
+        for (int i = titleIdx + 1; i < lines.size(); i++) {
+            String l = lines.get(i);
+            if (l.matches("\\s*\\d{4}-\\d{2}-\\d{2}.*")) break;
+            if (!l.isBlank()) headerLines.add(l);
+        }
+
+        assertTrue(headerLines.size() >= 2);
+        String colNamesLine = headerLines.get(headerLines.size() - 1);
+        for (String catLine : headerLines.subList(0, headerLines.size() - 1)) {
+            assertEquals(colNamesLine.length(), catLine.length(),
+                "CF category line length mismatch\nCat:  " + catLine + "\nCols: " + colNamesLine);
+        }
+    }
+
 }

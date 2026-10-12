@@ -246,7 +246,7 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             for (DataRow row : rows) {
                 List<String> vals = row.valueList();
                 String v = i < vals.size() ? vals.get(i) : "";
-                String marker = row.extremeMarkers().get(columnNames.get(i));
+                String marker = row.getExtremeMarker(i);
                 int cellLen = v.length() + (marker != null ? 1 : 0);
                 if (cellLen > w) w = cellLen;
             }
@@ -318,12 +318,16 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             else if (space && inSeg) { segments.add(new int[]{segStart, i}); inSeg = false; }
         }
 
-        for (int[] seg : segments) {
-            int segStartAbs = dataStart + seg[0];
-            int segEndAbs = dataStart + seg[1];
+        for (int si = 0; si < segments.size(); si++) {
+            int segStartAbs = dataStart + segments.get(si)[0];
+            // Each segment "owns" up to (but not including) the start of the next segment,
+            // so columns that start exactly at the end of a segment boundary are still captured.
+            int nextSegStart = si + 1 < segments.size()
+                ? dataStart + segments.get(si + 1)[0]
+                : Integer.MAX_VALUE;
             List<Integer> group = new ArrayList<>();
             for (int ci = 0; ci < colStarts.size(); ci++) {
-                if (colStarts.get(ci) >= segStartAbs && colStarts.get(ci) < segEndAbs) {
+                if (colStarts.get(ci) >= segStartAbs && colStarts.get(ci) < nextSegStart) {
                     group.add(ci);
                 }
             }
@@ -335,21 +339,72 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
 
     /**
      * Returns one tier of category groups per non-column-names header line.
-     * Currently returns a single tier (the last category line), but structured
-     * to support multi-tier rendering if needed in the future.
+     * Each tier is independently parsed from the corresponding raw header line.
      */
     private List<List<List<Integer>>> splitIntoTiers(List<String> headerLines, List<List<Integer>> groups) {
-        // Only one tier supported: the groups parsed from headerLines[-2]
-        return List.of(groups);
+        if (headerLines.size() <= 2) {
+            // Only one category line: return the already-parsed groups
+            return List.of(groups);
+        }
+        // Multiple category lines: re-parse each one independently
+        // headerLines[-1] = column names; headerLines[0..n-2] = category lines (outermost first)
+        String colNamesLine = headerLines.get(headerLines.size() - 1);
+        int dataStart = 0;
+        while (dataStart < colNamesLine.length() && colNamesLine.charAt(dataStart) == ' ') dataStart++;
+
+        // Build column starts once
+        List<Integer> colStarts = new ArrayList<>();
+        String dataPart = colNamesLine.substring(dataStart);
+        boolean inTok = false;
+        for (int i = 0; i < dataPart.length(); i++) {
+            if (!Character.isWhitespace(dataPart.charAt(i)) && !inTok) {
+                colStarts.add(dataStart + i);
+                inTok = true;
+            } else if (Character.isWhitespace(dataPart.charAt(i))) {
+                inTok = false;
+            }
+        }
+
+        List<List<List<Integer>>> tiers = new ArrayList<>();
+        for (int li = 0; li < headerLines.size() - 1; li++) {
+            String catLine = headerLines.get(li);
+            String catData = catLine.length() > dataStart ? catLine.substring(dataStart) : "";
+
+            List<int[]> segments = new ArrayList<>();
+            boolean inSeg = false;
+            int segStart = 0;
+            for (int i = 0; i <= catData.length(); i++) {
+                boolean space = (i == catData.length() || catData.charAt(i) == ' ');
+                if (!space && !inSeg) { segStart = i; inSeg = true; }
+                else if (space && inSeg) { segments.add(new int[]{segStart, i}); inSeg = false; }
+            }
+
+            List<List<Integer>> tierGroups = new ArrayList<>();
+            for (int si = 0; si < segments.size(); si++) {
+                int segStartAbs = dataStart + segments.get(si)[0];
+                int nextSegStart = si + 1 < segments.size()
+                    ? dataStart + segments.get(si + 1)[0]
+                    : Integer.MAX_VALUE;
+                List<Integer> group = new ArrayList<>();
+                for (int ci = 0; ci < colStarts.size(); ci++) {
+                    if (colStarts.get(ci) >= segStartAbs && colStarts.get(ci) < nextSegStart) {
+                        group.add(ci);
+                    }
+                }
+                if (!group.isEmpty()) tierGroups.add(group);
+            }
+            if (!tierGroups.isEmpty()) tiers.add(tierGroups);
+        }
+        return tiers.isEmpty() ? List.of(groups) : tiers;
     }
 
     /** Renders a category span line for a set of column groups. */
     private String renderCategoryLine(List<List<Integer>> groups, List<String> columnNames, List<Integer> colWidths) {
         if (groups == null || groups.isEmpty()) return "";
 
-        // Build the full column-line width so we know total span widths
+        // Build the full column-line width so we know total span widths.
         // Each group spans: sum(colWidths[i] for i in group) + (group.size()-1)*COL_GAP.length()
-        // Between groups there is a single COL_GAP
+        // Between groups, we need: COL_GAP + sum of widths of any ungrouped columns in between + COL_GAP per ungrouped col
         StringBuilder sb = new StringBuilder();
         for (int gi = 0; gi < groups.size(); gi++) {
             List<Integer> group = groups.get(gi);
@@ -359,10 +414,18 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
                 groupWidth += idx < colWidths.size() ? colWidths.get(idx) : columnNames.get(idx).length();
                 if (ci < group.size() - 1) groupWidth += COL_GAP.length();
             }
-            // Find a label: take the first column's name stem or just dashes
-            // Use the original label from the raw line via the group's first/last column
             sb.append(centerInDashes(groupLabel(group, columnNames), groupWidth));
-            if (gi < groups.size() - 1) sb.append(COL_GAP);
+
+            if (gi < groups.size() - 1) {
+                // Gap between this group and the next: COL_GAP always, plus width of each ungrouped column
+                int lastInGroup = group.get(group.size() - 1);
+                int firstInNext = groups.get(gi + 1).get(0);
+                sb.append(COL_GAP);
+                for (int ci = lastInGroup + 1; ci < firstInNext; ci++) {
+                    int w = ci < colWidths.size() ? colWidths.get(ci) : columnNames.get(ci).length();
+                    sb.append(" ".repeat(w)).append(COL_GAP);
+                }
+            }
         }
         // Strip trailing spaces
         int end = sb.length();
@@ -409,9 +472,8 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
 
         List<String> valueList = row.valueList();
         for (int i = 0; i < columnNames.size(); i++) {
-            String colName = columnNames.get(i);
             String value = i < valueList.size() ? valueList.get(i) : "";
-            String marker = row.extremeMarkers().get(colName);
+            String marker = row.getExtremeMarker(i);
 
             int width = i < colWidths.size() ? colWidths.get(i) : value.length();
             // Right-align value within column width; marker (+/-) counts toward width
