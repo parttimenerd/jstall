@@ -241,7 +241,7 @@ class ReplayExtendedTest {
     void testVmVitalsHelp() {
         RunResultAssert result = RunCommandUtil.run("vm-vitals", "--help").hasNoError();
         result.output().contains("vm-vitals");
-        result.output().contains("--top");
+        result.output().contains("--vital-rows");
     }
 
     @Test

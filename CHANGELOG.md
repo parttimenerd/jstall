@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
+## [0.8.4] - 2026-10-12
+
+### Added
+- `vm-vitals`: `--vital-rows` option (default: 10) to control how many recent samples are shown, decoupled from `--top` (which controls thread counts in `status` and AI commands)
+
 ## [0.8.3] - 2026-10-12
 
 ### Changed

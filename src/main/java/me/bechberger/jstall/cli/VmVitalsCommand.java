@@ -16,8 +16,8 @@ import java.util.Map;
 )
 public class VmVitalsCommand extends BaseAnalyzerCommand {
 
-    @Option(names = "--top", description = "Number of recent VM.vitals samples to show (default: 5, -1 = all)")
-    private int top = 5;
+    @Option(names = "--vital-rows", description = "Number of recent VM.vitals samples to show (default: 10, -1 = all)")
+    private int vitalRows = 10;
 
     @Override
     protected Analyzer getAnalyzer() {
@@ -26,6 +26,6 @@ public class VmVitalsCommand extends BaseAnalyzerCommand {
 
     @Override
     protected Map<String, Object> getAdditionalOptions() {
-        return Map.of("top", getTop(top));
+        return Map.of("vital-rows", getTop(vitalRows));
     }
 }

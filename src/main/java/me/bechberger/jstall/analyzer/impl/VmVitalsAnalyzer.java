@@ -28,7 +28,7 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of("top");
+        return Set.of("top", "vital-rows");
     }
 
     @Override
@@ -75,8 +75,8 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             return AnalyzerResult.ok(formatRawFallback(rawVitals));
         }
 
-        int top = getIntOption(options, "top", 5);
-        String vmVitalsOutput = formatVmVitals(parsed, top);
+        int vitalRows = getIntOption(options, "vital-rows", getIntOption(options, "top", 10));
+        String vmVitalsOutput = formatVmVitals(parsed, vitalRows);
         if (vmVitalsOutput.isEmpty()) {
             return AnalyzerResult.ok(formatRawFallback(rawVitals));
         }
