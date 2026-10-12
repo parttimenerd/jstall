@@ -71,6 +71,70 @@ public record DataRow(
         return fromTokens(timestamp, values, columnNames);
     }
 
+    /** Parses a fixed-width data row using absolute column-start positions in the line. */
+    public static DataRow parseFixedWidthAbsolute(String line,
+                                                   List<String> columnNames,
+                                                   List<Integer> columnStarts) {
+        String trimmed = line.trim();
+        LocalDateTime timestamp = parseTimestamp(trimmed);
+        if (timestamp == null) {
+            return null;
+        }
+
+        List<String> values = new ArrayList<>();
+        for (int i = 0; i < columnStarts.size(); i++) {
+            int start = columnStarts.get(i);
+            int end = i + 1 < columnStarts.size() ? columnStarts.get(i + 1) : line.length();
+            if (start >= line.length()) {
+                values.add("");
+                continue;
+            }
+            values.add(line.substring(start, Math.min(end, line.length())).trim());
+        }
+
+        return fromTokens(timestamp, values, columnNames);
+    }
+
+    /**
+     * Parses a fixed-width data row where columnStarts are relative to the column-header's
+     * data-portion start (colHeaderDataStart). The method finds the actual data start in the
+     * data line (position after timestamp + any whitespace) to align relative offsets correctly.
+     */
+    public static DataRow parseFixedWidthRelative(String line,
+                                                   List<String> columnNames,
+                                                   List<Integer> columnStarts,
+                                                   int colHeaderDataStart) {
+        String trimmed = line.trim();
+        LocalDateTime timestamp = parseTimestamp(trimmed);
+        if (timestamp == null) {
+            return null;
+        }
+
+        // Find where data actually starts in the data line: skip past the 19-char timestamp
+        // then skip any whitespace separating timestamp from data columns.
+        int dataStart = TIMESTAMP_FORMATTER.format(java.time.LocalDateTime.now()).length();
+        while (dataStart < trimmed.length() && trimmed.charAt(dataStart) == ' ') dataStart++;
+
+        // Map relative-to-header offsets to absolute positions in the trimmed data line
+        // Offset 0 in the header corresponds to dataStart in the data line.
+        // The header's colHeaderDataStart is the absolute start of its data portion.
+        // So data[dataStart + relOffset] = header[colHeaderDataStart + relOffset].
+        List<String> values = new ArrayList<>();
+        for (int i = 0; i < columnStarts.size(); i++) {
+            int start = dataStart + columnStarts.get(i);
+            int end = i + 1 < columnStarts.size()
+                ? dataStart + columnStarts.get(i + 1)
+                : trimmed.length();
+            if (start >= trimmed.length()) {
+                values.add("");
+                continue;
+            }
+            values.add(trimmed.substring(start, Math.min(end, trimmed.length())).trim());
+        }
+
+        return fromTokens(timestamp, values, columnNames);
+    }
+
     static DataRow fromTimestampAndValues(String timestampStr, List<String> values, List<String> columnNames) {
         try {
             return fromTokens(LocalDateTime.parse(timestampStr, TIMESTAMP_FORMATTER), values, columnNames);

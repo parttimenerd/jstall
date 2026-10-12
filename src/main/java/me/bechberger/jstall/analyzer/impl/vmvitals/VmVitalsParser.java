@@ -230,6 +230,7 @@ public class VmVitalsParser {
         List<DataRow> dataRows = new ArrayList<>();
 
         int columnHeaderIdx = -1;
+        int colHeaderDataStart = TIMESTAMP_LEN + TIMESTAMP_DIVIDER_LEN; // fallback
 
         for (int i = startIdx + 1; i < endIdx; i++) {
             String line = lines[i];
@@ -250,6 +251,7 @@ public class VmVitalsParser {
 
                 if (hasCommonColumns && potentialColumns.size() >= 2) {
                     columnHeaderIdx = i;
+                    colHeaderDataStart = headerDataStart(line);
                     columnStarts = parseColumnStartOffsets(line);
 
                     for (int j = Math.max(startIdx + 1, i - 3); j < i; j++) {
@@ -264,10 +266,15 @@ public class VmVitalsParser {
                 }
             }
 
-            if (columnHeaderIdx >= 0 && !columnNames.isEmpty() && 
+            if (columnHeaderIdx >= 0 && !columnNames.isEmpty() &&
                 TIMESTAMP_PATTERN.matcher(trimmed).find()) {
-                DataRow row = columnStarts.size() == columnNames.size()
-                    ? DataRow.parseFixedWidth(line, columnNames, columnStarts, TIMESTAMP_LEN + TIMESTAMP_DIVIDER_LEN)
+                // Use fixed-width parsing only when the column header's leading spaces match
+                // the standard TIMESTAMP_LEN + TIMESTAMP_DIVIDER_LEN offset, which means the
+                // data rows will also start at that position. Otherwise fall back to token splitting.
+                boolean useFixedWidth = columnStarts.size() == columnNames.size()
+                    && colHeaderDataStart == TIMESTAMP_LEN + TIMESTAMP_DIVIDER_LEN;
+                DataRow row = useFixedWidth
+                    ? DataRow.parseFixedWidth(line, columnNames, columnStarts, colHeaderDataStart)
                     : DataRow.parse(line, columnNames);
                 if (row != null) {
                     dataRows.add(row);
@@ -292,20 +299,31 @@ public class VmVitalsParser {
     }
 
     private List<Integer> parseColumnStartOffsets(String headerLine) {
-        int firstColumnIndex = Math.min(TIMESTAMP_LEN + TIMESTAMP_DIVIDER_LEN, headerLine.length());
+        // Count actual leading whitespace in the header line; data portion starts there.
+        int firstColumnIndex = 0;
+        while (firstColumnIndex < headerLine.length() && headerLine.charAt(firstColumnIndex) == ' ') {
+            firstColumnIndex++;
+        }
         String dataPortion = headerLine.substring(firstColumnIndex);
         List<Integer> starts = new ArrayList<>();
         boolean inToken = false;
         for (int i = 0; i < dataPortion.length(); i++) {
             char c = dataPortion.charAt(i);
             if (!Character.isWhitespace(c) && !inToken) {
-                starts.add(i);
+                starts.add(i); // relative offset within the data portion
                 inToken = true;
             } else if (Character.isWhitespace(c)) {
                 inToken = false;
             }
         }
         return starts;
+    }
+
+    /** Returns the number of leading spaces in the column-header line (= start of data portion). */
+    private static int headerDataStart(String headerLine) {
+        int i = 0;
+        while (i < headerLine.length() && headerLine.charAt(i) == ' ') i++;
+        return i;
     }
 
     private List<String> parseCsvHeader(String headerLine) {

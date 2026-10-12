@@ -178,8 +178,12 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
         return " ".repeat(width - s.length()) + s;
     }
 
+    // Gap between columns in the rendered table (spaces)
+    private static final String COL_GAP = "  ";
+
     /**
      * Formats a single section with headers and data rows.
+     * Column widths are computed from the actual data so headers and cells are always aligned.
      */
     private String formatSection(VmVitalsSection section, int topN, int extremesCap) {
         boolean extremesSection = isExtremesSection(section);
@@ -198,6 +202,14 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             rowsToFormat = mergeByTimestamp(rowsToFormat);
         }
 
+        List<String> columnNames = section.columnNames();
+
+        // Compute column widths from data (value+marker may be one wider than value alone)
+        List<Integer> colWidths = computeColWidths(columnNames, rowsToFormat);
+
+        // Parse category groups from raw header lines (all lines except the last = category spans)
+        List<List<Integer>> categoryGroups = parseCategoryGroups(section.headerLines(), columnNames);
+
         StringBuilder sb = new StringBuilder();
 
         if (extremesSection) {
@@ -208,26 +220,192 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
                 normalizeSectionName(section.name()), rowsToFormat.size(), section.dataRows().size()));
         }
 
-        for (String headerLine : section.headerLines()) {
-            sb.append(headerLine).append("\n");
+        // Re-render category span headers (if any) aligned to computed widths
+        String tsPrefix = " ".repeat(DataRow.TIMESTAMP_FORMATTER.format(java.time.LocalDateTime.now()).length() + COL_GAP.length());
+        if (categoryGroups != null) {
+            for (List<List<Integer>> tier : splitIntoTiers(section.headerLines(), categoryGroups)) {
+                sb.append(tsPrefix).append(renderCategoryLine(tier, columnNames, colWidths)).append("\n");
+            }
         }
 
-        // Derive column widths from the column-name header line (last header line)
-        List<Integer> colWidths = deriveColumnWidths(
-                section.headerLines().isEmpty() ? "" : section.headerLines().get(section.headerLines().size() - 1),
-                section.columnNames());
+        // Re-render the column-names header line
+        sb.append(tsPrefix).append(renderColNamesLine(columnNames, colWidths)).append("\n");
 
         for (DataRow row : rowsToFormat) {
-            sb.append(formatDataRow(row, section.columnNames(), colWidths)).append("\n");
+            sb.append(formatDataRow(row, columnNames, colWidths)).append("\n");
         }
 
         return sb.toString().trim();
     }
 
+    /** Computes per-column widths as max(colName.length, max(value+marker length across all rows)). */
+    private List<Integer> computeColWidths(List<String> columnNames, List<DataRow> rows) {
+        List<Integer> widths = new ArrayList<>();
+        for (int i = 0; i < columnNames.size(); i++) {
+            int w = columnNames.get(i).length();
+            for (DataRow row : rows) {
+                List<String> vals = row.valueList();
+                String v = i < vals.size() ? vals.get(i) : "";
+                String marker = row.extremeMarkers().get(columnNames.get(i));
+                int cellLen = v.length() + (marker != null ? 1 : 0);
+                if (cellLen > w) w = cellLen;
+            }
+            widths.add(w);
+        }
+        return widths;
+    }
+
+    /** Renders a single column-names header line using computed widths. */
+    private String renderColNamesLine(List<String> columnNames, List<Integer> colWidths) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < columnNames.size(); i++) {
+            String name = columnNames.get(i);
+            int w = i < colWidths.size() ? colWidths.get(i) : name.length();
+            // Right-align name within column width (matches right-aligned data values)
+            if (name.length() < w) sb.append(" ".repeat(w - name.length()));
+            sb.append(name);
+            if (i < columnNames.size() - 1) sb.append(COL_GAP);
+        }
+        // Strip trailing spaces
+        int end = sb.length();
+        while (end > 0 && sb.charAt(end - 1) == ' ') end--;
+        return sb.substring(0, end);
+    }
+
+    /**
+     * Parses category groups from the raw header lines stored by the parser.
+     * The last header line is the column-names line; everything before it is category/sub-header lines.
+     * Returns null if there are no category lines.
+     * Each element in the returned list is a list of column indices belonging to that category group,
+     * ordered as they appear left-to-right.
+     */
+    private List<List<Integer>> parseCategoryGroups(List<String> headerLines, List<String> columnNames) {
+        if (headerLines.size() < 2) return null; // only the column-names line, no categories
+
+        String colNamesLine = headerLines.get(headerLines.size() - 1);
+        // Find the data-portion start: first non-space character
+        int dataStart = 0;
+        while (dataStart < colNamesLine.length() && colNamesLine.charAt(dataStart) == ' ') dataStart++;
+
+        // Find the start offset of each column name token in the raw line
+        List<Integer> colStarts = new ArrayList<>();
+        String dataPart = colNamesLine.substring(dataStart);
+        boolean inToken = false;
+        for (int i = 0; i < dataPart.length(); i++) {
+            if (!Character.isWhitespace(dataPart.charAt(i)) && !inToken) {
+                colStarts.add(dataStart + i);
+                inToken = true;
+            } else if (Character.isWhitespace(dataPart.charAt(i))) {
+                inToken = false;
+            }
+        }
+
+        // For each category header line (all but last), determine which columns it spans
+        // by checking which column-start positions fall within each dash-label segment
+        List<List<Integer>> groups = new ArrayList<>();
+        // Process only the last category line (or handle multiple tiers by passing them through as-is)
+        // Strategy: build groups from the first category-header line
+        String catLine = headerLines.get(headerLines.size() - 2);
+        String catData = catLine.length() > dataStart ? catLine.substring(dataStart) : "";
+
+        // Find dash-label segments: contiguous non-space regions
+        List<int[]> segments = new ArrayList<>(); // [startInData, endInData]
+        boolean inSeg = false;
+        int segStart = 0;
+        for (int i = 0; i <= catData.length(); i++) {
+            boolean space = (i == catData.length() || catData.charAt(i) == ' ');
+            if (!space && !inSeg) { segStart = i; inSeg = true; }
+            else if (space && inSeg) { segments.add(new int[]{segStart, i}); inSeg = false; }
+        }
+
+        for (int[] seg : segments) {
+            int segStartAbs = dataStart + seg[0];
+            int segEndAbs = dataStart + seg[1];
+            List<Integer> group = new ArrayList<>();
+            for (int ci = 0; ci < colStarts.size(); ci++) {
+                if (colStarts.get(ci) >= segStartAbs && colStarts.get(ci) < segEndAbs) {
+                    group.add(ci);
+                }
+            }
+            if (!group.isEmpty()) groups.add(group);
+        }
+
+        return groups.isEmpty() ? null : groups;
+    }
+
+    /**
+     * Returns one tier of category groups per non-column-names header line.
+     * Currently returns a single tier (the last category line), but structured
+     * to support multi-tier rendering if needed in the future.
+     */
+    private List<List<List<Integer>>> splitIntoTiers(List<String> headerLines, List<List<Integer>> groups) {
+        // Only one tier supported: the groups parsed from headerLines[-2]
+        return List.of(groups);
+    }
+
+    /** Renders a category span line for a set of column groups. */
+    private String renderCategoryLine(List<List<Integer>> groups, List<String> columnNames, List<Integer> colWidths) {
+        if (groups == null || groups.isEmpty()) return "";
+
+        // Build the full column-line width so we know total span widths
+        // Each group spans: sum(colWidths[i] for i in group) + (group.size()-1)*COL_GAP.length()
+        // Between groups there is a single COL_GAP
+        StringBuilder sb = new StringBuilder();
+        for (int gi = 0; gi < groups.size(); gi++) {
+            List<Integer> group = groups.get(gi);
+            int groupWidth = 0;
+            for (int ci = 0; ci < group.size(); ci++) {
+                int idx = group.get(ci);
+                groupWidth += idx < colWidths.size() ? colWidths.get(idx) : columnNames.get(idx).length();
+                if (ci < group.size() - 1) groupWidth += COL_GAP.length();
+            }
+            // Find a label: take the first column's name stem or just dashes
+            // Use the original label from the raw line via the group's first/last column
+            sb.append(centerInDashes(groupLabel(group, columnNames), groupWidth));
+            if (gi < groups.size() - 1) sb.append(COL_GAP);
+        }
+        // Strip trailing spaces
+        int end = sb.length();
+        while (end > 0 && sb.charAt(end - 1) == ' ') end--;
+        return sb.substring(0, end);
+    }
+
+    /**
+     * Derives a label for a category group from its column names.
+     * For example, columns [heap-comm, heap-used] → "heap", [cpu-us, cpu-sy, cpu-id] → "cpu".
+     */
+    private String groupLabel(List<Integer> colIndices, List<String> columnNames) {
+        if (colIndices.isEmpty()) return "";
+        List<String> names = colIndices.stream().map(columnNames::get).toList();
+        // Find longest common prefix (up to the last '-' boundary)
+        String first = names.get(0);
+        String prefix = first;
+        for (String n : names) {
+            while (!n.startsWith(prefix)) {
+                int dash = prefix.lastIndexOf('-');
+                prefix = dash > 0 ? prefix.substring(0, dash) : "";
+                if (prefix.isEmpty()) break;
+            }
+        }
+        return prefix.isEmpty() ? "" : prefix.replaceAll("-$", "");
+    }
+
+    /** Centers a label in a field of dashes: "---label---". */
+    private String centerInDashes(String label, int width) {
+        if (label.isEmpty() || label.length() + 2 >= width) {
+            return "-".repeat(width);
+        }
+        String inner = "-" + label + "-";
+        int dashes = width - inner.length();
+        int left = dashes / 2;
+        int right = dashes - left;
+        return "-".repeat(left) + inner + "-".repeat(right);
+    }
+
     private String formatDataRow(DataRow row, List<String> columnNames, List<Integer> colWidths) {
         StringBuilder sb = new StringBuilder();
         sb.append(row.timestamp().format(DataRow.TIMESTAMP_FORMATTER));
-        sb.append("    ");
+        sb.append(COL_GAP);
 
         List<String> valueList = row.valueList();
         for (int i = 0; i < columnNames.size(); i++) {
@@ -245,46 +423,14 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             if (marker != null) sb.append(marker);
 
             if (i < columnNames.size() - 1) {
-                sb.append("  ");
+                sb.append(COL_GAP);
             }
         }
 
-        // Strip trailing whitespace (empty trailing columns produce padding)
+        // Strip trailing whitespace
         int end = sb.length();
         while (end > 0 && sb.charAt(end - 1) == ' ') end--;
         return sb.substring(0, end);
-    }
-
-    /** Derives per-column display widths from the column-name header line. */
-    private List<Integer> deriveColumnWidths(String headerLine, List<String> columnNames) {
-        int dataStart = DataRow.TIMESTAMP_FORMATTER.format(java.time.LocalDateTime.now()).length() + 4;
-        if (headerLine.length() <= dataStart) {
-            return columnNames.stream().map(String::length).toList();
-        }
-        String dataPart = headerLine.substring(Math.min(dataStart, headerLine.length()));
-        // Find start of each column token
-        List<Integer> starts = new ArrayList<>();
-        boolean inToken = false;
-        for (int i = 0; i < dataPart.length(); i++) {
-            if (!Character.isWhitespace(dataPart.charAt(i)) && !inToken) {
-                starts.add(i);
-                inToken = true;
-            } else if (Character.isWhitespace(dataPart.charAt(i))) {
-                inToken = false;
-            }
-        }
-        List<Integer> widths = new ArrayList<>();
-        for (int i = 0; i < columnNames.size(); i++) {
-            if (i < starts.size()) {
-                // End of this token = start of next token minus 2-space gap, or end of dataPart
-                int tokenEnd = (i + 1 < starts.size()) ? starts.get(i + 1) - 2 : dataPart.length();
-                int colWidth = tokenEnd - starts.get(i);
-                widths.add(Math.max(colWidth, columnNames.get(i).length()));
-            } else {
-                widths.add(columnNames.get(i).length());
-            }
-        }
-        return widths;
     }
 
     private List<DataRow> mergeByTimestamp(List<DataRow> rows) {
