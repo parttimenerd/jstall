@@ -221,7 +221,7 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
         }
 
         // Re-render category span headers (if any) aligned to computed widths
-        String tsPrefix = " ".repeat(DataRow.TIMESTAMP_FORMATTER.format(java.time.LocalDateTime.now()).length() + COL_GAP.length());
+        String tsPrefix = " ".repeat(19 + COL_GAP.length());
         if (categoryGroups != null) {
             for (List<List<Integer>> tier : splitIntoTiers(section.headerLines(), categoryGroups)) {
                 sb.append(tsPrefix).append(renderCategoryLine(tier, columnNames, colWidths)).append("\n");
