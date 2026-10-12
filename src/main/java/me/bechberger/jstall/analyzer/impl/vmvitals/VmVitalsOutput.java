@@ -31,4 +31,11 @@ public record VmVitalsOutput(
     public Set<String> activeConditions() {
         return filteredLegend.activeConditionTags();
     }
+
+    public boolean hasTrendColumns() {
+        return sections.stream()
+            .flatMap(s -> s.dataRows().stream())
+            .flatMap(r -> r.valueList().stream())
+            .anyMatch(v -> v.contains("→"));
+    }
 }

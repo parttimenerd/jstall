@@ -85,7 +85,7 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
     }
 
     /**
-     * Formats VM vitals output with filtered legend + top recent samples + extremes.
+     * Formats VM vitals output with merged legend+trends header, then the data sections.
      */
     private String formatVmVitals(VmVitalsOutput vitals, int topN) {
         if (vitals.sections().isEmpty()) {
@@ -102,42 +102,80 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             return "";
         }
 
-        String legend = renderFilteredLegend(vitals.filteredLegend());
-        String body = legend.isEmpty() ? sections : legend + "\n\n" + sections;
-
-        String observations = VmVitalsObservations.analyze(vitals);
-        return observations.isEmpty() ? body : body + "\n\n" + observations;
+        String header = renderLegendWithTrends(vitals);
+        return header.isEmpty() ? sections : header + "\n\n" + sections;
     }
 
-    private String renderFilteredLegend(VmVitalsLegend filteredLegend) {
-        if (filteredLegend.entries().isEmpty()) {
+    /**
+     * Builds a single table where each row shows: key, description, and (if available) first→last trend.
+     * Followed by observations and footnotes.
+     */
+    private String renderLegendWithTrends(VmVitalsOutput vitals) {
+        List<LegendEntry> entries = vitals.filteredLegend().entries();
+        boolean hasDelta = vitals.filteredLegend().conditions().stream().anyMatch(c -> "delta".equals(c.tag()));
+        boolean hasTrend = vitals.hasTrendColumns();
+
+        List<VmVitalsObservations.TrendEntry> trends = VmVitalsObservations.trendEntries(vitals);
+        List<String> obs = VmVitalsObservations.observations(vitals);
+        String timeRange = VmVitalsObservations.timeRange(vitals);
+
+        if (entries.isEmpty() && !hasDelta && !hasTrend && trends.isEmpty() && obs.isEmpty()) {
             return "";
         }
 
-        List<LegendEntry> entries = filteredLegend.entries();
-        List<String> lines = new ArrayList<>();
-        for (LegendEntry entry : entries) {
-            lines.add(String.format("%15s: %s", entry.key(), entry.description().replaceAll("\\s*\\[[a-z0-9]+]", "").trim()));
+        // Build a map from legend key → trend entry for inline display
+        Map<String, VmVitalsObservations.TrendEntry> trendByKey = new java.util.LinkedHashMap<>();
+        for (var t : trends) trendByKey.put(t.key(), t);
+
+        // Column widths — only consider entries that have a trend for desc alignment
+        int keyWidth = entries.stream().mapToInt(e -> e.key().length()).max().orElse(0);
+        int descWidth = entries.stream()
+            .filter(e -> trendByKey.containsKey(e.key()))
+            .mapToInt(e -> e.description().replaceAll("\\s*\\[[a-z0-9]+]", "").trim().length())
+            .max().orElse(0);
+        int valWidth = trends.stream()
+            .mapToInt(t -> Math.max(t.first().length(), t.last().length()))
+            .max().orElse(0);
+        int deltaWidth = trends.stream().mapToInt(t -> t.delta().trim().length()).max().orElse(0);
+
+        StringBuilder sb = new StringBuilder();
+        if (timeRange != null) {
+            sb.append(String.format("Legend & Trend (%s):\n", timeRange));
+        } else {
+            sb.append("Legend:\n");
         }
 
-        // Two-column layout: pair entries side-by-side
-        int colWidth = lines.stream().mapToInt(String::length).max().orElse(40);
-        StringBuilder sb = new StringBuilder();
-        sb.append("VM.vitals legend:\n\n");
-        for (int i = 0; i < lines.size(); i += 2) {
-            if (i + 1 < lines.size()) {
-                sb.append(String.format("%-" + colWidth + "s    %s\n", lines.get(i), lines.get(i + 1)));
+        for (LegendEntry entry : entries) {
+            String desc = entry.description().replaceAll("\\s*\\[(?!delta)[a-z0-9]+]", "").trim();
+            var t = trendByKey.get(entry.key());
+            if (t != null) {
+                String trendStr = String.format("%s → %s  %s  %s",
+                    padLeft(t.first(), valWidth), padLeft(t.last(), valWidth),
+                    t.arrow(), padLeft(t.delta().trim(), deltaWidth));
+                sb.append(String.format("  %-" + keyWidth + "s  %-" + descWidth + "s    %s\n",
+                    entry.key(), desc, trendStr));
             } else {
-                sb.append(lines.get(i)).append("\n");
+                sb.append(String.format("  %-" + keyWidth + "s  %s\n", entry.key(), desc));
             }
         }
 
-        boolean hasDelta = filteredLegend.conditions().stream().anyMatch(c -> "delta".equals(c.tag()));
-        if (hasDelta) {
-            sb.append("\n  [delta]: values refer to the previous measurement.\n");
+        if (hasTrend) {
+            sb.append("  [trend]: prev → current Δ  ('?' = first sample, run again)\n");
+        }
+
+        if (!obs.isEmpty()) {
+            sb.append("\nObservations:\n");
+            for (String o : obs) {
+                sb.append("  * ").append(o).append("\n");
+            }
         }
 
         return sb.toString().trim();
+    }
+
+    private static String padLeft(String s, int width) {
+        if (s.length() >= width) return s;
+        return " ".repeat(width - s.length()) + s;
     }
 
     /**

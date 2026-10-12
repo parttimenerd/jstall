@@ -15,40 +15,85 @@ public class VmVitalsObservations {
 
     private VmVitalsObservations() {}
 
+    /** A single non-stable trend row: key, formatted first/last values, direction arrow, delta string. */
+    public record TrendEntry(String key, String first, String last, String arrow, String delta) {}
+
     /**
-     * Returns a formatted trend + observations block, or empty string if nothing notable.
+     * Returns per-column trend entries (only columns with movement — stable columns are omitted).
+     * Empty list when there are fewer than 2 samples.
      */
-    public static String analyze(VmVitalsOutput vitals) {
+    public static List<TrendEntry> trendEntries(VmVitalsOutput vitals) {
         VmVitalsSection section = findMainSection(vitals);
         if (section == null || section.dataRows().size() < 2) {
-            return "";
+            return List.of();
         }
+        return buildTrendEntries(section, vitals.filteredLegend().entries());
+    }
 
+    /**
+     * Returns flagged observation strings, or empty list when nothing notable.
+     */
+    public static List<String> observations(VmVitalsOutput vitals) {
+        VmVitalsSection section = findMainSection(vitals);
+        if (section == null || section.dataRows().size() < 2) {
+            return List.of();
+        }
         List<LegendEntry> legend = vitals.filteredLegend().entries();
-        // Rows may be stored newest-first (raw vitals order). Sort by timestamp to get true first/latest.
         DataRow first = section.dataRows().stream()
                 .min(java.util.Comparator.comparing(DataRow::timestamp)).orElseThrow();
         DataRow latest = section.dataRows().stream()
                 .max(java.util.Comparator.comparing(DataRow::timestamp)).orElseThrow();
+        return buildObservations(legend, section.columnNames(), first, latest);
+    }
 
-        String trendTable = buildTrendTable(section, legend);
-        List<String> observations = buildObservations(legend, section.columnNames(), first, latest);
+    /**
+     * Returns sample count and "HH:mm → HH:mm" time range for the main section, or null if fewer than 2 samples.
+     */
+    public static String timeRange(VmVitalsOutput vitals) {
+        VmVitalsSection section = findMainSection(vitals);
+        if (section == null || section.dataRows().size() < 2) {
+            return null;
+        }
+        DataRow first = section.dataRows().stream()
+                .min(java.util.Comparator.comparing(DataRow::timestamp)).orElseThrow();
+        DataRow latest = section.dataRows().stream()
+                .max(java.util.Comparator.comparing(DataRow::timestamp)).orElseThrow();
+        String range = first.timestamp().format(DataRow.TIMESTAMP_FORMATTER).substring(11, 16)
+                + " → " + latest.timestamp().format(DataRow.TIMESTAMP_FORMATTER).substring(11, 16);
+        return section.dataRows().size() + " samples, " + range;
+    }
 
-        if (trendTable.isEmpty() && observations.isEmpty()) {
+    /**
+     * Returns a formatted trend + observations block, or empty string if nothing notable.
+     * @deprecated Use {@link #trendEntries} and {@link #observations} directly.
+     */
+    public static String analyze(VmVitalsOutput vitals) {
+        List<TrendEntry> trends = trendEntries(vitals);
+        List<String> obs = observations(vitals);
+        String range = timeRange(vitals);
+
+        if (trends.isEmpty() && obs.isEmpty()) {
             return "";
         }
 
         StringBuilder sb = new StringBuilder();
-        String timeRange = first.timestamp().format(DataRow.TIMESTAMP_FORMATTER).substring(11, 16)
-                + " → " + latest.timestamp().format(DataRow.TIMESTAMP_FORMATTER).substring(11, 16);
-        sb.append(String.format("Trends (%d samples, %s):\n", section.dataRows().size(), timeRange));
-        if (!trendTable.isEmpty()) {
-            sb.append(trendTable);
+        if (!trends.isEmpty() && range != null) {
+            sb.append(String.format("Trends (%s):\n", range));
+            int keyWidth = trends.stream().mapToInt(r -> r.key().length()).max().orElse(8);
+            int valWidth = trends.stream()
+                    .mapToInt(r -> Math.max(r.first().length(), r.last().length()))
+                    .max().orElse(6);
+            for (TrendEntry t : trends) {
+                sb.append(String.format("  %-" + keyWidth + "s  %s → %s  %s%s\n",
+                        t.key(), padLeft(t.first(), valWidth), padLeft(t.last(), valWidth),
+                        t.arrow(), t.delta()));
+            }
         }
-        if (!observations.isEmpty()) {
-            sb.append("\nObservations:\n");
-            for (String obs : observations) {
-                sb.append("  * ").append(obs).append("\n");
+        if (!obs.isEmpty()) {
+            if (!trends.isEmpty()) sb.append("\n");
+            sb.append("Observations:\n");
+            for (String o : obs) {
+                sb.append("  * ").append(o).append("\n");
             }
         }
         return sb.toString().trim();
@@ -64,7 +109,7 @@ public class VmVitalsObservations {
         return null;
     }
 
-    private static String buildTrendTable(VmVitalsSection section, List<LegendEntry> legend) {
+    private static List<TrendEntry> buildTrendEntries(VmVitalsSection section, List<LegendEntry> legend) {
         record TrendRow(String key, ParsedValue firstVal, ParsedValue latestVal,
                         boolean flaky, long minBytes, long maxBytes) {}
         List<TrendRow> rows = new ArrayList<>();
@@ -131,12 +176,11 @@ public class VmVitalsObservations {
         }
 
         if (rows.isEmpty()) {
-            return "";
+            return List.of();
         }
 
-        // Compute arrows first so we can filter stable rows
-        record RenderedRow(String key, String fStr, String lStr, String arrow, String deltaStr) {}
-        List<RenderedRow> rendered = new ArrayList<>();
+        // Compute arrows; collect only rows with movement
+        List<TrendEntry> result = new ArrayList<>();
         for (TrendRow row : rows) {
             String fStr = fmtVal(row.firstVal());
             String lStr = fmtVal(row.latestVal());
@@ -146,14 +190,11 @@ public class VmVitalsObservations {
             if (row.firstVal().isAvailable() && row.latestVal().isAvailable()) {
                 if (row.flaky()) {
                     arrow = "~";
-                    String minStr = fmtDelta(row.latestVal(), row.minBytes());
-                    String maxStr = fmtDelta(row.latestVal(), row.maxBytes());
-                    deltaStr = " (range: " + minStr + " – " + maxStr + ")";
+                    deltaStr = " (range: " + fmtDelta(row.latestVal(), row.minBytes())
+                             + " – " + fmtDelta(row.latestVal(), row.maxBytes()) + ")";
                 } else {
                     long delta = row.latestVal().getBytes() - row.firstVal().getBytes();
                     if (delta > 0) {
-                        // Suppress sub-noise: skip if delta < 0.5% of first value (byte cols)
-                        // or < 2 absolute (integer cols)
                         String orig = row.firstVal().original() != null ? row.firstVal().original().trim() : "";
                         boolean isInteger = !orig.isEmpty() && Character.isDigit(orig.charAt(orig.length() - 1));
                         boolean noise = isInteger
@@ -176,32 +217,11 @@ public class VmVitalsObservations {
             } else {
                 arrow = "?";
             }
-            rendered.add(new RenderedRow(row.key(), fStr, lStr, arrow, deltaStr));
+            if (!arrow.equals("→")) {
+                result.add(new TrendEntry(row.key(), fStr, lStr, arrow, deltaStr));
+            }
         }
-
-        // Only keep rows with movement (↑, ↓, ~) — skip stable → rows
-        List<RenderedRow> active = rendered.stream()
-                .filter(r -> !r.arrow().equals("→"))
-                .toList();
-        if (active.isEmpty()) {
-            return "";
-        }
-
-        int keyWidth = active.stream().mapToInt(r -> r.key().length()).max().orElse(8);
-        int valWidth = active.stream()
-                .mapToInt(r -> Math.max(r.fStr().length(), r.lStr().length()))
-                .max().orElse(6);
-
-        StringBuilder sb = new StringBuilder();
-        for (RenderedRow row : active) {
-            sb.append(String.format("  %-" + keyWidth + "s  %s → %s  %s%s\n",
-                    row.key(),
-                    padLeft(row.fStr(), valWidth),
-                    padLeft(row.lStr(), valWidth),
-                    row.arrow(),
-                    row.deltaStr()));
-        }
-        return sb.toString();
+        return result;
     }
 
     private static boolean isDeltaColumn(List<LegendEntry> legend, List<String> colNames, int i) {

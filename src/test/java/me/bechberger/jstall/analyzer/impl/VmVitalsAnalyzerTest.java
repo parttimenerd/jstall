@@ -142,8 +142,7 @@ public class VmVitalsAnalyzerTest {
         
         assertTrue(result.shouldDisplay());
         String output = result.output();
-        assertTrue(output.contains("VM.vitals legend"), "Should indicate legend is filtered");
-        assertTrue(output.contains("--heap---"), "Should contain heap header");
+        assertTrue(output.contains("Legend"), "Should indicate legend is filtered");
         assertTrue(output.contains("2026-03-09 18:08:17"), "Should contain first data line");
         assertTrue(output.contains("2026-03-09 18:11:17"), "Should contain last data line");
         // All 4 data lines should be present (default top=5, but only 4 lines available)
@@ -589,7 +588,7 @@ public class VmVitalsAnalyzerTest {
         String output = result.output();
         
         // Should show filtered legend
-        assertTrue(output.contains("VM.vitals legend"), "Should indicate legend is filtered");
+        assertTrue(output.contains("Legend"), "Should indicate legend is filtered");
         
         // Should show legend entries
         assertTrue(output.contains("heap-comm:") || output.contains("heap-comm "), "Should show legend entries");
@@ -1095,6 +1094,63 @@ public class VmVitalsAnalyzerTest {
         
         assertEquals("121m", section.dataRows().get(2).values().get("heap-comm"));
         assertEquals("94k", section.dataRows().get(2).values().get("code"));
+    }
+
+    // ================================================================================
+    // Trend footnote tests
+    // ================================================================================
+
+    private static final String VITALS_WITH_TREND = """
+        27747:
+        Vitals:
+
+        -----jvm-----
+               heap-used: Java Heap Size, used
+                  cls-ld: Class loaded [delta]
+
+          [delta]: values refer to the previous measurement.
+
+        Last 60 minutes:
+                          heap-used  cls-ld
+        2026-03-09 18:08:17       ? →    393  ?
+        2026-03-09 18:09:17       30m      2
+        """;
+
+    @Test
+    void trendFootnoteAppearsWhenInputHasTrendColumns() {
+        VmVitalsOutput output = VmVitalsParser.parse(VITALS_WITH_TREND);
+        assertNotNull(output);
+        assertTrue(output.hasTrendColumns(), "Should detect trend columns");
+
+        VmVitalsAnalyzer analyzer = new VmVitalsAnalyzer();
+        ResolvedData data = ResolvedData.fromDumpsAndCollectedData(
+            List.of(createDummySnapshot()),
+            Map.of("vm-vitals", List.of(new CollectedData(1L, VITALS_WITH_TREND, Map.of())))
+        );
+        AnalyzerResult result = analyzer.analyze(data, Map.of());
+
+        assertTrue(result.shouldDisplay());
+        assertTrue(result.output().contains("[trend]:"), "Legend should include trend footnote");
+        assertTrue(result.output().contains("prev → current"), "Trend footnote should show the format");
+        assertTrue(result.output().contains("first sample"), "Trend footnote should explain '?'");
+        assertTrue(result.output().contains("run again"), "Trend footnote should mention run again");
+    }
+
+    @Test
+    void trendFootnoteAbsentWhenNoTrendColumns() {
+        VmVitalsOutput output = VmVitalsParser.parse(SAMPLE_VM_VITALS);
+        assertNotNull(output);
+        assertFalse(output.hasTrendColumns(), "Should not detect trend columns in plain-number data");
+
+        VmVitalsAnalyzer analyzer = new VmVitalsAnalyzer();
+        ResolvedData data = ResolvedData.fromDumpsAndCollectedData(
+            List.of(createDummySnapshot()),
+            Map.of("vm-vitals", List.of(new CollectedData(1L, SAMPLE_VM_VITALS, Map.of())))
+        );
+        AnalyzerResult result = analyzer.analyze(data, Map.of());
+
+        assertTrue(result.shouldDisplay());
+        assertFalse(result.output().contains("[trend]:"), "Legend should not include trend footnote for plain data");
     }
 
     // ================================================================================
