@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
+## [0.8.3] - 2026-10-12
+
+### Changed
+- `vm-vitals`: legend and trends merged into a single table — each metric row now shows its description alongside first→last values and delta inline, replacing the separate legend + trends blocks
+- `vm-vitals`: delta columns (`jthr-cr`, `cls-ld`, `cls-uld`, etc.) marked with `[delta]` directly in their row; redundant footnote removed
+- `vm-vitals`: delta values right-aligned for consistent column layout
+- `vm-vitals`: trend footnote (`[trend]: prev → current Δ`) shown when jcmd emits `?` values on the first run
+
 ## [0.8.2] - 2026-10-08
 
 ### Added
