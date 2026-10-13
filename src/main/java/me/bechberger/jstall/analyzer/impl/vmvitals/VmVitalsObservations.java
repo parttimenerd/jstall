@@ -65,7 +65,6 @@ public class VmVitalsObservations {
 
     /**
      * Returns a formatted trend + observations block, or empty string if nothing notable.
-     * @deprecated Use {@link #trendEntries} and {@link #observations} directly.
      */
     public static String analyze(VmVitalsOutput vitals) {
         List<TrendEntry> trends = trendEntries(vitals);
@@ -163,11 +162,7 @@ public class VmVitalsObservations {
                 // Flaky: more than 30% of non-flat transitions reverse direction,
                 // AND range is significant (≥5% relative for byte values, ≥5 absolute for plain integers)
                 boolean enoughRange = maxBytes > 0 && (maxBytes - minBytes) * 100 / maxBytes >= 5;
-                if (fv.isAvailable() && fv.original() != null) {
-                    String orig = fv.original().trim();
-                    boolean isInteger = !orig.isEmpty() && Character.isDigit(orig.charAt(orig.length() - 1));
-                    if (isInteger) enoughRange = (maxBytes - minBytes) >= 5;
-                }
+                if (fv.isAvailable() && isIntegerValue(fv)) enoughRange = (maxBytes - minBytes) >= 5;
                 flaky = transitions >= 3 && reversals * 100 / transitions > 30 && enoughRange;
             }
             if (minBytes == Long.MAX_VALUE) { minBytes = 0; maxBytes = 0; }
@@ -195,17 +190,13 @@ public class VmVitalsObservations {
                 } else {
                     long delta = row.latestVal().getBytes() - row.firstVal().getBytes();
                     if (delta > 0) {
-                        String orig = row.firstVal().original() != null ? row.firstVal().original().trim() : "";
-                        boolean isInteger = !orig.isEmpty() && Character.isDigit(orig.charAt(orig.length() - 1));
-                        boolean noise = isInteger
+                        boolean noise = isIntegerValue(row.firstVal())
                                 ? delta < 2
                                 : row.firstVal().getBytes() > 0 && delta * 200 / row.firstVal().getBytes() < 1;
                         if (noise) { arrow = "→"; }
                         else { arrow = "↑"; deltaStr = " +" + fmtDelta(row.latestVal(), delta); }
                     } else if (delta < 0) {
-                        String orig = row.firstVal().original() != null ? row.firstVal().original().trim() : "";
-                        boolean isInteger = !orig.isEmpty() && Character.isDigit(orig.charAt(orig.length() - 1));
-                        boolean noise = isInteger
+                        boolean noise = isIntegerValue(row.firstVal())
                                 ? -delta < 2
                                 : row.firstVal().getBytes() > 0 && (-delta) * 200 / row.firstVal().getBytes() < 1;
                         if (noise) { arrow = "→"; }
@@ -383,20 +374,23 @@ public class VmVitalsObservations {
         if (!pv.isAvailable()) {
             return "?";
         }
-        // If the original string has no unit suffix, display as a plain integer
-        String orig = pv.original() != null ? pv.original().trim() : "";
-        if (!orig.isEmpty() && Character.isDigit(orig.charAt(orig.length() - 1))) {
+        if (isIntegerValue(pv)) {
             return String.valueOf(pv.getBytes());
         }
         return Cell.formatBytes(pv.getBytes());
     }
 
     private static String fmtDelta(ParsedValue referenceValue, long absDelta) {
-        String orig = referenceValue.original() != null ? referenceValue.original().trim() : "";
-        if (!orig.isEmpty() && Character.isDigit(orig.charAt(orig.length() - 1))) {
+        if (isIntegerValue(referenceValue)) {
             return String.valueOf(absDelta);
         }
         return Cell.formatBytes(absDelta);
+    }
+
+    /** Returns true if the original string ends with a digit (plain integer, no unit suffix). */
+    private static boolean isIntegerValue(ParsedValue pv) {
+        String orig = pv.original() != null ? pv.original().trim() : "";
+        return !orig.isEmpty() && Character.isDigit(orig.charAt(orig.length() - 1));
     }
 
     private static String padLeft(String s, int width) {

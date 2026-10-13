@@ -26,7 +26,7 @@ public final class ParsedValue {
     }
 
     /**
-     * Parses a value string that may contain unit suffixes or markers.
+     * Parses a value string that may contain unit suffixes or extreme markers (+/-).
      * Examples: "512m", "1.2g", "30000", "?", "64m+", "33m-"
      */
     public static ParsedValue parse(String valueStr) {
@@ -36,6 +36,7 @@ public final class ParsedValue {
 
         String trimmed = valueStr.trim();
 
+        // Strip trailing extreme markers if present (caller may or may not have stripped them)
         if (trimmed.endsWith("+") || trimmed.endsWith("-")) {
             trimmed = trimmed.substring(0, trimmed.length() - 1);
         }
