@@ -107,8 +107,10 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
     }
 
     /**
-     * Builds a single table where each row shows: key, description, and (if available) first→last trend.
-     * Followed by observations and footnotes.
+     * Builds a header block with:
+     *  - Trends section (only moving metrics, with first→last values and direction)
+     *  - Observations section (threshold violations, growing metrics)
+     *  - Compact legend for stable metrics not shown in trends
      */
     private String renderLegendWithTrends(VmVitalsOutput vitals) {
         List<LegendEntry> entries = vitals.filteredLegend().entries();
@@ -123,54 +125,79 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             return "";
         }
 
-        // Build a map from legend key → trend entry for inline display
         Map<String, VmVitalsObservations.TrendEntry> trendByKey = new java.util.LinkedHashMap<>();
         for (var t : trends) trendByKey.put(t.key(), t);
 
-        // Column widths — only consider entries that have a trend for desc alignment
-        int keyWidth = entries.stream().mapToInt(e -> e.key().length()).max().orElse(0);
-        int descWidth = entries.stream()
-            .filter(e -> trendByKey.containsKey(e.key()))
-            .mapToInt(e -> e.description().replaceAll("\\s*\\[[a-z0-9]+]", "").trim().length())
-            .max().orElse(0);
-        int valWidth = trends.stream()
-            .mapToInt(t -> Math.max(t.first().length(), t.last().length()))
-            .max().orElse(0);
-        int deltaWidth = trends.stream().mapToInt(t -> t.delta().trim().length()).max().orElse(0);
-
         StringBuilder sb = new StringBuilder();
-        if (timeRange != null) {
-            sb.append(String.format("Legend & Trend (%s):\n", timeRange));
-        } else {
-            sb.append("Legend:\n");
-        }
 
-        for (LegendEntry entry : entries) {
-            String desc = entry.description().replaceAll("\\s*\\[(?!delta)[a-z0-9]+]", "").trim();
-            var t = trendByKey.get(entry.key());
-            if (t != null) {
-                String trendStr = String.format("%s → %s  %s  %s",
-                    padLeft(t.first(), valWidth), padLeft(t.last(), valWidth),
-                    t.arrow(), padLeft(t.delta().trim(), deltaWidth));
-                sb.append(String.format("  %-" + keyWidth + "s  %-" + descWidth + "s    %s\n",
-                    entry.key(), desc, trendStr));
-            } else {
-                sb.append(String.format("  %-" + keyWidth + "s  %s\n", entry.key(), desc));
+        // --- Trends block (only entries with movement) ---
+        if (!trends.isEmpty() || hasTrend) {
+            if (!trends.isEmpty()) {
+                int keyWidth = trends.stream().mapToInt(t -> t.key().length()).max().orElse(0);
+                int valWidth = trends.stream()
+                    .mapToInt(t -> Math.max(t.first().length(), t.last().length()))
+                    .max().orElse(0);
+                int deltaWidth = trends.stream().mapToInt(t -> t.delta().trim().length()).max().orElse(0);
+                // Optionally show description if we have legend entries
+                int descWidth = entries.isEmpty() ? 0 : entries.stream()
+                    .filter(e -> trendByKey.containsKey(e.key()))
+                    .mapToInt(e -> cleanDesc(e.description()).length())
+                    .max().orElse(0);
+
+                String header = timeRange != null
+                    ? String.format("Trends (%s):\n", timeRange)
+                    : "Trends:\n";
+                sb.append(header);
+
+                for (var t : trends) {
+                    String trendStr = String.format("%s → %s  %s  %s",
+                        padLeft(t.first(), valWidth), padLeft(t.last(), valWidth),
+                        t.arrow(), padLeft(t.delta().trim(), deltaWidth));
+                    if (descWidth > 0) {
+                        LegendEntry le = entries.stream().filter(e -> e.key().equals(t.key())).findFirst().orElse(null);
+                        String desc = le != null ? cleanDesc(le.description()) : "";
+                        sb.append(String.format("  %-" + keyWidth + "s  %-" + descWidth + "s    %s\n",
+                            t.key(), desc, trendStr));
+                    } else {
+                        sb.append(String.format("  %-" + keyWidth + "s  %s\n", t.key(), trendStr));
+                    }
+                }
+            }
+
+            if (hasTrend) {
+                sb.append("  [trend]: prev → current Δ  ('?' = first sample, run again)\n");
             }
         }
 
-        if (hasTrend) {
-            sb.append("  [trend]: prev → current Δ  ('?' = first sample, run again)\n");
-        }
-
+        // --- Observations block ---
         if (!obs.isEmpty()) {
-            sb.append("\nObservations:\n");
+            if (sb.length() > 0) sb.append("\n");
+            sb.append("Observations:\n");
             for (String o : obs) {
                 sb.append("  * ").append(o).append("\n");
             }
         }
 
+        // --- Compact legend for stable entries (only shown if we have a legend) ---
+        if (!entries.isEmpty()) {
+            List<LegendEntry> stable = entries.stream()
+                .filter(e -> !trendByKey.containsKey(e.key()))
+                .toList();
+            if (!stable.isEmpty()) {
+                if (sb.length() > 0) sb.append("\n");
+                sb.append("Legend (stable):\n");
+                int keyWidth = stable.stream().mapToInt(e -> e.key().length()).max().orElse(0);
+                for (LegendEntry e : stable) {
+                    sb.append(String.format("  %-" + keyWidth + "s  %s\n", e.key(), cleanDesc(e.description())));
+                }
+            }
+        }
+
         return sb.toString().trim();
+    }
+
+    private static String cleanDesc(String description) {
+        return description.replaceAll("\\s*\\[[a-z0-9]+]", "").trim();
     }
 
     private static String padLeft(String s, int width) {
@@ -180,6 +207,9 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
 
     // Gap between columns in the rendered table (spaces)
     private static final String COL_GAP = "  ";
+
+    /** A category group from one tier of a header: the label (from raw segment text) and the column indices it spans. */
+    private record CategoryGroup(String label, List<Integer> columnIndices) {}
 
     /**
      * Formats a single section with headers and data rows.
@@ -208,7 +238,7 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
         List<Integer> colWidths = computeColWidths(columnNames, rowsToFormat);
 
         // Parse category groups from raw header lines (all lines except the last = category spans)
-        List<List<Integer>> categoryGroups = parseCategoryGroups(section.headerLines(), columnNames);
+        List<CategoryGroup> categoryGroups = parseCategoryGroups(section.headerLines(), columnNames);
 
         StringBuilder sb = new StringBuilder();
 
@@ -223,7 +253,7 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
         // Re-render category span headers (if any) aligned to computed widths
         String tsPrefix = " ".repeat(19 + COL_GAP.length());
         if (categoryGroups != null) {
-            for (List<List<Integer>> tier : splitIntoTiers(section.headerLines(), categoryGroups)) {
+            for (List<CategoryGroup> tier : splitIntoTiers(section.headerLines(), categoryGroups)) {
                 sb.append(tsPrefix).append(renderCategoryLine(tier, columnNames, colWidths)).append("\n");
             }
         }
@@ -276,10 +306,10 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
      * Parses category groups from the raw header lines stored by the parser.
      * The last header line is the column-names line; everything before it is category/sub-header lines.
      * Returns null if there are no category lines.
-     * Each element in the returned list is a list of column indices belonging to that category group,
-     * ordered as they appear left-to-right.
+     * Each element in the returned list is a CategoryGroup with the label extracted from the raw segment
+     * and the column indices that group spans.
      */
-    private List<List<Integer>> parseCategoryGroups(List<String> headerLines, List<String> columnNames) {
+    private List<CategoryGroup> parseCategoryGroups(List<String> headerLines, List<String> columnNames) {
         if (headerLines.size() < 2) return null; // only the column-names line, no categories
 
         String colNamesLine = headerLines.get(headerLines.size() - 1);
@@ -302,9 +332,8 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
 
         // For each category header line (all but last), determine which columns it spans
         // by checking which column-start positions fall within each dash-label segment
-        List<List<Integer>> groups = new ArrayList<>();
-        // Process only the last category line (or handle multiple tiers by passing them through as-is)
-        // Strategy: build groups from the first category-header line
+        List<CategoryGroup> groups = new ArrayList<>();
+        // Strategy: build groups from the last category-header line (closest to column names)
         String catLine = headerLines.get(headerLines.size() - 2);
         String catData = catLine.length() > dataStart ? catLine.substring(dataStart) : "";
 
@@ -331,7 +360,10 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
                     group.add(ci);
                 }
             }
-            if (!group.isEmpty()) groups.add(group);
+            if (!group.isEmpty()) {
+                String segText = catData.substring(segments.get(si)[0], segments.get(si)[1]);
+                groups.add(new CategoryGroup(extractLabelFromSegment(segText), group));
+            }
         }
 
         return groups.isEmpty() ? null : groups;
@@ -341,7 +373,7 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
      * Returns one tier of category groups per non-column-names header line.
      * Each tier is independently parsed from the corresponding raw header line.
      */
-    private List<List<List<Integer>>> splitIntoTiers(List<String> headerLines, List<List<Integer>> groups) {
+    private List<List<CategoryGroup>> splitIntoTiers(List<String> headerLines, List<CategoryGroup> groups) {
         if (headerLines.size() <= 2) {
             // Only one category line: return the already-parsed groups
             return List.of(groups);
@@ -365,7 +397,7 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             }
         }
 
-        List<List<List<Integer>>> tiers = new ArrayList<>();
+        List<List<CategoryGroup>> tiers = new ArrayList<>();
         for (int li = 0; li < headerLines.size() - 1; li++) {
             String catLine = headerLines.get(li);
             String catData = catLine.length() > dataStart ? catLine.substring(dataStart) : "";
@@ -379,7 +411,7 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
                 else if (space && inSeg) { segments.add(new int[]{segStart, i}); inSeg = false; }
             }
 
-            List<List<Integer>> tierGroups = new ArrayList<>();
+            List<CategoryGroup> tierGroups = new ArrayList<>();
             for (int si = 0; si < segments.size(); si++) {
                 int segStartAbs = dataStart + segments.get(si)[0];
                 int nextSegStart = si + 1 < segments.size()
@@ -391,7 +423,10 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
                         group.add(ci);
                     }
                 }
-                if (!group.isEmpty()) tierGroups.add(group);
+                if (!group.isEmpty()) {
+                    String segText = catData.substring(segments.get(si)[0], segments.get(si)[1]);
+                    tierGroups.add(new CategoryGroup(extractLabelFromSegment(segText), group));
+                }
             }
             if (!tierGroups.isEmpty()) tiers.add(tierGroups);
         }
@@ -399,27 +434,25 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
     }
 
     /** Renders a category span line for a set of column groups. */
-    private String renderCategoryLine(List<List<Integer>> groups, List<String> columnNames, List<Integer> colWidths) {
+    private String renderCategoryLine(List<CategoryGroup> groups, List<String> columnNames, List<Integer> colWidths) {
         if (groups == null || groups.isEmpty()) return "";
 
-        // Build the full column-line width so we know total span widths.
-        // Each group spans: sum(colWidths[i] for i in group) + (group.size()-1)*COL_GAP.length()
-        // Between groups, we need: COL_GAP + sum of widths of any ungrouped columns in between + COL_GAP per ungrouped col
         StringBuilder sb = new StringBuilder();
         for (int gi = 0; gi < groups.size(); gi++) {
-            List<Integer> group = groups.get(gi);
+            CategoryGroup group = groups.get(gi);
+            List<Integer> cols = group.columnIndices();
             int groupWidth = 0;
-            for (int ci = 0; ci < group.size(); ci++) {
-                int idx = group.get(ci);
+            for (int ci = 0; ci < cols.size(); ci++) {
+                int idx = cols.get(ci);
                 groupWidth += idx < colWidths.size() ? colWidths.get(idx) : columnNames.get(idx).length();
-                if (ci < group.size() - 1) groupWidth += COL_GAP.length();
+                if (ci < cols.size() - 1) groupWidth += COL_GAP.length();
             }
-            sb.append(centerInDashes(groupLabel(group, columnNames), groupWidth));
+            sb.append(centerInDashes(group.label(), groupWidth));
 
             if (gi < groups.size() - 1) {
                 // Gap between this group and the next: COL_GAP always, plus width of each ungrouped column
-                int lastInGroup = group.get(group.size() - 1);
-                int firstInNext = groups.get(gi + 1).get(0);
+                int lastInGroup = cols.get(cols.size() - 1);
+                int firstInNext = groups.get(gi + 1).columnIndices().get(0);
                 sb.append(COL_GAP);
                 for (int ci = lastInGroup + 1; ci < firstInNext; ci++) {
                     int w = ci < colWidths.size() ? colWidths.get(ci) : columnNames.get(ci).length();
@@ -434,23 +467,12 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
     }
 
     /**
-     * Derives a label for a category group from its column names.
-     * For example, columns [heap-comm, heap-used] → "heap", [cpu-us, cpu-sy, cpu-id] → "cpu".
+     * Extracts the human-readable label from a raw segment like "--heap---" or "---jvm---".
+     * Strips leading and trailing dashes; returns empty string if nothing remains.
      */
-    private String groupLabel(List<Integer> colIndices, List<String> columnNames) {
-        if (colIndices.isEmpty()) return "";
-        List<String> names = colIndices.stream().map(columnNames::get).toList();
-        // Find longest common prefix (up to the last '-' boundary)
-        String first = names.get(0);
-        String prefix = first;
-        for (String n : names) {
-            while (!n.startsWith(prefix)) {
-                int dash = prefix.lastIndexOf('-');
-                prefix = dash > 0 ? prefix.substring(0, dash) : "";
-                if (prefix.isEmpty()) break;
-            }
-        }
-        return prefix.isEmpty() ? "" : prefix.replaceAll("-$", "");
+    private static String extractLabelFromSegment(String segText) {
+        String stripped = segText.replaceAll("^-+", "").replaceAll("-+$", "");
+        return stripped;
     }
 
     /** Centers a label in a field of dashes: "---label---". */

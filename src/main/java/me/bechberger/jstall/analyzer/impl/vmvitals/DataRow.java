@@ -44,7 +44,12 @@ public record DataRow(
         if (timestamp == null) {
             return null;
         }
-        return fromTokens(timestamp, Arrays.asList(trimmed.substring(19).trim().split("\\s+")), columnNames);
+        // Strip optional row-level extreme marker (+/-) immediately after the 19-char timestamp
+        String rest = trimmed.substring(19);
+        if (!rest.isEmpty() && (rest.charAt(0) == '+' || rest.charAt(0) == '-')) {
+            rest = rest.substring(1);
+        }
+        return fromTokens(timestamp, Arrays.asList(rest.trim().split("\\s+")), columnNames);
     }
 
     public static DataRow parseFixedWidth(String line,
