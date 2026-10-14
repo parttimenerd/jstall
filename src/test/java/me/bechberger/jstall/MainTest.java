@@ -1,5 +1,6 @@
 package me.bechberger.jstall;
 
+import me.bechberger.jstall.cli.BaseAnalyzerCommand;
 import me.bechberger.jstall.util.CommandExecutor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
@@ -14,6 +15,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MainTest {
@@ -157,6 +159,36 @@ class MainTest {
                 } catch (IOException ignored) {
                 }
             });
+        }
+    }
+
+    @Test
+    void isUnicodeCapableReturnsFalseOnWindows() {
+        String saved = System.getProperty("os.name");
+        try {
+            System.setProperty("os.name", "Windows Server 2025");
+            assertFalse(BaseAnalyzerCommand.isUnicodeCapable(),
+                "isUnicodeCapable() must return false when os.name contains 'win'");
+        } finally {
+            if (saved != null) System.setProperty("os.name", saved);
+            else System.clearProperty("os.name");
+        }
+    }
+
+    @Test
+    void isUnicodeCapableReturnsFalseOnWindowsEvenWithUtf8Encoding() {
+        String savedOs = System.getProperty("os.name");
+        String savedEnc = System.getProperty("stdout.encoding");
+        try {
+            System.setProperty("os.name", "Windows 10");
+            System.setProperty("stdout.encoding", "UTF-8");
+            assertFalse(BaseAnalyzerCommand.isUnicodeCapable(),
+                "isUnicodeCapable() must return false on Windows regardless of encoding");
+        } finally {
+            if (savedOs != null) System.setProperty("os.name", savedOs);
+            else System.clearProperty("os.name");
+            if (savedEnc != null) System.setProperty("stdout.encoding", savedEnc);
+            else System.clearProperty("stdout.encoding");
         }
     }
 }

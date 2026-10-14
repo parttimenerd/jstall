@@ -1638,4 +1638,45 @@ public class VmVitalsAnalyzerTest {
         }
     }
 
+    @Test
+    @EnabledIf("isSapMachine")
+    void asciiFallbackProducesNoUnicodeArrows() {
+        VmVitalsAnalyzer analyzer = new VmVitalsAnalyzer();
+
+        ResolvedData data = ResolvedData.fromDumpsAndCollectedData(
+            List.of(createDummySnapshot()),
+            Map.of("vm-vitals", List.of(new CollectedData(1L, SAMPLE_VM_VITALS, Map.of())))
+        );
+
+        AnalyzerResult result = analyzer.analyze(data, Map.of("unicode", false));
+
+        assertTrue(result.shouldDisplay());
+        String output = result.output();
+        assertFalse(output.contains("↑"), "ASCII mode must not emit ↑");
+        assertFalse(output.contains("↓"), "ASCII mode must not emit ↓");
+        assertFalse(output.contains("→"), "ASCII mode must not emit →");
+        assertFalse(output.contains("–"), "ASCII mode must not emit –");
+        assertFalse(output.contains("Δ"), "ASCII mode must not emit Δ");
+        assertTrue(output.contains("Trends") || output.contains("^") || output.contains("v") || output.contains("="),
+            "ASCII mode should still show trend indicators");
+    }
+
+    @Test
+    @EnabledIf("isSapMachine")
+    void unicodeModeProducesUnicodeArrows() {
+        VmVitalsAnalyzer analyzer = new VmVitalsAnalyzer();
+
+        ResolvedData data = ResolvedData.fromDumpsAndCollectedData(
+            List.of(createDummySnapshot()),
+            Map.of("vm-vitals", List.of(new CollectedData(1L, SAMPLE_VM_VITALS, Map.of())))
+        );
+
+        AnalyzerResult result = analyzer.analyze(data, Map.of("unicode", true));
+
+        assertTrue(result.shouldDisplay());
+        String output = result.output();
+        boolean hasUnicodeArrow = output.contains("↑") || output.contains("↓") || output.contains("→");
+        assertTrue(hasUnicodeArrow, "Unicode mode should use Unicode arrows in trends: " + output);
+    }
+
 }

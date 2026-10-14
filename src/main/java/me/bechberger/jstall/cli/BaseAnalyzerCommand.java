@@ -579,7 +579,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
         return options;
     }
 
-    private static boolean isUnicodeCapable() {
+    public static boolean isUnicodeCapable() {
         // Windows terminals rarely support Unicode arrows even when encoding is UTF-8
         if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
             return false;
