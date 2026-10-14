@@ -76,7 +76,8 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
         }
 
         int vitalRows = getIntOption(options, "vital-rows", getIntOption(options, "top", 10));
-        String vmVitalsOutput = formatVmVitals(parsed, vitalRows);
+        boolean unicode = getBooleanOption(options, "unicode", true);
+        String vmVitalsOutput = formatVmVitals(parsed, vitalRows, unicode);
         if (vmVitalsOutput.isEmpty()) {
             return AnalyzerResult.ok(formatRawFallback(rawVitals));
         }
@@ -87,7 +88,7 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
     /**
      * Formats VM vitals output with merged legend+trends header, then the data sections.
      */
-    private String formatVmVitals(VmVitalsOutput vitals, int topN) {
+    private String formatVmVitals(VmVitalsOutput vitals, int topN, boolean unicode) {
         if (vitals.sections().isEmpty()) {
             return "";
         }
@@ -102,60 +103,80 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             return "";
         }
 
-        String header = renderLegendWithTrends(vitals);
+        String header = renderLegendWithTrends(vitals, unicode);
         return header.isEmpty() ? sections : header + "\n\n" + sections;
     }
 
     /**
-     * Builds a header block with:
-     *  - Trends section (only moving metrics, with first→last values and direction)
+     * Builds a unified header block with:
+     *  - All metrics in one table (moving ones with ↑/↓/~/→, stable ones with = )
      *  - Observations section (threshold violations, growing metrics)
-     *  - Compact legend for stable metrics not shown in trends
+     * When unicode=false, uses ASCII arrow substitutes.
      */
-    private String renderLegendWithTrends(VmVitalsOutput vitals) {
+    private String renderLegendWithTrends(VmVitalsOutput vitals, boolean unicode) {
         List<LegendEntry> entries = vitals.filteredLegend().entries();
-        boolean hasDelta = vitals.filteredLegend().conditions().stream().anyMatch(c -> "delta".equals(c.tag()));
         boolean hasTrend = vitals.hasTrendColumns();
 
-        List<VmVitalsObservations.TrendEntry> trends = VmVitalsObservations.trendEntries(vitals);
+        List<VmVitalsObservations.TrendEntry> allEntries = VmVitalsObservations.trendEntries(vitals);
         List<String> obs = VmVitalsObservations.observations(vitals);
         String timeRange = VmVitalsObservations.timeRange(vitals);
 
-        if (entries.isEmpty() && !hasDelta && !hasTrend && trends.isEmpty() && obs.isEmpty()) {
+        if (entries.isEmpty() && !hasTrend && allEntries.isEmpty() && obs.isEmpty()) {
             return "";
         }
 
-        Map<String, VmVitalsObservations.TrendEntry> trendByKey = new java.util.LinkedHashMap<>();
-        for (var t : trends) trendByKey.put(t.key(), t);
+        // Arrow symbols — ASCII fallback for non-UTF-8 terminals
+        String arrowUp    = unicode ? "↑"  : "^";
+        String arrowDown  = unicode ? "↓"  : "v";
+        String arrowRight = unicode ? "→"  : "->";
+        String arrowStable = "=";
+        String arrowFlaky = "~";
+        String arrowUnknown = "?";
+        String dashSep    = unicode ? " – " : " - ";
 
         StringBuilder sb = new StringBuilder();
 
-        // --- Trends block (only entries with movement) ---
-        if (!trends.isEmpty() || hasTrend) {
-            if (!trends.isEmpty()) {
-                int keyWidth = trends.stream().mapToInt(t -> t.key().length()).max().orElse(0);
-                int valWidth = trends.stream()
+        // --- Unified trends table ---
+        List<VmVitalsObservations.TrendEntry> moving = allEntries.stream()
+            .filter(t -> !t.stable()).toList();
+        List<VmVitalsObservations.TrendEntry> stable = allEntries.stream()
+            .filter(VmVitalsObservations.TrendEntry::stable).toList();
+
+        // Build the display entries list: moving first, then stable
+        List<VmVitalsObservations.TrendEntry> displayEntries = new ArrayList<>(moving);
+        displayEntries.addAll(stable);
+
+        if (!displayEntries.isEmpty() || hasTrend) {
+            if (!displayEntries.isEmpty()) {
+                int keyWidth = displayEntries.stream().mapToInt(t -> t.key().length()).max().orElse(0);
+                int valWidth = displayEntries.stream()
                     .mapToInt(t -> Math.max(t.first().length(), t.last().length()))
                     .max().orElse(0);
-                int deltaWidth = trends.stream().mapToInt(t -> t.delta().trim().length()).max().orElse(0);
-                // Optionally show description if we have legend entries
-                int descWidth = entries.isEmpty() ? 0 : entries.stream()
-                    .filter(e -> trendByKey.containsKey(e.key()))
-                    .mapToInt(e -> cleanDesc(e.description()).length())
+                int deltaWidth = displayEntries.stream()
+                    .mapToInt(t -> renderDelta(t, arrowUp, arrowDown, arrowRight, arrowFlaky, arrowUnknown, dashSep).trim().length())
+                    .max().orElse(0);
+                int descWidth = entries.isEmpty() ? 0 : displayEntries.stream()
+                    .mapToInt(t -> cleanDesc(t.description()).length())
                     .max().orElse(0);
 
                 String header = timeRange != null
-                    ? String.format("Trends (%s):\n", timeRange)
+                    ? String.format("Trends (%s):\n", timeRange.replace("→", arrowRight))
                     : "Trends:\n";
                 sb.append(header);
 
-                for (var t : trends) {
-                    String trendStr = String.format("%s → %s  %s  %s",
-                        padLeft(t.first(), valWidth), padLeft(t.last(), valWidth),
-                        t.arrow(), padLeft(t.delta().trim(), deltaWidth));
+                for (var t : displayEntries) {
+                    String displayArrow = t.stable() ? arrowStable
+                        : t.arrow().equals("↑") ? arrowUp
+                        : t.arrow().equals("↓") ? arrowDown
+                        : t.arrow().equals("~") ? arrowFlaky
+                        : t.arrow().equals("?") ? arrowUnknown
+                        : arrowRight;
+                    String delta = renderDelta(t, arrowUp, arrowDown, arrowRight, arrowFlaky, arrowUnknown, dashSep);
+                    String trendStr = String.format("%s %s %s  %s  %s",
+                        padLeft(t.first(), valWidth), arrowRight, padLeft(t.last(), valWidth),
+                        displayArrow, padLeft(delta.trim(), deltaWidth));
                     if (descWidth > 0) {
-                        LegendEntry le = entries.stream().filter(e -> e.key().equals(t.key())).findFirst().orElse(null);
-                        String desc = le != null ? cleanDesc(le.description()) : "";
+                        String desc = cleanDesc(t.description());
                         sb.append(String.format("  %-" + keyWidth + "s  %-" + descWidth + "s    %s\n",
                             t.key(), desc, trendStr));
                     } else {
@@ -165,7 +186,8 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             }
 
             if (hasTrend) {
-                sb.append("  [trend]: prev → current Δ  ('?' = first sample, run again)\n");
+                sb.append(String.format("  [trend]: prev %s current %s  ('?' = first sample, run again)\n",
+                    arrowRight, unicode ? "Δ" : "d"));
             }
         }
 
@@ -174,26 +196,24 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             if (sb.length() > 0) sb.append("\n");
             sb.append("Observations:\n");
             for (String o : obs) {
-                sb.append("  * ").append(o).append("\n");
-            }
-        }
-
-        // --- Compact legend for stable entries (only shown if we have a legend) ---
-        if (!entries.isEmpty()) {
-            List<LegendEntry> stable = entries.stream()
-                .filter(e -> !trendByKey.containsKey(e.key()))
-                .toList();
-            if (!stable.isEmpty()) {
-                if (sb.length() > 0) sb.append("\n");
-                sb.append("Legend (stable):\n");
-                int keyWidth = stable.stream().mapToInt(e -> e.key().length()).max().orElse(0);
-                for (LegendEntry e : stable) {
-                    sb.append(String.format("  %-" + keyWidth + "s  %s\n", e.key(), cleanDesc(e.description())));
-                }
+                String line = unicode ? o
+                    : o.replace("↑", "^").replace("↓", "v").replace("→", "->").replace("—", "-");
+                sb.append("  * ").append(line).append("\n");
             }
         }
 
         return sb.toString().trim();
+    }
+
+    /** Renders the delta/range portion of a trend entry using the provided symbol set. */
+    private static String renderDelta(VmVitalsObservations.TrendEntry t,
+                                       String up, String down, String right,
+                                       String flaky, String unknown, String dashSep) {
+        String delta = t.delta();
+        if (delta.isEmpty()) return "";
+        // Replace unicode arrows inside delta strings (range notation uses – )
+        return delta.replace("↑", up).replace("↓", down).replace("→", right)
+                    .replace(" – ", dashSep).replace("–", dashSep.trim());
     }
 
     private static String cleanDesc(String description) {

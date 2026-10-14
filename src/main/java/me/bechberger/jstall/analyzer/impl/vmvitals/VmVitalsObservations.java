@@ -15,8 +15,8 @@ public class VmVitalsObservations {
 
     private VmVitalsObservations() {}
 
-    /** A single non-stable trend row: key, formatted first/last values, direction arrow, delta string. */
-    public record TrendEntry(String key, String first, String last, String arrow, String delta) {}
+    /** A single trend row: key, description, formatted first/last values, direction arrow, delta string, and whether it is stable. */
+    public record TrendEntry(String key, String description, String first, String last, String arrow, String delta, boolean stable) {}
 
     /**
      * Returns per-column trend entries (only columns with movement — stable columns are omitted).
@@ -109,7 +109,7 @@ public class VmVitalsObservations {
     }
 
     private static List<TrendEntry> buildTrendEntries(VmVitalsSection section, List<LegendEntry> legend) {
-        record TrendRow(String key, ParsedValue firstVal, ParsedValue latestVal,
+        record TrendRow(String key, String description, ParsedValue firstVal, ParsedValue latestVal,
                         boolean flaky, long minBytes, long maxBytes) {}
         List<TrendRow> rows = new ArrayList<>();
 
@@ -135,6 +135,7 @@ public class VmVitalsObservations {
                 continue;
             }
             String key = i < legend.size() ? legend.get(i).key() : colNames.get(i);
+            String description = i < legend.size() ? legend.get(i).description() : "";
 
             // Compute reversal count and value range across all rows
             boolean flaky = false;
@@ -167,7 +168,7 @@ public class VmVitalsObservations {
             }
             if (minBytes == Long.MAX_VALUE) { minBytes = 0; maxBytes = 0; }
 
-            rows.add(new TrendRow(key, fv, lv, flaky, minBytes, maxBytes));
+            rows.add(new TrendRow(key, description, fv, lv, flaky, minBytes, maxBytes));
         }
 
         if (rows.isEmpty()) {
@@ -209,7 +210,9 @@ public class VmVitalsObservations {
                 arrow = "?";
             }
             if (!arrow.equals("→")) {
-                result.add(new TrendEntry(row.key(), fStr, lStr, arrow, deltaStr));
+                result.add(new TrendEntry(row.key(), row.description(), fStr, lStr, arrow, deltaStr, false));
+            } else {
+                result.add(new TrendEntry(row.key(), row.description(), fStr, lStr, arrow, deltaStr, true));
             }
         }
         return result;

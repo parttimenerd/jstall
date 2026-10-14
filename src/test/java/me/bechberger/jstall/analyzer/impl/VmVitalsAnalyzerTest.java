@@ -142,7 +142,7 @@ public class VmVitalsAnalyzerTest {
         
         assertTrue(result.shouldDisplay());
         String output = result.output();
-        assertTrue(output.contains("Legend"), "Should indicate legend is filtered");
+        assertTrue(output.contains("Trends") || output.contains("="), "Should show trends or stable entries");
         assertTrue(output.contains("2026-03-09 18:08:17"), "Should contain first data line");
         assertTrue(output.contains("2026-03-09 18:11:17"), "Should contain last data line");
         // All 4 data lines should be present (default top=5, but only 4 lines available)
@@ -587,10 +587,10 @@ public class VmVitalsAnalyzerTest {
         assertTrue(result.shouldDisplay());
         String output = result.output();
         
-        // Should show filtered legend
-        assertTrue(output.contains("Legend"), "Should indicate legend is filtered");
-        
-        // Should show legend entries
+        // Should show unified trends table (legend entries are inline with trends now)
+        assertTrue(output.contains("Trends") || output.contains("heap-comm"), "Should show legend entries in trends table");
+
+        // Should show legend entry keys (now inline in trends table, not a separate Legend section)
         assertTrue(output.contains("heap-comm:") || output.contains("heap-comm "), "Should show legend entries");
         
         // Should show recent samples with the original section title and truncation info

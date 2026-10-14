@@ -574,8 +574,25 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             options.put("intelligent-filter", intelligentFilter);
         }
         options.put("full", full);
+        options.put("unicode", isUnicodeCapable());
         options.putAll(getAdditionalOptions());
         return options;
+    }
+
+    private static boolean isUnicodeCapable() {
+        // Windows terminals rarely support Unicode arrows even when encoding is UTF-8
+        if (System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")) {
+            return false;
+        }
+        // stdout.encoding is set by the JVM from Java 17+; fall back to file.encoding / native.encoding
+        for (String prop : new String[]{"stdout.encoding", "native.encoding", "file.encoding"}) {
+            String val = System.getProperty(prop);
+            if (val != null) {
+                String upper = val.toUpperCase(java.util.Locale.ROOT);
+                return upper.contains("UTF") || upper.contains("UNICODE");
+            }
+        }
+        return false;
     }
 
     /** Runs DataCollector for all requirements declared by the analyzer, returns results keyed by type. */
