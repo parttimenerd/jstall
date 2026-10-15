@@ -14,6 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
+## [0.8.5] - 2026-10-15
+
+### Changed
+- `vm-vitals`: trends and legend unified into a single table — moving metrics shown first with `^`/`v` arrows and net delta, stable metrics shown below with `=`; separate "Legend (stable)" block removed
+- `vm-vitals`: duplicate metric keys (e.g. two `cpu-us` entries) now show the correct description for each, resolved positionally from the legend rather than by key lookup
+- `vm-vitals`: ASCII-only output on Windows (`^`, `v`, `->`, `=` instead of `↑`, `↓`, `→`, `–`) detected automatically via `os.name`; non-Windows systems use encoding properties
+
+### Fixed
+- `vm-vitals`: category header lines now always match column-names line width (no ragged alignment)
+- `vm-vitals`: extreme markers (`+`/`-`) no longer lost for columns with duplicate short names
+- `vm-vitals`: column detection no longer relies on a hardcoded allowlist; uses legend short names instead, making it robust to future SapMachine versions
+
 ## [0.8.4] - 2026-10-12
 
 ### Added
