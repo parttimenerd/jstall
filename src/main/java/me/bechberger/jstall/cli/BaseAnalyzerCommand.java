@@ -72,6 +72,10 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
     @Option(names = "--color", description = "Enable colored output in live mode")
     protected boolean color = false;
 
+    @Option(names = "--unicode", defaultValue = "auto",
+            description = "Unicode symbol mode: 'auto' (detect from OS/terminal), 'on' (always use Unicode), 'off' (ASCII only). Default: ${DEFAULT-VALUE}")
+    protected String unicodeMode = "auto";
+
     Spec spec;
     private Path positionalReplayFile;
 
@@ -574,9 +578,18 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
             options.put("intelligent-filter", intelligentFilter);
         }
         options.put("full", full);
-        options.put("unicode", isUnicodeCapable());
+        options.put("unicode", resolveUnicode());
         options.putAll(getAdditionalOptions());
         return options;
+    }
+
+    /** Returns true if Unicode output should be used, respecting the --unicode flag. */
+    public boolean resolveUnicode() {
+        return switch (unicodeMode.toLowerCase(java.util.Locale.ROOT)) {
+            case "on"  -> true;
+            case "off" -> false;
+            default    -> isUnicodeCapable(); // "auto"
+        };
     }
 
     public static boolean isUnicodeCapable() {

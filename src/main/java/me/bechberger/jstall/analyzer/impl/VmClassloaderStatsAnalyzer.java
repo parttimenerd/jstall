@@ -8,6 +8,7 @@ import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.analyzer.ResolvedData;
 import me.bechberger.jstall.analyzer.TableModel;
 import me.bechberger.jstall.provider.requirement.CollectedData;
+import me.bechberger.jstall.util.render.Symbols;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
 
 import java.util.*;
@@ -71,6 +72,8 @@ public class VmClassloaderStatsAnalyzer implements Analyzer {
         }
 
         String output = formatTable(parsedSamples);
+        boolean unicode = !(Boolean.FALSE.equals(options.get("unicode")));
+        if (!unicode) output = Symbols.ASCII.sanitize(output);
         return output.isBlank() ? AnalyzerResult.nothing() : AnalyzerResult.ok(output);
     }
 

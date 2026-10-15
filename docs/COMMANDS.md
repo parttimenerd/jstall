@@ -624,7 +624,7 @@ If VM.vitals is unavailable on the target JVM, jstall explains that and points y
 Usage: jstall vm-vitals [-hV] [--dump-count=<count>] [--interval=<interval>]
                         [--keep] [--intelligent-filter] [--full] [--live]
                         [--keep-samples=<keepSamples>] [--file=<replayFile>]
-                        [--color] [--top=<top>] [<targets>...]
+                        [--color] [--vital-rows=<vitalRows>] [<targets>...]
 SapMachine-only: show recent JVM/process/system vitals, trends, and extremes
       [<targets>...]              PID, 'all', filter or dump files (or replay
                                   ZIP as first argument)
@@ -646,9 +646,9 @@ SapMachine-only: show recent JVM/process/system vitals, trends, and extremes
                                   default is 0
   -l, --live                      Live mode: repeatedly collect and display,
                                   like watch (Linux/macOS only)
-      --top=<top>                 Number of recent VM.vitals samples to show
-                                  (default: 5, -1 = all)
   -V, --version                   Print version information and exit.
+      --vital-rows=<vitalRows>    Number of recent VM.vitals samples to show
+                                  (default: 10, -1 = all)
 ```
 <!-- END help_vm_vitals -->
 

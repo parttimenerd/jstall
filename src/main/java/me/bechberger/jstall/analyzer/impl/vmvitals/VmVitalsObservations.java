@@ -21,19 +21,27 @@ public class VmVitalsObservations {
     /**
      * Returns per-column trend entries (only columns with movement — stable columns are omitted).
      * Empty list when there are fewer than 2 samples.
+     * When {@code unicode} is false, arrow fields in returned entries use ASCII substitutes
+     * ({@code ->}, {@code ^}, {@code v}) instead of Unicode arrows.
      */
-    public static List<TrendEntry> trendEntries(VmVitalsOutput vitals) {
+    public static List<TrendEntry> trendEntries(VmVitalsOutput vitals, boolean unicode) {
         VmVitalsSection section = findMainSection(vitals);
         if (section == null || section.dataRows().size() < 2) {
             return List.of();
         }
-        return buildTrendEntries(section, vitals.filteredLegend().entries());
+        return buildTrendEntries(section, vitals.filteredLegend().entries(), unicode);
+    }
+
+    /** Convenience overload — uses Unicode arrows. */
+    public static List<TrendEntry> trendEntries(VmVitalsOutput vitals) {
+        return trendEntries(vitals, true);
     }
 
     /**
      * Returns flagged observation strings, or empty list when nothing notable.
+     * When {@code unicode} is false, observation strings use ASCII substitutes for arrows and dashes.
      */
-    public static List<String> observations(VmVitalsOutput vitals) {
+    public static List<String> observations(VmVitalsOutput vitals, boolean unicode) {
         VmVitalsSection section = findMainSection(vitals);
         if (section == null || section.dataRows().size() < 2) {
             return List.of();
@@ -43,13 +51,25 @@ public class VmVitalsObservations {
                 .min(java.util.Comparator.comparing(DataRow::timestamp)).orElseThrow();
         DataRow latest = section.dataRows().stream()
                 .max(java.util.Comparator.comparing(DataRow::timestamp)).orElseThrow();
-        return buildObservations(legend, section.columnNames(), first, latest);
+        List<String> raw = buildObservations(legend, section.columnNames(), first, latest);
+        if (unicode) {
+            return raw;
+        }
+        return raw.stream()
+                .map(s -> s.replace("↑", "^").replace("↓", "v").replace("→", "->").replace("—", "-"))
+                .toList();
+    }
+
+    /** Convenience overload — uses Unicode arrows. */
+    public static List<String> observations(VmVitalsOutput vitals) {
+        return observations(vitals, true);
     }
 
     /**
-     * Returns sample count and "HH:mm → HH:mm" time range for the main section, or null if fewer than 2 samples.
+     * Returns sample count and time range for the main section, or null if fewer than 2 samples.
+     * When {@code unicode} is false, the range separator is {@code ->} instead of {@code →}.
      */
-    public static String timeRange(VmVitalsOutput vitals) {
+    public static String timeRange(VmVitalsOutput vitals, boolean unicode) {
         VmVitalsSection section = findMainSection(vitals);
         if (section == null || section.dataRows().size() < 2) {
             return null;
@@ -58,18 +78,26 @@ public class VmVitalsObservations {
                 .min(java.util.Comparator.comparing(DataRow::timestamp)).orElseThrow();
         DataRow latest = section.dataRows().stream()
                 .max(java.util.Comparator.comparing(DataRow::timestamp)).orElseThrow();
+        String sep = unicode ? " → " : " -> ";
         String range = first.timestamp().format(DataRow.TIMESTAMP_FORMATTER).substring(11, 16)
-                + " → " + latest.timestamp().format(DataRow.TIMESTAMP_FORMATTER).substring(11, 16);
+                + sep + latest.timestamp().format(DataRow.TIMESTAMP_FORMATTER).substring(11, 16);
         return section.dataRows().size() + " samples, " + range;
+    }
+
+    /** Convenience overload — uses Unicode arrow. */
+    public static String timeRange(VmVitalsOutput vitals) {
+        return timeRange(vitals, true);
     }
 
     /**
      * Returns a formatted trend + observations block, or empty string if nothing notable.
+     * When {@code unicode} is false, all arrows and special chars are replaced with ASCII equivalents.
      */
-    public static String analyze(VmVitalsOutput vitals) {
-        List<TrendEntry> trends = trendEntries(vitals);
-        List<String> obs = observations(vitals);
-        String range = timeRange(vitals);
+    public static String analyze(VmVitalsOutput vitals, boolean unicode) {
+        List<TrendEntry> trends = trendEntries(vitals, unicode);
+        List<String> obs = observations(vitals, unicode);
+        String range = timeRange(vitals, unicode);
+        String arrowRight = unicode ? "→" : "->";
 
         if (trends.isEmpty() && obs.isEmpty()) {
             return "";
@@ -83,7 +111,7 @@ public class VmVitalsObservations {
                     .mapToInt(r -> Math.max(r.first().length(), r.last().length()))
                     .max().orElse(6);
             for (TrendEntry t : trends) {
-                sb.append(String.format("  %-" + keyWidth + "s  %s → %s  %s%s\n",
+                sb.append(String.format("  %-" + keyWidth + "s  %s " + arrowRight + " %s  %s%s\n",
                         t.key(), padLeft(t.first(), valWidth), padLeft(t.last(), valWidth),
                         t.arrow(), t.delta()));
             }
@@ -98,6 +126,11 @@ public class VmVitalsObservations {
         return sb.toString().trim();
     }
 
+    /** Convenience overload — uses Unicode arrows. */
+    public static String analyze(VmVitalsOutput vitals) {
+        return analyze(vitals, true);
+    }
+
     private static VmVitalsSection findMainSection(VmVitalsOutput vitals) {
         for (VmVitalsSection s : vitals.sections()) {
             String name = s.name().toLowerCase(Locale.ROOT);
@@ -108,7 +141,7 @@ public class VmVitalsObservations {
         return null;
     }
 
-    private static List<TrendEntry> buildTrendEntries(VmVitalsSection section, List<LegendEntry> legend) {
+    private static List<TrendEntry> buildTrendEntries(VmVitalsSection section, List<LegendEntry> legend, boolean unicode) {
         record TrendRow(String key, String description, ParsedValue firstVal, ParsedValue latestVal,
                         boolean flaky, long minBytes, long maxBytes) {}
         List<TrendRow> rows = new ArrayList<>();
@@ -175,6 +208,11 @@ public class VmVitalsObservations {
             return List.of();
         }
 
+        String arrowRight = unicode ? "→" : "->";
+        String arrowUp    = unicode ? "↑" : "^";
+        String arrowDown  = unicode ? "↓" : "v";
+        String dashSep    = unicode ? " – " : " - ";
+
         // Compute arrows; collect only rows with movement
         List<TrendEntry> result = new ArrayList<>();
         for (TrendRow row : rows) {
@@ -187,29 +225,29 @@ public class VmVitalsObservations {
                 if (row.flaky()) {
                     arrow = "~";
                     deltaStr = " (range: " + fmtDelta(row.latestVal(), row.minBytes())
-                             + " – " + fmtDelta(row.latestVal(), row.maxBytes()) + ")";
+                             + dashSep.trim() + fmtDelta(row.latestVal(), row.maxBytes()) + ")";
                 } else {
                     long delta = row.latestVal().getBytes() - row.firstVal().getBytes();
                     if (delta > 0) {
                         boolean noise = isIntegerValue(row.firstVal())
                                 ? delta < 2
                                 : row.firstVal().getBytes() > 0 && delta * 200 / row.firstVal().getBytes() < 1;
-                        if (noise) { arrow = "→"; }
-                        else { arrow = "↑"; deltaStr = " +" + fmtDelta(row.latestVal(), delta); }
+                        if (noise) { arrow = arrowRight; }
+                        else { arrow = arrowUp; deltaStr = " +" + fmtDelta(row.latestVal(), delta); }
                     } else if (delta < 0) {
                         boolean noise = isIntegerValue(row.firstVal())
                                 ? -delta < 2
                                 : row.firstVal().getBytes() > 0 && (-delta) * 200 / row.firstVal().getBytes() < 1;
-                        if (noise) { arrow = "→"; }
-                        else { arrow = "↓"; deltaStr = " -" + fmtDelta(row.latestVal(), -delta); }
+                        if (noise) { arrow = arrowRight; }
+                        else { arrow = arrowDown; deltaStr = " -" + fmtDelta(row.latestVal(), -delta); }
                     } else {
-                        arrow = "→";
+                        arrow = arrowRight;
                     }
                 }
             } else {
                 arrow = "?";
             }
-            if (!arrow.equals("→")) {
+            if (!arrow.equals(arrowRight)) {
                 result.add(new TrendEntry(row.key(), row.description(), fStr, lStr, arrow, deltaStr, false));
             } else {
                 result.add(new TrendEntry(row.key(), row.description(), fStr, lStr, arrow, deltaStr, true));

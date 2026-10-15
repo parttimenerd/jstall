@@ -12,6 +12,7 @@ import me.bechberger.jstall.model.ClassHistogramEntry;
 import me.bechberger.jstall.parser.ClassHistogramParser;
 import me.bechberger.jstall.provider.requirement.CollectedData;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
+import me.bechberger.jstall.util.render.Symbols;
 
 import java.text.NumberFormat;
 import java.util.ArrayList;
@@ -162,7 +163,12 @@ public class ClassHistogramDiffAnalyzer extends BaseAnalyzer {
         sections.add(new AnalyzerOutput.CompositeOutput.Section("Top Classes",
             new AnalyzerOutput.TableOutput(List.of(totalLine, "", "Top " + top + " allocated classes in last dump:"), topClassesTable.build())));
 
-        return AnalyzerResult.ok(new AnalyzerOutput.CompositeOutput(sections));
+        boolean unicode = getBooleanOption(options, "unicode", true);
+        AnalyzerResult result = AnalyzerResult.ok(new AnalyzerOutput.CompositeOutput(sections));
+        if (!unicode) {
+            result = AnalyzerResult.ok(Symbols.ASCII.sanitize(result.output()));
+        }
+        return result;
     }
 
     private static Map<String, Agg> aggregate(ClassHistogram h) {

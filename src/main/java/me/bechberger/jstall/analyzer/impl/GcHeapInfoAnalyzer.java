@@ -7,6 +7,7 @@ import me.bechberger.jstall.analyzer.ResolvedData;
 import me.bechberger.jstall.provider.requirement.CollectedData;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
 import me.bechberger.jstall.util.TablePrinter;
+import me.bechberger.jstall.util.render.Symbols;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,10 +51,12 @@ public class GcHeapInfoAnalyzer implements Analyzer {
 
     @Override
     public AnalyzerResult analyze(ResolvedData data, Map<String, Object> options) {
+        boolean unicode = !(Boolean.FALSE.equals(options.get("unicode")));
         String output = formatGcHeapInfoAnalysis(data.collectedData("gc-heap-info"));
         if (output.isEmpty()) {
             return AnalyzerResult.nothing();
         }
+        if (!unicode) output = Symbols.ASCII.sanitize(output);
         return AnalyzerResult.ok(output);
     }
 

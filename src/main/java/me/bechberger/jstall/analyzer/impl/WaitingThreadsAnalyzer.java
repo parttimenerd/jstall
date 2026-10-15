@@ -5,6 +5,7 @@ import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.analyzer.ResolvedData;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
+import me.bechberger.jstall.util.render.Symbols;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.model.ThreadInfo;
 
@@ -81,7 +82,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
         // Group threads by the lock object they're waiting on
         Map<String, List<WaitingThreadActivity>> threadsByLock = groupThreadsByLock(waitingThreads);
 
-        return AnalyzerResult.ok(formatAsText(waitingThreads, threadsByLock, dumps.size(), stackDepth, intelligentFilter));
+        return AnalyzerResult.ok(formatAsText(waitingThreads, threadsByLock, dumps.size(), stackDepth, intelligentFilter, getBooleanOption(options, "unicode", true)));
     }
 
     /**
@@ -137,7 +138,9 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
                                 Map<String, List<WaitingThreadActivity>> threadsByLock,
                                 int totalDumps,
                                 int stackDepth,
-                                boolean intelligentFilter) {
+                                boolean intelligentFilter,
+                                boolean unicode) {
+        Symbols sym = Symbols.of(unicode);
         StringBuilder sb = new StringBuilder();
 
         // Header explaining what was found
@@ -155,9 +158,9 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
             sb.append("Multiple threads blocked on the same lock instance in all ").append(totalDumps).append(" dumps:\n\n");
             for (Map.Entry<String, List<WaitingThreadActivity>> entry : contentionGroups) {
                 sb.append("Lock instance ").append(entry.getKey()).append(":\n");
-                sb.append("  → ").append(entry.getValue().size()).append(" threads blocked:\n");
+                sb.append("  ").append(sym.right()).append(" ").append(entry.getValue().size()).append(" threads blocked:\n");
                 for (WaitingThreadActivity thread : entry.getValue()) {
-                    sb.append("    • ").append(thread.threadName).append("\n");
+                    sb.append("    ").append(sym.bullet()).append(" ").append(thread.threadName).append("\n");
                 }
                 sb.append("\n");
             }
@@ -165,7 +168,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
 
         // Individual thread details
         sb.append("Thread Details:\n");
-        sb.append("─".repeat(60)).append("\n\n");
+        sb.append(sym.hbar(60)).append("\n\n");
 
         int rank = 1;
         for (WaitingThreadActivity activity : waitingThreads) {

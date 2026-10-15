@@ -8,6 +8,7 @@ import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.analyzer.ResolvedData;
 import me.bechberger.jstall.analyzer.TableModel;
 import me.bechberger.jstall.provider.requirement.CollectedData;
+import me.bechberger.jstall.util.render.Symbols;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
 
 import java.util.*;
@@ -92,7 +93,9 @@ public class VmMetaspaceAnalyzer implements Analyzer {
 
         AnalyzerOutput structured = formatStructured(parsed);
         // Use flat text for CLI output but attach structured output for live mode
+        boolean unicode = !(Boolean.FALSE.equals(options.get("unicode")));
         String flatOutput = renderFlat(parsed);
+        if (!unicode) flatOutput = Symbols.ASCII.sanitize(flatOutput);
         return new AnalyzerResult(flatOutput, 0, true, structured);
     }
 

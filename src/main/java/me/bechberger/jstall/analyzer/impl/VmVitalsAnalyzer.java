@@ -82,7 +82,7 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             return AnalyzerResult.ok(formatRawFallback(rawVitals));
         }
 
-        return AnalyzerResult.ok(vmVitalsOutput);
+        return AnalyzerResult.ok(unicode ? vmVitalsOutput : me.bechberger.jstall.util.render.Symbols.ASCII.sanitize(vmVitalsOutput));
     }
 
     /**
@@ -117,9 +117,9 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
         List<LegendEntry> entries = vitals.filteredLegend().entries();
         boolean hasTrend = vitals.hasTrendColumns();
 
-        List<VmVitalsObservations.TrendEntry> allEntries = VmVitalsObservations.trendEntries(vitals);
-        List<String> obs = VmVitalsObservations.observations(vitals);
-        String timeRange = VmVitalsObservations.timeRange(vitals);
+        List<VmVitalsObservations.TrendEntry> allEntries = VmVitalsObservations.trendEntries(vitals, unicode);
+        List<String> obs = VmVitalsObservations.observations(vitals, unicode);
+        String timeRange = VmVitalsObservations.timeRange(vitals, unicode);
 
         if (entries.isEmpty() && !hasTrend && allEntries.isEmpty() && obs.isEmpty()) {
             return "";
@@ -166,8 +166,8 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
 
                 for (var t : displayEntries) {
                     String displayArrow = t.stable() ? arrowStable
-                        : t.arrow().equals("↑") ? arrowUp
-                        : t.arrow().equals("↓") ? arrowDown
+                        : (t.arrow().equals("↑") || t.arrow().equals("^")) ? arrowUp
+                        : (t.arrow().equals("↓") || t.arrow().equals("v")) ? arrowDown
                         : t.arrow().equals("~") ? arrowFlaky
                         : t.arrow().equals("?") ? arrowUnknown
                         : arrowRight;
@@ -196,9 +196,7 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             if (sb.length() > 0) sb.append("\n");
             sb.append("Observations:\n");
             for (String o : obs) {
-                String line = unicode ? o
-                    : o.replace("↑", "^").replace("↓", "v").replace("→", "->").replace("—", "-");
-                sb.append("  * ").append(line).append("\n");
+                sb.append("  * ").append(o).append("\n");
             }
         }
 
