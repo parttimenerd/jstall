@@ -16,6 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.5] - 2026-10-15
 
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.8.5] - 2026-10-15
+
 ### Changed
 - `vm-vitals`: trends and legend unified into a single table — moving metrics shown first with `^`/`v` arrows and net delta, stable metrics shown below with `=`; separate "Legend (stable)" block removed
 - `vm-vitals`: duplicate metric keys (e.g. two `cpu-us` entries) now show the correct description for each, resolved positionally from the legend rather than by key lookup
