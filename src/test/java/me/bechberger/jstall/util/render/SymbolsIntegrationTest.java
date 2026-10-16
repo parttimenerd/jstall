@@ -3,6 +3,7 @@ package me.bechberger.jstall.util.render;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.ResolvedData;
 import me.bechberger.jstall.analyzer.impl.*;
+import me.bechberger.jstall.analyzer.impl.StatusAnalyzer;
 import me.bechberger.jstall.cli.BaseAnalyzerCommand;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jstall.provider.requirement.CollectedData;
@@ -478,6 +479,43 @@ class SymbolsIntegrationTest {
     @Test
     void resolveUnicode_caseInsensitive_AUTO() {
         assertEquals(BaseAnalyzerCommand.isUnicodeCapable(), new StubCmd("AUTO").resolveUnicode());
+    }
+
+    // ── Minimal BaseAnalyzerCommand stub ─────────────────────────────────────
+
+    // ── StatusAnalyzer (meta-analyzer path through filterOptions) ─────────────
+
+    /**
+     * Regression test for the bug where StatusAnalyzer.filterOptions() silently
+     * dropped the "unicode" option because no sub-analyzer declared it in
+     * supportedOptions(), causing all sub-analyzers to fall back to unicode=true
+     * even when --unicode off was passed.
+     */
+    @Test
+    void statusAnalyzer_unicodeFalse_isPureAscii() {
+        StatusAnalyzer analyzer = new StatusAnalyzer();
+        Map<String, List<CollectedData>> data = new java.util.HashMap<>();
+        data.put("gc-class-histogram", List.of(
+            new CollectedData(1L, HISTOGRAM_BEFORE, Map.of()),
+            new CollectedData(2L, HISTOGRAM_AFTER, Map.of())));
+        data.put("gc-heap-info", List.of(
+            new CollectedData(1L, GC_HEAP_INFO_SAMPLE, Map.of()),
+            new CollectedData(2L, GC_HEAP_INFO_SAMPLE_2, Map.of())));
+        data.put("vm-metaspace", List.of(
+            new CollectedData(1L, SAMPLE_VM_METASPACE_A, Map.of()),
+            new CollectedData(2L, SAMPLE_VM_METASPACE_B, Map.of())));
+        data.put("vm-classloader-stats", List.of(
+            new CollectedData(1L, SAMPLE_VM_CLASSLOADER_STATS, Map.of()),
+            new CollectedData(2L, SAMPLE_VM_CLASSLOADER_STATS_2, Map.of())));
+        data.put("vm-vitals", List.of(
+            new CollectedData(1L, SAMPLE_VM_VITALS, Map.of())));
+
+        ResolvedData resolvedData = ResolvedData.fromDumpsAndCollectedData(
+            List.of(parseDump(WAITING_THREAD_DUMP), parseDump(WAITING_THREAD_DUMP)),
+            data
+        );
+        String output = analyzer.analyze(resolvedData, Map.of("unicode", false)).output();
+        assertPureAscii(output);
     }
 
     // ── Minimal BaseAnalyzerCommand stub ─────────────────────────────────────

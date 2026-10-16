@@ -36,7 +36,7 @@ public class ClassHistogramDiffAnalyzer extends BaseAnalyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of("top", "sort", "dump-count", "interval");
+        return Set.of("top", "sort", "dump-count", "interval", "unicode");
     }
 
     @Override

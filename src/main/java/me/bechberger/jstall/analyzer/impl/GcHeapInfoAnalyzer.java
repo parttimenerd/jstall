@@ -31,7 +31,7 @@ public class GcHeapInfoAnalyzer implements Analyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of();
+        return Set.of("unicode");
     }
 
     @Override

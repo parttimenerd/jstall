@@ -40,7 +40,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of("dump-count", "interval", "keep", "no-native", "stack-depth", "intelligent-filter");
+        return Set.of("dump-count", "interval", "keep", "no-native", "stack-depth", "intelligent-filter", "unicode");
     }
 
     @Override

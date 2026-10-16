@@ -34,7 +34,7 @@ public class VmClassloaderStatsAnalyzer implements Analyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of("samples", "interval");
+        return Set.of("samples", "interval", "unicode");
     }
 
     @Override

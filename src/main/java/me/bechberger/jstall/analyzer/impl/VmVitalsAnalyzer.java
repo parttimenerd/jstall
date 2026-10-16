@@ -28,7 +28,7 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of("top", "vital-rows");
+        return Set.of("top", "vital-rows", "unicode");
     }
 
     @Override

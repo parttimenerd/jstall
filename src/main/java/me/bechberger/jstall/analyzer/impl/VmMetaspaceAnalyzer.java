@@ -54,7 +54,7 @@ public class VmMetaspaceAnalyzer implements Analyzer {
 
     @Override
     public Set<String> supportedOptions() {
-        return Set.of("samples", "interval");
+        return Set.of("samples", "interval", "unicode");
     }
 
     @Override
@@ -91,11 +91,10 @@ public class VmMetaspaceAnalyzer implements Analyzer {
             return AnalyzerResult.ok("VM.metaspace not available (or no parseable summary lines)");
         }
 
-        AnalyzerOutput structured = formatStructured(parsed);
-        // Use flat text for CLI output but attach structured output for live mode
         boolean unicode = !(Boolean.FALSE.equals(options.get("unicode")));
-        String flatOutput = renderFlat(parsed);
-        if (!unicode) flatOutput = Symbols.ASCII.sanitize(flatOutput);
+        AnalyzerOutput structured = formatStructured(parsed, unicode);
+        // Use flat text for CLI output but attach structured output for live mode
+        String flatOutput = renderFlat(parsed, unicode);
         return new AnalyzerResult(flatOutput, 0, true, structured);
     }
 
@@ -217,7 +216,7 @@ public class VmMetaspaceAnalyzer implements Analyzer {
     // Formatting
     // -------------------------------------------------------------------------
 
-    private AnalyzerOutput formatStructured(List<MetaspaceSnapshot> parsed) {
+    private AnalyzerOutput formatStructured(List<MetaspaceSnapshot> parsed, boolean unicode) {
         MetaspaceSnapshot first  = parsed.get(0);
         MetaspaceSnapshot latest = parsed.get(parsed.size() - 1);
         boolean hasTrend = parsed.size() > 1;
@@ -233,7 +232,7 @@ public class VmMetaspaceAnalyzer implements Analyzer {
 
         // If we have only a usage table (most common), return TableOutput directly
         if (!latest.usage().isEmpty() && latest.virtualSpace().isEmpty()) {
-            TableModel usageTable = buildUsageTable(first, latest, hasTrend);
+            TableModel usageTable = buildUsageTable(first, latest, hasTrend, unicode);
             return appendSettingsAndWaste(new AnalyzerOutput.TableOutput(preamble, usageTable), latest);
         }
 
@@ -241,7 +240,7 @@ public class VmMetaspaceAnalyzer implements Analyzer {
         List<AnalyzerOutput.CompositeOutput.Section> sections = new ArrayList<>();
 
         if (!latest.usage().isEmpty()) {
-            TableModel usageTable = buildUsageTable(first, latest, hasTrend);
+            TableModel usageTable = buildUsageTable(first, latest, hasTrend, unicode);
             sections.add(new AnalyzerOutput.CompositeOutput.Section("Usage",
                 new AnalyzerOutput.TableOutput(preamble, usageTable)));
         }
@@ -266,7 +265,7 @@ public class VmMetaspaceAnalyzer implements Analyzer {
         return new AnalyzerOutput.CompositeOutput(sections);
     }
 
-    private TableModel buildUsageTable(MetaspaceSnapshot first, MetaspaceSnapshot latest, boolean hasTrend) {
+    private TableModel buildUsageTable(MetaspaceSnapshot first, MetaspaceSnapshot latest, boolean hasTrend, boolean unicode) {
         TableModel.Builder usageTable = TableModel.builder()
             .addColumn("Type",      TableModel.Alignment.LEFT)
             .addColumn("Chunks",    TableModel.Alignment.RIGHT)
@@ -278,6 +277,10 @@ public class VmMetaspaceAnalyzer implements Analyzer {
             usageTable.addColumn("Trend", TableModel.Alignment.LEFT);
         }
 
+        String arrowUp    = unicode ? "↑" : "^";
+        String arrowDown  = unicode ? "↓" : "v";
+        String arrowRight = unicode ? "→" : "->";
+
         for (String label : List.of("Non-Class", "Class", "Both")) {
             UsageRow latestRow = latest.usage().get(label);
             if (latestRow == null) continue;
@@ -285,7 +288,7 @@ public class VmMetaspaceAnalyzer implements Analyzer {
             if (hasTrend) {
                 UsageRow firstRow = first.usage().getOrDefault(label, UsageRow.ZERO);
                 long delta = latestRow.usedBytes() - firstRow.usedBytes();
-                String arrow = delta > 0 ? "↑" : delta < 0 ? "↓" : "→";
+                String arrow = delta > 0 ? arrowUp : delta < 0 ? arrowDown : arrowRight;
                 usageTable.addRow(
                     Cell.text(label),
                     Cell.integer(latestRow.chunks()),
@@ -354,7 +357,7 @@ public class VmMetaspaceAnalyzer implements Analyzer {
     }
 
     /** Produces flat text render (same as old format) for non-interactive CLI output. */
-    private String renderFlat(List<MetaspaceSnapshot> parsed) {
+    private String renderFlat(List<MetaspaceSnapshot> parsed, boolean unicode) {
         MetaspaceSnapshot latest = parsed.get(parsed.size() - 1);
         MetaspaceSnapshot first = parsed.get(0);
         boolean hasTrend = parsed.size() > 1;
@@ -368,7 +371,7 @@ public class VmMetaspaceAnalyzer implements Analyzer {
                 h.loaders(), h.classes(), h.sharedClasses()));
         }
         if (!latest.usage().isEmpty()) {
-            sb.append(buildUsageTable(first, latest, hasTrend).render()).append("\n");
+            sb.append(buildUsageTable(first, latest, hasTrend, unicode).render()).append("\n");
         }
         if (!latest.virtualSpace().isEmpty()) {
             sb.append(buildVirtualSpaceTable(latest).render()).append("\n");
