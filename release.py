@@ -347,6 +347,42 @@ def _assert_femtojar_reencoded(jar_path: Path):
             )
 
 
+def _get_jar_version(jar_path: Path) -> str | None:
+    """Run 'java -jar <jar> --version' and return the reported version, or None on failure."""
+    try:
+        result = subprocess.run(
+            ['java', '-jar', str(jar_path), '--version'],
+            capture_output=True, text=True, timeout=15
+        )
+        output = (result.stdout + result.stderr).strip().splitlines()
+        for line in output:
+            line = line.strip()
+            if re.match(r'^\d+\.\d+\.\d+', line):
+                return line.split()[0]
+    except Exception:
+        pass
+    return None
+
+
+def _assert_main_java_version(project_root: Path, expected_version: str) -> None:
+    """Fail fast if Main.java version strings don't match expected_version."""
+    main_java = project_root / 'src/main/java/me/bechberger/jstall/Main.java'
+    if not main_java.exists():
+        return
+    content = main_java.read_text()
+    mismatches = []
+    if f'version = "{expected_version}"' not in content:
+        mismatches.append(f'  @Command version annotation does not say "{expected_version}"')
+    if f'VERSION = "{expected_version}"' not in content:
+        mismatches.append(f'  VERSION constant does not say "{expected_version}"')
+    if mismatches:
+        raise RuntimeError(
+            f"Main.java version mismatch (expected {expected_version}):\n"
+            + "\n".join(mismatches)
+            + "\n\nFix Main.java manually or re-run the bump step."
+        )
+
+
 def test_minimal_cmd(project_root: Path, tmp_dir: str | None, keep_tmp: bool = False):
     """Build and run tests for the minimal variant and copy its artifacts into target/."""
     build_minimal_cmd(project_root, tmp_dir=tmp_dir, copy_to_target=True, run_tests=True, keep_tmp=keep_tmp)
@@ -733,6 +769,20 @@ class VersionBumper:
                 "Missing release assets after build attempt:\n"
                 + missing_str
                 + "\n\nRefusing to create a GitHub release without these assets."
+            )
+
+        # Guard: verify Main.java version matches the release version before touching GitHub.
+        # This catches the "stale JAR" bug where Main.java was not bumped alongside pom.xml.
+        _assert_main_java_version(self.project_root, version)
+
+        # Guard: verify jstall-minimal.jar actually reports the correct version.
+        # A stale pre-built JAR sitting in target/ would otherwise be silently uploaded.
+        jar_reported_version = _get_jar_version(minimal_jar_path)
+        if jar_reported_version is not None and jar_reported_version != version:
+            raise RuntimeError(
+                f"jstall-minimal.jar reports version {jar_reported_version!r} "
+                f"but we are releasing {version!r}.\n"
+                f"Rebuild it: python3 release.py build-minimal"
             )
 
         # Get changelog entry for this specific version (after it's been released in CHANGELOG.md)
