@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
+## [0.8.8] - 2026-10-19
+
+### Fixed
+- `vm-vitals`: extreme value column headers now align with data values, not with the `+`/`-` marker — the marker gets its own dedicated 1-char slot so column names and numeric values share the same right edge
+
 ## [0.8.5] - 2026-10-15
 
 ### Added

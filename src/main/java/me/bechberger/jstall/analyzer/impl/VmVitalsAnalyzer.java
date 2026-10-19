@@ -252,8 +252,10 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
 
         List<String> columnNames = section.columnNames();
 
-        // Compute column widths from data (value+marker may be one wider than value alone)
+        // colWidths[i] = max(colName.length, max_value_length_without_marker)
+        // hasMarker[i] = true if any row has a marker in column i (adds a dedicated 1-char slot)
         List<Integer> colWidths = computeColWidths(columnNames, rowsToFormat);
+        boolean[] hasMarker = computeHasMarker(columnNames.size(), rowsToFormat);
 
         // Parse category groups from raw header lines (all lines except the last = category spans)
         List<CategoryGroup> categoryGroups = parseCategoryGroups(section.headerLines(), columnNames);
@@ -272,21 +274,24 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
         String tsPrefix = " ".repeat(19 + COL_GAP.length());
         if (categoryGroups != null) {
             for (List<CategoryGroup> tier : splitIntoTiers(section.headerLines(), categoryGroups)) {
-                sb.append(tsPrefix).append(renderCategoryLine(tier, columnNames, colWidths)).append("\n");
+                sb.append(tsPrefix).append(renderCategoryLine(tier, columnNames, colWidths, hasMarker)).append("\n");
             }
         }
 
         // Re-render the column-names header line
-        sb.append(tsPrefix).append(renderColNamesLine(columnNames, colWidths)).append("\n");
+        sb.append(tsPrefix).append(renderColNamesLine(columnNames, colWidths, hasMarker)).append("\n");
 
         for (DataRow row : rowsToFormat) {
-            sb.append(formatDataRow(row, columnNames, colWidths)).append("\n");
+            sb.append(formatDataRow(row, columnNames, colWidths, hasMarker)).append("\n");
         }
 
         return sb.toString().trim();
     }
 
-    /** Computes per-column widths as max(colName.length, max(value+marker length across all rows)). */
+    /**
+     * Computes per-column value widths as max(colName.length, max_value_length_without_marker).
+     * The marker is NOT included so that headers align with values, not with markers.
+     */
     private List<Integer> computeColWidths(List<String> columnNames, List<DataRow> rows) {
         List<Integer> widths = new ArrayList<>();
         for (int i = 0; i < columnNames.size(); i++) {
@@ -294,24 +299,39 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             for (DataRow row : rows) {
                 List<String> vals = row.valueList();
                 String v = i < vals.size() ? vals.get(i) : "";
-                String marker = row.getExtremeMarker(i);
-                int cellLen = v.length() + (marker != null ? 1 : 0);
-                if (cellLen > w) w = cellLen;
+                if (v.length() > w) w = v.length();
             }
             widths.add(w);
         }
         return widths;
     }
 
-    /** Renders a single column-names header line using computed widths. */
-    private String renderColNamesLine(List<String> columnNames, List<Integer> colWidths) {
+    /** Returns whether any row in the given list has an extreme marker for column i. */
+    private boolean[] computeHasMarker(int numCols, List<DataRow> rows) {
+        boolean[] hasMarker = new boolean[numCols];
+        for (DataRow row : rows) {
+            for (int i = 0; i < numCols; i++) {
+                if (row.getExtremeMarker(i) != null) hasMarker[i] = true;
+            }
+        }
+        return hasMarker;
+    }
+
+    /**
+     * Renders a single column-names header line using computed widths.
+     * Each column name is right-aligned in colWidths[i] chars; if the column has a marker slot,
+     * a trailing space is appended so the marker slot is visible in the header.
+     */
+    private String renderColNamesLine(List<String> columnNames, List<Integer> colWidths, boolean[] hasMarker) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < columnNames.size(); i++) {
             String name = columnNames.get(i);
             int w = i < colWidths.size() ? colWidths.get(i) : name.length();
-            // Right-align name within column width (matches right-aligned data values)
+            // Right-align name within column value-width
             if (name.length() < w) sb.append(" ".repeat(w - name.length()));
             sb.append(name);
+            // Marker slot: append a space to keep alignment with data rows that may have +/-
+            if (i < hasMarker.length && hasMarker[i]) sb.append(' ');
             if (i < columnNames.size() - 1) sb.append(COL_GAP);
         }
         // Strip trailing spaces
@@ -452,7 +472,7 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
     }
 
     /** Renders a category span line for a set of column groups. */
-    private String renderCategoryLine(List<CategoryGroup> groups, List<String> columnNames, List<Integer> colWidths) {
+    private String renderCategoryLine(List<CategoryGroup> groups, List<String> columnNames, List<Integer> colWidths, boolean[] hasMarker) {
         if (groups == null || groups.isEmpty()) return "";
 
         StringBuilder sb = new StringBuilder();
@@ -462,7 +482,10 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             int groupWidth = 0;
             for (int ci = 0; ci < cols.size(); ci++) {
                 int idx = cols.get(ci);
-                groupWidth += idx < colWidths.size() ? colWidths.get(idx) : columnNames.get(idx).length();
+                int colW = idx < colWidths.size() ? colWidths.get(idx) : columnNames.get(idx).length();
+                // Include the marker slot in group width so dash lines span the full column
+                int markerSlot = (idx < hasMarker.length && hasMarker[idx]) ? 1 : 0;
+                groupWidth += colW + markerSlot;
                 if (ci < cols.size() - 1) groupWidth += COL_GAP.length();
             }
             sb.append(centerInDashes(group.label(), groupWidth));
@@ -474,7 +497,8 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
                 sb.append(COL_GAP);
                 for (int ci = lastInGroup + 1; ci < firstInNext; ci++) {
                     int w = ci < colWidths.size() ? colWidths.get(ci) : columnNames.get(ci).length();
-                    sb.append(" ".repeat(w)).append(COL_GAP);
+                    int markerSlot = (ci < hasMarker.length && hasMarker[ci]) ? 1 : 0;
+                    sb.append(" ".repeat(w + markerSlot)).append(COL_GAP);
                 }
             }
         }
@@ -505,7 +529,7 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
         return "-".repeat(left) + inner + "-".repeat(right);
     }
 
-    private String formatDataRow(DataRow row, List<String> columnNames, List<Integer> colWidths) {
+    private String formatDataRow(DataRow row, List<String> columnNames, List<Integer> colWidths, boolean[] hasMarker) {
         StringBuilder sb = new StringBuilder();
         sb.append(row.timestamp().format(DataRow.TIMESTAMP_FORMATTER));
         sb.append(COL_GAP);
@@ -516,13 +540,18 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
             String marker = row.getExtremeMarker(i);
 
             int width = i < colWidths.size() ? colWidths.get(i) : value.length();
-            // Right-align value within column width; marker (+/-) counts toward width
-            int cellWidth = value.length() + (marker != null ? 1 : 0);
-            if (cellWidth < width) {
-                sb.append(" ".repeat(width - cellWidth));
+            // Right-align value within the column's value-width (marker NOT included)
+            if (value.length() < width) {
+                sb.append(" ".repeat(width - value.length()));
             }
             sb.append(value);
-            if (marker != null) sb.append(marker);
+            // Marker slot: append marker if present, or a space if the column has any markers
+            boolean colHasMarker = i < hasMarker.length && hasMarker[i];
+            if (marker != null) {
+                sb.append(marker);
+            } else if (colHasMarker) {
+                sb.append(' ');
+            }
 
             if (i < columnNames.size() - 1) {
                 sb.append(COL_GAP);
