@@ -1062,6 +1062,35 @@ public class VmVitalsAnalyzerTest {
     }
 
     @Test
+    void tokenSplitUsedWhenDataStartsDifferFromHeaderIndent() {
+        // Reproduces real-world CF SapMachine output: 3-tier category headers indent the
+        // column-names line by exactly TIMESTAMP_LEN+TIMESTAMP_DIVIDER_LEN (22 chars), but
+        // data rows only have 2 spaces after the timestamp (start at offset 21).
+        // Fixed-width parsing must be skipped so values like "143.4g" and "492.5g" are not
+        // truncated or mis-sliced.
+        String vitals = "Vitals:\n\n" +
+            "(Vitals version 220600, pid: 12345)\n\n" +
+            "Last 60 minutes:\n" +
+            "               ------system------  ------process------  --------jvm--------\n" +
+            "                      avail    comm  crt  swap  si  so\n" +
+            "2026-10-19 07:30:00  143.4g  492.5g  286    6m+   0   0\n" +
+            "2026-10-19 07:29:00  143.3g  492.4g  285    6m    0   0\n";
+
+        VmVitalsOutput output = VmVitalsParser.parse(vitals);
+        assertNotNull(output);
+        assertFalse(output.sections().isEmpty());
+
+        VmVitalsSection section = output.sections().get(0);
+        assertEquals(2, section.dataRows().size());
+
+        DataRow row = section.dataRows().get(0);
+        assertEquals("143.4g", row.values().get("avail"), "avail must not be truncated");
+        assertEquals("492.5g", row.values().get("comm"), "comm must not be mis-sliced");
+        assertEquals("6m", row.values().get("swap"), "swap value without marker");
+        assertEquals("+", row.extremeMarkers().get("3"), "swap marker should be '+'");
+    }
+
+
     void handlesVariableColumnWidths() {
         // Real data may have values like "1.9g", "512k", "<1k", "94k" with different widths
         String variableWidths = """

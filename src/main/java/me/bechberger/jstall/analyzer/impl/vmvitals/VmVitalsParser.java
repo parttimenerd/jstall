@@ -280,8 +280,13 @@ public class VmVitalsParser {
                 // Use fixed-width parsing only when the column header's leading spaces match
                 // the standard TIMESTAMP_LEN + TIMESTAMP_DIVIDER_LEN offset, which means the
                 // data rows will also start at that position. Otherwise fall back to token splitting.
+                // Also verify the actual data-row values start at colHeaderDataStart; some formats
+                // (e.g. multi-section with long category headers) indent the column-names line by
+                // exactly TIMESTAMP_LEN + TIMESTAMP_DIVIDER_LEN but write data with one fewer space,
+                // making fixed-width offsets wrong.
                 boolean useFixedWidth = columnStarts.size() == columnNames.size()
-                    && colHeaderDataStart == TIMESTAMP_LEN + TIMESTAMP_DIVIDER_LEN;
+                    && colHeaderDataStart == TIMESTAMP_LEN + TIMESTAMP_DIVIDER_LEN
+                    && dataActuallyStartsAt(line, colHeaderDataStart);
                 DataRow row = useFixedWidth
                     ? DataRow.parseFixedWidth(line, columnNames, columnStarts, colHeaderDataStart)
                     : DataRow.parse(line, columnNames);
@@ -357,6 +362,17 @@ public class VmVitalsParser {
         int i = 0;
         while (i < headerLine.length() && headerLine.charAt(i) == ' ') i++;
         return i;
+    }
+
+    /**
+     * Returns true if the data row's first value starts at exactly {@code expectedStart}.
+     * Skips the 19-char timestamp and any optional row-level extreme marker (+/-).
+     */
+    private static boolean dataActuallyStartsAt(String dataLine, int expectedStart) {
+        int i = TIMESTAMP_LEN;
+        if (i < dataLine.length() && (dataLine.charAt(i) == '+' || dataLine.charAt(i) == '-')) i++;
+        while (i < dataLine.length() && dataLine.charAt(i) == ' ') i++;
+        return i == expectedStart;
     }
 
     private List<String> parseCsvHeader(String headerLine) {

@@ -270,11 +270,15 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
                 normalizeSectionName(section.name()), rowsToFormat.size(), section.dataRows().size()));
         }
 
-        // Re-render category span headers (if any) aligned to computed widths
+        // Re-render category span headers (if any) aligned to computed widths.
+        // tsPrefix covers timestamp + COL_GAP. We pass firstColPad so renderCategoryLine can align
+        // its leading edge to the first column's right-aligned name in the column-names line.
         String tsPrefix = " ".repeat(19 + COL_GAP.length());
+        int firstColPad = columnNames.isEmpty() ? 0
+            : Math.max(0, colWidths.get(0) - columnNames.get(0).length());
         if (categoryGroups != null) {
             for (List<CategoryGroup> tier : splitIntoTiers(section.headerLines(), categoryGroups)) {
-                sb.append(tsPrefix).append(renderCategoryLine(tier, columnNames, colWidths, hasMarker)).append("\n");
+                sb.append(tsPrefix).append(renderCategoryLine(tier, columnNames, colWidths, hasMarker, firstColPad)).append("\n");
             }
         }
 
@@ -471,11 +475,15 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
         return tiers.isEmpty() ? List.of(groups) : tiers;
     }
 
-    /** Renders a category span line for a set of column groups. */
-    private String renderCategoryLine(List<CategoryGroup> groups, List<String> columnNames, List<Integer> colWidths, boolean[] hasMarker) {
+    /** Renders a category span line for a set of column groups.
+     *  firstColPad is the right-alignment indent of col 0 (colWidths[0] - colName[0].length()),
+     *  prepended as spaces so the dashes align with the column-names line's first token. */
+    private String renderCategoryLine(List<CategoryGroup> groups, List<String> columnNames, List<Integer> colWidths, boolean[] hasMarker, int firstColPad) {
         if (groups == null || groups.isEmpty()) return "";
 
         StringBuilder sb = new StringBuilder();
+        // Align left edge of first group with the right-aligned first column name
+        sb.append(" ".repeat(firstColPad));
         for (int gi = 0; gi < groups.size(); gi++) {
             CategoryGroup group = groups.get(gi);
             List<Integer> cols = group.columnIndices();
@@ -485,7 +493,10 @@ public class VmVitalsAnalyzer extends BaseAnalyzer {
                 int colW = idx < colWidths.size() ? colWidths.get(idx) : columnNames.get(idx).length();
                 // Include the marker slot in group width so dash lines span the full column
                 int markerSlot = (idx < hasMarker.length && hasMarker[idx]) ? 1 : 0;
-                groupWidth += colW + markerSlot;
+                // For the first column in the first group, subtract firstColPad since we already
+                // prepended that as leading spaces — avoids double-counting the right-align indent
+                int effectiveW = (gi == 0 && ci == 0) ? colW - firstColPad : colW;
+                groupWidth += effectiveW + markerSlot;
                 if (ci < cols.size() - 1) groupWidth += COL_GAP.length();
             }
             sb.append(centerInDashes(group.label(), groupWidth));

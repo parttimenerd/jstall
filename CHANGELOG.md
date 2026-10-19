@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
+## [0.8.9] - 2026-10-19
+
+### Fixed
+- `vm-vitals`: category header lines (e.g. `system`/`process`/`jvm`) were indented 1 space less than the column-names line on 3-tier CF output — all header tiers now share the same indent, aligned with the right edge of the first data column
+- `vm-vitals`: data values truncated or mis-sliced on 3-tier CF output (e.g. `120.3g` rendered as `20.3g`) — fixed by verifying data rows actually start at the expected offset before using fixed-width column parsing
+
 ## [0.8.8] - 2026-10-19
 
 ### Fixed
