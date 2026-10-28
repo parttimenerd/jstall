@@ -81,7 +81,8 @@ Requires at least 2 thread dumps (collected automatically from live JVMs, or pas
 Usage: jstall status [-hV] [--dump-count=<count>] [--interval=<interval>]
                      [--keep] [--intelligent-filter] [--full] [--live]
                      [--keep-samples=<keepSamples>] [--file=<replayFile>]
-                     [--color] [--top=<top>] [--no-native] [<targets>...]
+                     [--color] [--unicode=<unicodeMode>] [--top=<top>]
+                     [--no-native] [<targets>...]
 Best first check: summarize JVM health, hot threads, memory, deadlocks, and lock contention
       [<targets>...]              PID, 'all', filter or dump files (or replay
                                   ZIP as first argument)
@@ -107,6 +108,9 @@ Best first check: summarize JVM health, hot threads, memory, deadlocks, and lock
                                   (typically native/system threads)
       --top=<top>                 How many hottest threads to show in status
                                   tables (default: 3, -1 = all)
+      --unicode=<unicodeMode>     Unicode symbol mode: 'auto' (detect from
+                                  OS/terminal), 'on' (always use Unicode), 'off'
+                                  (ASCII only). Default: auto
   -V, --version                   Print version information and exit.
 ```
 <!-- END help_status -->
@@ -127,7 +131,7 @@ Checks whether the target JVM is reasonably up-to-date based on `java.version.da
 Usage: jstall jvm-support [-hV] [--dump-count=<count>] [--interval=<interval>]
                           [--keep] [--intelligent-filter] [--full] [--live]
                           [--keep-samples=<keepSamples>] [--file=<replayFile>]
-                          [--color] [<targets>...]
+                          [--color] [--unicode=<unicodeMode>] [<targets>...]
 Check whether the target JVM is likely still supported (based on java.version.date)
       [<targets>...]              PID, 'all', filter or dump files (or replay
                                   ZIP as first argument)
@@ -149,6 +153,9 @@ Check whether the target JVM is likely still supported (based on java.version.da
                                   default is 0
   -l, --live                      Live mode: repeatedly collect and display,
                                   like watch (Linux/macOS only)
+      --unicode=<unicodeMode>     Unicode symbol mode: 'auto' (detect from
+                                  OS/terminal), 'on' (always use Unicode), 'off'
+                                  (ASCII only). Default: auto
   -V, --version                   Print version information and exit.
 ```
 <!-- END help_jvm_support -->
@@ -168,8 +175,9 @@ Requires at least 2 thread dumps.
 Usage: jstall most-work [-hV] [--dump-count=<count>] [--interval=<interval>]
                         [--keep] [--intelligent-filter] [--full] [--live]
                         [--keep-samples=<keepSamples>] [--file=<replayFile>]
-                        [--color] [--top=<top>] [--no-native]
-                        [--stack-depth=<stackDepth>] [<targets>...]
+                        [--color] [--unicode=<unicodeMode>] [--top=<top>]
+                        [--no-native] [--stack-depth=<stackDepth>]
+                        [<targets>...]
 Identify threads doing the most work across dumps
       [<targets>...]              PID, 'all', filter or dump files (or replay
                                   ZIP as first argument)
@@ -196,6 +204,9 @@ Identify threads doing the most work across dumps
       --stack-depth=<stackDepth>  Stack trace depth to show (default: 10, 0=all,
                                   in intelligent mode: max relevant frames)
       --top=<top>                 Number of top threads to show (default: 3)
+      --unicode=<unicodeMode>     Unicode symbol mode: 'auto' (detect from
+                                  OS/terminal), 'on' (always use Unicode), 'off'
+                                  (ASCII only). Default: auto
   -V, --version                   Print version information and exit.
 ```
 <!-- END help_most_work -->
@@ -211,7 +222,7 @@ Shows CPU time, CPU percentage, core utilization, state distribution, and activi
 Usage: jstall deadlock [-hV] [--dump-count=<count>] [--interval=<interval>]
                        [--keep] [--intelligent-filter] [--full] [--live]
                        [--keep-samples=<keepSamples>] [--file=<replayFile>]
-                       [--color] [<targets>...]
+                       [--color] [--unicode=<unicodeMode>] [<targets>...]
 Detect JVM-reported thread deadlocks
       [<targets>...]              PID, 'all', filter or dump files (or replay
                                   ZIP as first argument)
@@ -233,6 +244,9 @@ Detect JVM-reported thread deadlocks
                                   default is 0
   -l, --live                      Live mode: repeatedly collect and display,
                                   like watch (Linux/macOS only)
+      --unicode=<unicodeMode>     Unicode symbol mode: 'auto' (detect from
+                                  OS/terminal), 'on' (always use Unicode), 'off'
+                                  (ASCII only). Default: auto
   -V, --version                   Print version information and exit.
 ```
 <!-- END help_deadlock -->
@@ -251,7 +265,8 @@ Requires at least 2 thread dumps.
 Usage: jstall threads [-hV] [--dump-count=<count>] [--interval=<interval>]
                       [--keep] [--intelligent-filter] [--full] [--live]
                       [--keep-samples=<keepSamples>] [--file=<replayFile>]
-                      [--color] [--top=<top>] [--no-native] [<targets>...]
+                      [--color] [--unicode=<unicodeMode>] [--top=<top>]
+                      [--no-native] [<targets>...]
 List all threads sorted by CPU time
       [<targets>...]              PID, 'all', filter or dump files (or replay
                                   ZIP as first argument)
@@ -277,6 +292,9 @@ List all threads sorted by CPU time
                                   native/system threads)
       --top=<top>                 Number of top threads to show (default: -1 for
                                   all)
+      --unicode=<unicodeMode>     Unicode symbol mode: 'auto' (detect from
+                                  OS/terminal), 'on' (always use Unicode), 'off'
+                                  (ASCII only). Default: auto
   -V, --version                   Print version information and exit.
 ```
 <!-- END help_threads -->
@@ -295,7 +313,8 @@ Usage: jstall waiting-threads [-hV] [--dump-count=<count>]
                               [--interval=<interval>] [--keep]
                               [--intelligent-filter] [--full] [--live]
                               [--keep-samples=<keepSamples>]
-                              [--file=<replayFile>] [--color] [--no-native]
+                              [--file=<replayFile>] [--color]
+                              [--unicode=<unicodeMode>] [--no-native]
                               [--stack-depth=<stackDepth>] [<targets>...]
 Identify threads waiting without progress (potentially starving)
       [<targets>...]              PID, 'all', filter or dump files (or replay
@@ -323,6 +342,9 @@ Identify threads waiting without progress (potentially starving)
       --stack-depth=<stackDepth>  Stack trace depth to show (1=inline, 0=all,
                                   default: 1, in intelligent mode: max relevant
                                   frames)
+      --unicode=<unicodeMode>     Unicode symbol mode: 'auto' (detect from
+                                  OS/terminal), 'on' (always use Unicode), 'off'
+                                  (ASCII only). Default: auto
   -V, --version                   Print version information and exit.
 ```
 <!-- END help_waiting_threads -->
@@ -343,7 +365,8 @@ Usage: jstall dependency-graph [-hV] [--dump-count=<count>]
                                [--interval=<interval>] [--keep]
                                [--intelligent-filter] [--full] [--live]
                                [--keep-samples=<keepSamples>]
-                               [--file=<replayFile>] [--color] [<targets>...]
+                               [--file=<replayFile>] [--color]
+                               [--unicode=<unicodeMode>] [<targets>...]
 Show thread dependencies
       [<targets>...]              PID, 'all', filter or dump files (or replay
                                   ZIP as first argument)
@@ -365,6 +388,9 @@ Show thread dependencies
                                   default is 0
   -l, --live                      Live mode: repeatedly collect and display,
                                   like watch (Linux/macOS only)
+      --unicode=<unicodeMode>     Unicode symbol mode: 'auto' (detect from
+                                  OS/terminal), 'on' (always use Unicode), 'off'
+                                  (ASCII only). Default: auto
   -V, --version                   Print version information and exit.
 ```
 <!-- END help_dependency_graph -->
@@ -414,7 +440,8 @@ Usage: jstall dependency-tree [-hV] [--dump-count=<count>]
                               [--interval=<interval>] [--keep]
                               [--intelligent-filter] [--full] [--live]
                               [--keep-samples=<keepSamples>]
-                              [--file=<replayFile>] [--color] [<targets>...]
+                              [--file=<replayFile>] [--color]
+                              [--unicode=<unicodeMode>] [<targets>...]
 Show non deadlock thread dependencies over time
       [<targets>...]              PID, 'all', filter or dump files (or replay
                                   ZIP as first argument)
@@ -436,6 +463,9 @@ Show non deadlock thread dependencies over time
                                   default is 0
   -l, --live                      Live mode: repeatedly collect and display,
                                   like watch (Linux/macOS only)
+      --unicode=<unicodeMode>     Unicode symbol mode: 'auto' (detect from
+                                  OS/terminal), 'on' (always use Unicode), 'off'
+                                  (ASCII only). Default: auto
   -V, --version                   Print version information and exit.
 ```
 <!-- END help_dependency_tree -->
@@ -452,7 +482,8 @@ Usage: jstall compiler-queue [-hV] [--dump-count=<count>]
                              [--interval=<interval>] [--keep]
                              [--intelligent-filter] [--full] [--live]
                              [--keep-samples=<keepSamples>]
-                             [--file=<replayFile>] [--color] [<targets>...]
+                             [--file=<replayFile>] [--color]
+                             [--unicode=<unicodeMode>] [<targets>...]
 Analyze compiler queue state showing active compilations and queued tasks
       [<targets>...]              PID, 'all', filter or dump files (or replay
                                   ZIP as first argument)
@@ -474,6 +505,9 @@ Analyze compiler queue state showing active compilations and queued tasks
                                   default is 0
   -l, --live                      Live mode: repeatedly collect and display,
                                   like watch (Linux/macOS only)
+      --unicode=<unicodeMode>     Unicode symbol mode: 'auto' (detect from
+                                  OS/terminal), 'on' (always use Unicode), 'off'
+                                  (ASCII only). Default: auto
   -V, --version                   Print version information and exit.
 ```
 <!-- END help_compiler_queue -->
@@ -532,7 +566,7 @@ Helpful to identify e.g. a virus scanner or other interfering processes that use
 Usage: jstall processes [-hV] [--dump-count=<count>] [--interval=<interval>]
                         [--keep] [--intelligent-filter] [--full] [--live]
                         [--keep-samples=<keepSamples>] [--file=<replayFile>]
-                        [--color] [<targets>...]
+                        [--color] [--unicode=<unicodeMode>] [<targets>...]
 Detect other processes running on the system that consume high CPU time
       [<targets>...]              PID, 'all', filter or dump files (or replay
                                   ZIP as first argument)
@@ -554,6 +588,9 @@ Detect other processes running on the system that consume high CPU time
                                   default is 0
   -l, --live                      Live mode: repeatedly collect and display,
                                   like watch (Linux/macOS only)
+      --unicode=<unicodeMode>     Unicode symbol mode: 'auto' (detect from
+                                  OS/terminal), 'on' (always use Unicode), 'off'
+                                  (ASCII only). Default: auto
   -V, --version                   Print version information and exit.
 ```
 <!-- END help_processes -->
@@ -624,7 +661,8 @@ If VM.vitals is unavailable on the target JVM, jstall explains that and points y
 Usage: jstall vm-vitals [-hV] [--dump-count=<count>] [--interval=<interval>]
                         [--keep] [--intelligent-filter] [--full] [--live]
                         [--keep-samples=<keepSamples>] [--file=<replayFile>]
-                        [--color] [--vital-rows=<vitalRows>] [<targets>...]
+                        [--color] [--unicode=<unicodeMode>]
+                        [--vital-rows=<vitalRows>] [<targets>...]
 SapMachine-only: show recent JVM/process/system vitals, trends, and extremes
       [<targets>...]              PID, 'all', filter or dump files (or replay
                                   ZIP as first argument)
@@ -646,6 +684,9 @@ SapMachine-only: show recent JVM/process/system vitals, trends, and extremes
                                   default is 0
   -l, --live                      Live mode: repeatedly collect and display,
                                   like watch (Linux/macOS only)
+      --unicode=<unicodeMode>     Unicode symbol mode: 'auto' (detect from
+                                  OS/terminal), 'on' (always use Unicode), 'off'
+                                  (ASCII only). Default: auto
   -V, --version                   Print version information and exit.
       --vital-rows=<vitalRows>    Number of recent VM.vitals samples to show
                                   (default: 10, -1 = all)
@@ -744,7 +785,7 @@ Shows GC.heap_info last absolute values and change between samples.
 Usage: jstall gc-heap-info [-hV] [--dump-count=<count>] [--interval=<interval>]
                            [--keep] [--intelligent-filter] [--full] [--live]
                            [--keep-samples=<keepSamples>] [--file=<replayFile>]
-                           [--color] [<targets>...]
+                           [--color] [--unicode=<unicodeMode>] [<targets>...]
 Show GC.heap_info last absolute values and change
       [<targets>...]              PID, 'all', filter or dump files (or replay
                                   ZIP as first argument)
@@ -766,6 +807,9 @@ Show GC.heap_info last absolute values and change
                                   default is 0
   -l, --live                      Live mode: repeatedly collect and display,
                                   like watch (Linux/macOS only)
+      --unicode=<unicodeMode>     Unicode symbol mode: 'auto' (detect from
+                                  OS/terminal), 'on' (always use Unicode), 'off'
+                                  (ASCII only). Default: auto
   -V, --version                   Print version information and exit.
 ```
 <!-- END help_gc_heap_info -->
@@ -783,7 +827,7 @@ Usage: jstall vm-classloader-stats [-hV] [--dump-count=<count>]
                                    [--intelligent-filter] [--full] [--live]
                                    [--keep-samples=<keepSamples>]
                                    [--file=<replayFile>] [--color]
-                                   [<targets>...]
+                                   [--unicode=<unicodeMode>] [<targets>...]
 Show VM.classloader_stats grouped by classloader type
       [<targets>...]              PID, 'all', filter or dump files (or replay
                                   ZIP as first argument)
@@ -805,6 +849,9 @@ Show VM.classloader_stats grouped by classloader type
                                   default is 0
   -l, --live                      Live mode: repeatedly collect and display,
                                   like watch (Linux/macOS only)
+      --unicode=<unicodeMode>     Unicode symbol mode: 'auto' (detect from
+                                  OS/terminal), 'on' (always use Unicode), 'off'
+                                  (ASCII only). Default: auto
   -V, --version                   Print version information and exit.
 ```
 <!-- END help_vm_classloader_stats -->
@@ -820,7 +867,7 @@ Shows VM.metaspace summary and trend.
 Usage: jstall vm-metaspace [-hV] [--dump-count=<count>] [--interval=<interval>]
                            [--keep] [--intelligent-filter] [--full] [--live]
                            [--keep-samples=<keepSamples>] [--file=<replayFile>]
-                           [--color] [<targets>...]
+                           [--color] [--unicode=<unicodeMode>] [<targets>...]
 Show VM.metaspace summary and trend
       [<targets>...]              PID, 'all', filter or dump files (or replay
                                   ZIP as first argument)
@@ -842,6 +889,9 @@ Show VM.metaspace summary and trend
                                   default is 0
   -l, --live                      Live mode: repeatedly collect and display,
                                   like watch (Linux/macOS only)
+      --unicode=<unicodeMode>     Unicode symbol mode: 'auto' (detect from
+                                  OS/terminal), 'on' (always use Unicode), 'off'
+                                  (ASCII only). Default: auto
   -V, --version                   Print version information and exit.
 ```
 <!-- END help_vm_metaspace -->

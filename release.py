@@ -840,12 +840,24 @@ java -jar jstall.jar <pid>
                 str(minimal_script_path) + '#jstall-minimal',
             ]
 
-            self.run_command(
-                ['gh', 'release', 'create', tag,
-                 '--title', f'Release {version}',
-                 '--notes-file', str(notes_file)] + assets,
-                f"Creating GitHub release {tag} with {len(assets)} asset(s)"
+            # Check whether the release already exists
+            existing = subprocess.run(
+                ['gh', 'release', 'view', tag],
+                capture_output=True, text=True, cwd=self.project_root
             )
+            if existing.returncode == 0:
+                # Release exists — upload/replace assets only
+                self.run_command(
+                    ['gh', 'release', 'upload', tag, '--clobber'] + assets,
+                    f"Uploading assets to existing GitHub release {tag}"
+                )
+            else:
+                self.run_command(
+                    ['gh', 'release', 'create', tag,
+                     '--title', f'Release {version}',
+                     '--notes-file', str(notes_file)] + assets,
+                    f"Creating GitHub release {tag} with {len(assets)} asset(s)"
+                )
         finally:
             # Clean up notes file
             if notes_file.exists():
@@ -984,10 +996,7 @@ java -jar jstall.jar <pid>
 
         # Also deploy the minimal variant
         print("\n→ Deploying jstall-minimal to Maven Central...")
-        try:
-            deploy_minimal_cmd(self.project_root, tmp_dir=None)
-        except Exception as e:
-            print(f"⚠ Failed to deploy jstall-minimal: {e}")
+        deploy_minimal_cmd(self.project_root, tmp_dir=None)
 
     def deploy_npm(self):
         """Publish MCP package to npm"""
