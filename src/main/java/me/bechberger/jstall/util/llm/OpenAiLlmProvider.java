@@ -18,7 +18,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 /**
  * LLM provider implementation using the OpenAI-compatible chat completions API.
@@ -320,9 +319,6 @@ public class OpenAiLlmProvider implements LlmProvider {
 
         Map<String, Object> choice = Util.asMap(choices.get(0));
         Map<String, Object> message = Util.asMap(choice.get("message"));
-        if (message == null) {
-            return new ChatResponse("", List.of(), null);
-        }
 
         String content = message.get("content") instanceof String s ? s : null;
 
@@ -333,7 +329,6 @@ public class OpenAiLlmProvider implements LlmProvider {
                 Map<String, Object> tc = Util.asMap(tcObj);
                 String id = tc.get("id") instanceof String s ? s : "call_" + toolCalls.size();
                 Map<String, Object> function = Util.asMap(tc.get("function"));
-                if (function == null) continue;
 
                 String name = function.get("name") instanceof String s ? s : "";
                 Map<String, Object> args = Map.of();
@@ -438,42 +433,28 @@ public class OpenAiLlmProvider implements LlmProvider {
      */
     private <T> HttpResponse<T> sendWithRetry(HttpRequest request, HttpResponse.BodyHandler<T> handler)
             throws IOException, LlmProvider.LlmException {
-        LlmProvider.LlmException lastException = null;
-
         for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
             try {
                 HttpResponse<T> response = httpClient.send(request, handler);
                 if (response.statusCode() < 400) {
                     return response;
                 }
-                // Read error body
-                String errorBody;
-                Object responseBody = response.body();
-                if (responseBody instanceof java.io.InputStream is) {
-                    errorBody = readAll(is);
-                } else {
-                    errorBody = responseBody.toString();
-                }
-
-                lastException = toLlmException(response.statusCode(), errorBody);
-
+                String errorBody = response.body() instanceof java.io.InputStream is
+                    ? readAll(is) : response.body().toString();
+                LlmProvider.LlmException ex = toLlmException(response.statusCode(), errorBody);
                 if (!isRetryable(response.statusCode()) || attempt == MAX_RETRIES) {
-                    throw lastException;
+                    throw ex;
                 }
-
-                // Backoff before retry
                 long backoff = initialBackoffMs * (1L << attempt);
                 System.err.println("  [retry " + (attempt + 1) + "/" + MAX_RETRIES + "] "
                     + response.statusCode() + " — retrying in " + backoff + "ms");
                 Thread.sleep(backoff);
-
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new IOException("Request interrupted", e);
             }
         }
-        throw lastException != null ? lastException
-            : new LlmProvider.LlmException("Request failed after retries", 500);
+        throw new LlmProvider.LlmException("Request failed after retries", 500);
     }
 
     private static String readAll(java.io.InputStream in) throws IOException {
