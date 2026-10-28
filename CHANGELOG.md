@@ -14,6 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
+## [0.8.9] - 2026-10-28
+
+### Fixed
+- `vm-vitals`: category header lines and column-names line now always align — output uses verbatim raw lines from `VM.vitals` instead of re-rendering with computed column widths, eliminating all header/data misalignment on 3-tier CF output
+- `vm-vitals`: ~5 s startup delay eliminated — previously `DumpRequirement.ANY` triggered a 2-sample deferred collection; now overrides `defaultDumpCount()` to 1 so a single immediate `jcmd VM.vitals` is issued
+- `compiler-queue`, `gc-heap-info`, `jvm-support`, `vm-classloader-stats`, `vm-metaspace`: removed unnecessary thread dump collection from each analyzer — none of them use thread dump data
+- OpenAI LLM provider: retry backoff sleep (1 s + 2 s per retry sequence) no longer runs in tests — `initialBackoffMs` is now overridable so tests can set it to 0
+
+### Changed
+- `vm-vitals`: removed ~350 lines of re-rendering code (`CategoryGroup`, `computeColWidths`, `computeHasMarker`, `renderCategoryLine`, etc.) replaced by raw-line passthrough
+- Dependency: `ap-loader-all` bumped `4.5-13` → `4.6-14`
+
 ## [0.8.9] - 2026-10-19
 
 ### Fixed
