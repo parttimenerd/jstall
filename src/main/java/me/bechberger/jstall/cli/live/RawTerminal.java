@@ -304,12 +304,6 @@ public class RawTerminal implements AutoCloseable {
     }
 
     private static String stty(String... args) throws IOException {
-        String[] cmd = new String[args.length + 2];
-        cmd[0] = "stty";
-        System.arraycopy(args, 0, cmd, 1, args.length);
-        cmd[cmd.length - 1] = "< /dev/tty"; // dummy, handled below
-
-        // Use sh -c to redirect /dev/tty
         StringBuilder sttyCmd = new StringBuilder("stty");
         for (String arg : args) {
             sttyCmd.append(' ').append(arg);
