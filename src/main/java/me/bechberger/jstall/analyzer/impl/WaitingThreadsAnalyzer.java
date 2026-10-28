@@ -1,7 +1,7 @@
 package me.bechberger.jstall.analyzer.impl;
 
-import me.bechberger.jstall.analyzer.BaseAnalyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
+import me.bechberger.jstall.analyzer.BaseAnalyzer;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.analyzer.ResolvedData;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
@@ -225,9 +225,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
      */
     private static class WaitingThreadActivity extends ThreadActivityBase {
         final Map<Thread.State, Integer> stateCounts = new HashMap<>();
-        final List<String> topStackFrames = new ArrayList<>();
         final List<String> lockIds = new ArrayList<>();
-        final List<String> stackTraces = new ArrayList<>();
         final List<ThreadInfo> threadInfos = new ArrayList<>();
 
         WaitingThreadActivity(ThreadInfo thread) {
@@ -247,20 +245,7 @@ public class WaitingThreadsAnalyzer extends BaseAnalyzer {
             // Track CPU time using base class method
             trackCpuTime(thread);
 
-            // Track top stack frame for waiting location
-            if (thread.stackTrace() != null && !thread.stackTrace().isEmpty()) {
-                var topFrame = thread.stackTrace().get(0);
-                topStackFrames.add(topFrame.className() + "." + topFrame.methodName());
-
-                // Build full stack trace string
-                StringBuilder stack = new StringBuilder();
-                for (var frame : thread.stackTrace()) {
-                    stack.append(frame.toString().substring(3)).append("\n");
-                }
-                stackTraces.add(stack.toString());
-            }
-
-            // Track lock information using the helper method
+            // Track lock information
             thread.getWaitedOnLock().ifPresent(lock -> {
                 if (lock.lockId() != null && !lock.lockId().isEmpty()) {
                     lockIds.add(lock.lockId());
