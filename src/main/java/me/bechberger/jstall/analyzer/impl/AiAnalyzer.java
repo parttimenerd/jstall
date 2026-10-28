@@ -1,33 +1,17 @@
 package me.bechberger.jstall.analyzer.impl;
 
-import me.bechberger.jstall.analyzer.AnalyzerResult;
-import me.bechberger.jstall.analyzer.BaseAnalyzer;
-import me.bechberger.jstall.analyzer.DumpRequirement;
-import me.bechberger.jstall.analyzer.ResolvedData;
+import me.bechberger.jstall.analyzer.*;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
-import me.bechberger.jstall.util.llm.AiChatLoop;
-import me.bechberger.jstall.util.llm.AiTools;
-import me.bechberger.jstall.util.llm.ContextCompressor;
-import me.bechberger.jstall.util.llm.JstallCommandTool;
-import me.bechberger.jstall.util.llm.LlmProvider;
-import me.bechberger.jstall.util.llm.OpenAiLlmProvider;
-import me.bechberger.jstall.util.llm.SourceTools;
-import me.bechberger.jstall.util.llm.ToolDefinition;
-import me.bechberger.jstall.util.llm.ToolExecutor;
-import me.bechberger.jstall.analyzer.ThreadActivityCategorizer;
-import me.bechberger.jstall.util.render.MarkdownRenderer;
-import me.bechberger.jstall.util.render.AnsiCodes;
-import me.bechberger.jstall.util.SystemAnalyzer;
 import me.bechberger.jstall.util.CommandExecutor;
+import me.bechberger.jstall.util.SystemAnalyzer;
+import me.bechberger.jstall.util.llm.*;
+import me.bechberger.jstall.util.render.AnsiCodes;
+import me.bechberger.jstall.util.render.MarkdownRenderer;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -53,23 +37,25 @@ public class AiAnalyzer extends BaseAnalyzer {
     }
 
     private static final String DEFAULT_USER_PROMPT =
-        "One-sentence bottom line then bullet findings. Each bullet must cite a specific thread name, lock address, section, or number from the data above — never repeat a rule whose trigger is absent. Report EVERY rule that fires, not just the first one — multiple issues can coexist. Flag:\n" +
-        "- deadlock section → report thread names + lock addresses first\n" +
-        "- BLOCKED threads → Java monitor contention OR classloader lock (see BLOCKED thread stacks below)\n" +
-        "- WAITING/TIMED_WAITING thread stacks contain 'waiting on the Class initialization monitor' → CLASS INITIALIZATION DEADLOCK — report as deadlock between the named classes\n" +
-        "- PRODUCER thread with 'Lock Wait' → queue full (backpressure) — even at 0 CPU%, producer is blocked waiting for queue space\n" +
-        "- WORKER/CONSUMER with 'Lock Wait' at 0 CPU% → idle (ok)\n" +
-        "- WAITING/TIMED_WAITING thread stacks contain Semaphore.acquire / acquireSharedInterruptibly → semaphore/pool exhaustion — name the specific threads\n" +
-        "- WAITING/TIMED_WAITING thread stacks contain hikari / HikariCP / getConnection → connection pool exhaustion\n" +
-        "- WAITING/TIMED_WAITING thread stacks contain RateLimiter / acquirePermission / AtomicRateLimiter → rate limiter queue full\n" +
-        "- WAITING/TIMED_WAITING thread stacks contain GenericObjectPool / borrowObject / commons.pool → Apache Commons Pool exhaustion\n" +
-        "- TIMED_WAITING thread stacks contain ForkJoinTask.get / ForkJoinTask.awaitDone + ForkJoinPool workers → ForkJoin pool saturation / managed block\n" +
-        "- thread-count-warning section → thread leak\n" +
-        "- WAITING/TIMED_WAITING thread details pre-fetched below → classify by thread name and stack: pool/worker/executor names = pool starvation; sleeper-style names = idle/healthy\n" +
-        "- RUNNABLE thread details pre-fetched below → classify by stack frames: socketRead0/readBytes/native methods = blocked I/O / native wait\n" +
-        "- heap Δ > +5 MiB in 5s → memory leak / allocation spike\n" +
-        "- heap used% > 80% → high memory pressure\n" +
-        "- thread with Computation + CPU% > 80% → CPU hot-spot (REPORT THIS EVEN IF A DEADLOCK IS ALSO PRESENT)\n";
+            """
+                    One-sentence bottom line then bullet findings. Each bullet must cite a specific thread name, lock address, section, or number from the data above — never repeat a rule whose trigger is absent. Report EVERY rule that fires, not just the first one — multiple issues can coexist. Flag:
+                    - deadlock section → report thread names + lock addresses first
+                    - BLOCKED threads → Java monitor contention OR classloader lock (see BLOCKED thread stacks below)
+                    - WAITING/TIMED_WAITING thread stacks contain 'waiting on the Class initialization monitor' → CLASS INITIALIZATION DEADLOCK — report as deadlock between the named classes
+                    - PRODUCER thread with 'Lock Wait' → queue full (backpressure) — even at 0 CPU%, producer is blocked waiting for queue space
+                    - WORKER/CONSUMER with 'Lock Wait' at 0 CPU% → idle (ok)
+                    - WAITING/TIMED_WAITING thread stacks contain Semaphore.acquire / acquireSharedInterruptibly → semaphore/pool exhaustion — name the specific threads
+                    - WAITING/TIMED_WAITING thread stacks contain hikari / HikariCP / getConnection → connection pool exhaustion
+                    - WAITING/TIMED_WAITING thread stacks contain RateLimiter / acquirePermission / AtomicRateLimiter → rate limiter queue full
+                    - WAITING/TIMED_WAITING thread stacks contain GenericObjectPool / borrowObject / commons.pool → Apache Commons Pool exhaustion
+                    - TIMED_WAITING thread stacks contain ForkJoinTask.get / ForkJoinTask.awaitDone + ForkJoinPool workers → ForkJoin pool saturation / managed block
+                    - thread-count-warning section → thread leak
+                    - WAITING/TIMED_WAITING thread details pre-fetched below → classify by thread name and stack: pool/worker/executor names = pool starvation; sleeper-style names = idle/healthy
+                    - RUNNABLE thread details pre-fetched below → classify by stack frames: socketRead0/readBytes/native methods = blocked I/O / native wait
+                    - heap Δ > +5 MiB in 5s → memory leak / allocation spike
+                    - heap used% > 80% → high memory pressure
+                    - thread with Computation + CPU% > 80% → CPU hot-spot (REPORT THIS EVEN IF A DEADLOCK IS ALSO PRESENT)
+                    """;
 
     private final LlmProvider llmProvider;
     private final CommandExecutor commandExecutor;
@@ -131,8 +117,7 @@ public class AiAnalyzer extends BaseAnalyzer {
         boolean showThinking = getBooleanOption(options, "think", false);
         String sourceRoot = getStringOption(options, "source-root",
             System.getProperty("user.dir"));
-        boolean prettyMode = getBooleanOption(options, "no-pretty", false) ? false
-            : getBooleanOption(options, "pretty", System.console() != null);
+        boolean prettyMode = !getBooleanOption(options, "no-pretty", false) && getBooleanOption(options, "pretty", System.console() != null);
         boolean allowMutations = getBooleanOption(options, "allow-mutations", false);
         boolean chatMode = getBooleanOption(options, "chat", false);
         boolean verbose = getBooleanOption(options, "verbose", false);
@@ -466,16 +451,19 @@ public class AiAnalyzer extends BaseAnalyzer {
     }
 
     private static final String TOOLS_SYSTEM_ADDENDUM =
-        "\n\nTools are available for deeper investigation. Call them ONLY when the data is insufficient:\n" +
-        "- If the context already has enough data to answer confidently, answer directly WITHOUT calling tools.\n" +
-        "- Call `get_threads_by_state BLOCKED` only when you see BLOCKED threads and need more detail.\n" +
-        "- Call `get_threads_by_state WAITING` IMMEDIATELY when the hidden-waiting-threads section is present — those threads are parked on a lock and this is real contention.\n" +
-        "- Call `get_lock_info` only when you see unexplained BLOCKED threads and need to identify the lock holder.\n" +
-        "- Call `get_dependency_tree` only to trace a specific deadlock or wait chain not visible in the data.\n" +
-        "- Call `get_thread_stack_trace` only for a specific thread that appears stuck but has no stack in the data.\n" +
-        "- Call `search_stack_frames` or source tools only when a class/method name needs clarification.\n" +
-        "- Call `run_jstall_command` to fetch FRESH live data from the JVM. The other tools (get_*, search_*) operate on the dump captured at the start of the conversation; if the user asks about CURRENT state, recent changes, or the conversation has gone on for a while, prefer `run_jstall_command threads`, `most-work`, or `dependency-tree` for a new snapshot. Note: it takes ~5-15s per call.\n" +
-        "Minimize tool calls. If the data is clear, answer immediately without tools.";
+            """
+                    
+                    
+                    Tools are available for deeper investigation. Call them ONLY when the data is insufficient:
+                    - If the context already has enough data to answer confidently, answer directly WITHOUT calling tools.
+                    - Call `get_threads_by_state BLOCKED` only when you see BLOCKED threads and need more detail.
+                    - Call `get_threads_by_state WAITING` IMMEDIATELY when the hidden-waiting-threads section is present — those threads are parked on a lock and this is real contention.
+                    - Call `get_lock_info` only when you see unexplained BLOCKED threads and need to identify the lock holder.
+                    - Call `get_dependency_tree` only to trace a specific deadlock or wait chain not visible in the data.
+                    - Call `get_thread_stack_trace` only for a specific thread that appears stuck but has no stack in the data.
+                    - Call `search_stack_frames` or source tools only when a class/method name needs clarification.
+                    - Call `run_jstall_command` to fetch FRESH live data from the JVM. The other tools (get_*, search_*) operate on the dump captured at the start of the conversation; if the user asks about CURRENT state, recent changes, or the conversation has gone on for a while, prefer `run_jstall_command threads`, `most-work`, or `dependency-tree` for a new snapshot. Note: it takes ~5-15s per call.
+                    Minimize tool calls. If the data is clear, answer immediately without tools.""";
 
     private static final int DEFAULT_TOOL_ITERATIONS = 5;
 
@@ -568,22 +556,15 @@ public class AiAnalyzer extends BaseAnalyzer {
             // there are BLOCKED threads that haven't been explained — which is never now.
             // BLOCKED threads are now pre-injected with stacks; no tool needed for them either.
             // hidden-* sections are all pre-injected inline above — no tool call needed for them.
-            boolean contextSelfContained = true;
-            if (contextSelfContained) {
-                tools = null;
-                if (verbose) System.err.println("[ai] Context self-contained — skipping tool schemas for speed.");
-            }
+            tools = null;
+            if (verbose) System.err.println("[ai] Context self-contained — skipping tool schemas for speed.");
             JstallCommandTool jstallTool = new JstallCommandTool(allowMutations, targets);
-            if (tools != null) {
-                tools.add(jstallTool.getToolDefinition());
-            }
 
             // Add source exploration tools if a source root is configured
             ToolExecutor baseExecutor = aiTools.createExecutor();
             ToolExecutor combined;
             if (sourceRoot != null && !sourceRoot.isBlank()) {
                 SourceTools sourceTools = new SourceTools(Path.of(sourceRoot));
-                if (tools != null) tools.addAll(sourceTools.getToolDefinitions());
                 ToolExecutor sourceExecutor = sourceTools.createExecutor();
                 combined = call -> {
                     String name = call.name();
@@ -617,7 +598,7 @@ public class AiAnalyzer extends BaseAnalyzer {
                 };
             }
 
-            if (verbose) System.err.println("[ai] Sending to model with " + (tools != null ? tools.size() : 0) + " tools available...");
+            if (verbose) System.err.println("[ai] Sending to model with " + 0 + " tools available...");
 
             java.util.function.Consumer<String> downstream = buildResponseHandler(prettyMode, verbose);
             LlmProvider.StreamHandlers handlers = new LlmProvider.StreamHandlers(
@@ -630,11 +611,11 @@ public class AiAnalyzer extends BaseAnalyzer {
                 // Follow-up turns get the full tool list.
                 openAiProvider.chatWithToolLoop(model, messages, null, combined, handlers, DEFAULT_TOOL_ITERATIONS, true, verboseToolHandler);
                 System.out.println();
-                new AiChatLoop(openAiProvider, model, messages, tools, combined, prettyMode, verbose, showThinking).run();
+                new AiChatLoop(openAiProvider, model, messages, null, combined, prettyMode, verbose, showThinking).run();
                 return "";
             }
 
-            String result = openAiProvider.chatWithToolLoop(model, messages, tools, combined, handlers, DEFAULT_TOOL_ITERATIONS, true, verboseToolHandler);
+            String result = openAiProvider.chatWithToolLoop(model, messages, null, combined, handlers, DEFAULT_TOOL_ITERATIONS, true, verboseToolHandler);
             System.out.println();
             return result;
         }
@@ -703,34 +684,26 @@ public class AiAnalyzer extends BaseAnalyzer {
             sb.append("\n");
             if (t.stackTrace() != null && !t.stackTrace().isEmpty()) {
                 var stack = t.stackTrace().stream().map(Object::toString).toList();
-                // Show: all frames up to the first java.util.concurrent blocking call
-                // that reveals WHAT the thread is blocked on (put, acquire, take, etc.)
-                // This ensures we don't hide ArrayBlockingQueue.put behind ForkJoinPool frames.
-                boolean foundBlockingFrame = false;
-                int shown = 0;
-                for (int j = 0; j < stack.size() && shown < 8; j++) {
+                int cutoff = stack.size();
+                for (int j = 0; j < Math.min(stack.size(), 8); j++) {
                     String frame = stack.get(j);
                     sb.append("    at ").append(frame).append("\n");
-                    shown++;
-                    // Stop after the first frame that reveals the blocking primitive
-                    if (!foundBlockingFrame && (
-                            frame.contains("BlockingQueue.put") || frame.contains("BlockingQueue.take") ||
-                            frame.contains("BlockingQueue.offer") || frame.contains("BlockingQueue.poll") ||
-                            frame.contains("Semaphore.acquire") || frame.contains("Semaphore.tryAcquire") ||
-                            frame.contains("ReentrantLock") || frame.contains("CountDownLatch") ||
-                            frame.contains("Object.wait") || frame.contains("LockSupport.parkNanos"))) {
-                        foundBlockingFrame = true;
-                        if (stack.size() > shown)
-                            sb.append("    ... ").append(stack.size() - shown).append(" more frames\n");
-                        break;
-                    }
+                    if (isBlockingPrimitive(frame)) { cutoff = j + 1; break; }
                 }
-                if (!foundBlockingFrame && stack.size() > shown)
-                    sb.append("    ... ").append(stack.size() - shown).append(" more frames\n");
+                if (cutoff < stack.size())
+                    sb.append("    ... ").append(stack.size() - cutoff).append(" more frames\n");
             }
             sb.append("\n");
         }
         return sb.toString();
+    }
+
+    /** Returns true when a stack frame names the primitive that a WAITING thread is parked on. */
+    private static boolean isBlockingPrimitive(String frame) {
+        return frame.contains("LockSupport.park") ||
+               frame.contains("Object.wait") ||
+               frame.contains("BlockingQueue.put") || frame.contains("BlockingQueue.take") ||
+               frame.contains("BlockingQueue.offer") || frame.contains("BlockingQueue.poll");
     }
 
     /**
