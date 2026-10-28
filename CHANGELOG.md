@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.8.10] - 2026-10-28
+
 ### Fixed
 - `vm-vitals`: header rows and data columns now always align correctly (fixes garbled output on SapMachine 3-tier CF format)
 - `vm-vitals`: ~5 s startup delay eliminated, first result now appears immediately
