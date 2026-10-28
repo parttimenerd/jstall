@@ -8,9 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- `vm-vitals`: header rows and data columns now always align correctly — fixes garbled output on SapMachine 3-tier CF format
-- `vm-vitals`: ~5 s startup delay eliminated — first result now appears immediately
-- `compiler-queue`, `gc-heap-info`, `jvm-support`, `vm-classloader-stats`, `vm-metaspace`: faster startup — these commands no longer collect unnecessary thread dumps
+- `vm-vitals`: header rows and data columns now always align correctly (fixes garbled output on SapMachine 3-tier CF format)
+- `vm-vitals`: ~5 s startup delay eliminated, first result now appears immediately
+- `compiler-queue`, `gc-heap-info`, `jvm-support`, `vm-classloader-stats`, `vm-metaspace`: faster startup as these commands no longer collect unnecessary thread dumps
 
 ### Changed
 - Dependency: `ap-loader-all` bumped `4.5-13` → `4.6-14`
