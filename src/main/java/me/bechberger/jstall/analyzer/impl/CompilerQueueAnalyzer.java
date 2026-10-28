@@ -47,7 +47,6 @@ public class CompilerQueueAnalyzer implements Analyzer {
         long intervalMs = getLongOption(options, "interval", 2000L);
 
         return DataRequirements.builder()
-                .addThreadDump()
                 .addJcmd("Compiler.queue", samples, intervalMs)
                 .build();
     }

@@ -47,7 +47,6 @@ public class VmClassloaderStatsAnalyzer implements Analyzer {
         int samples = getIntOption(options, "samples", 2);
         long intervalMs = getLongOption(options, "interval", 2000L);
         return DataRequirements.builder()
-            .addThreadDump()
             .addJcmd("VM.classloader_stats", samples, intervalMs)
             .build();
     }

@@ -94,16 +94,18 @@ public class VmVitalsParser {
 
         List<String> columnNames = parseCsvHeader(nonBlank.get(0));
         List<DataRow> rows = new ArrayList<>();
+        List<String> rawLines = new ArrayList<>();
         for (int i = 1; i < nonBlank.size(); i++) {
             DataRow row = parseCsvRow(nonBlank.get(i), columnNames);
             if (row != null) {
                 rows.add(row);
+                rawLines.add(nonBlank.get(i));
             }
         }
         if (rows.isEmpty()) {
             return List.of();
         }
-        return List.of(new VmVitalsSection("CSV", List.of(nonBlank.get(0)), columnNames, rows));
+        return List.of(new VmVitalsSection("CSV", List.of(nonBlank.get(0)), columnNames, rows, rawLines));
     }
 
     private void extractPidAndVersion() {
@@ -240,6 +242,7 @@ public class VmVitalsParser {
         List<String> columnNames = new ArrayList<>();
         List<Integer> columnStarts = List.of();
         List<DataRow> dataRows = new ArrayList<>();
+        List<String> rawDataLines = new ArrayList<>();
 
         int columnHeaderIdx = -1;
         int colHeaderDataStart = TIMESTAMP_LEN + TIMESTAMP_DIVIDER_LEN; // fallback
@@ -277,13 +280,6 @@ public class VmVitalsParser {
 
             if (columnHeaderIdx >= 0 && !columnNames.isEmpty() &&
                 TIMESTAMP_PATTERN.matcher(trimmed).find()) {
-                // Use fixed-width parsing only when the column header's leading spaces match
-                // the standard TIMESTAMP_LEN + TIMESTAMP_DIVIDER_LEN offset, which means the
-                // data rows will also start at that position. Otherwise fall back to token splitting.
-                // Also verify the actual data-row values start at colHeaderDataStart; some formats
-                // (e.g. multi-section with long category headers) indent the column-names line by
-                // exactly TIMESTAMP_LEN + TIMESTAMP_DIVIDER_LEN but write data with one fewer space,
-                // making fixed-width offsets wrong.
                 boolean useFixedWidth = columnStarts.size() == columnNames.size()
                     && colHeaderDataStart == TIMESTAMP_LEN + TIMESTAMP_DIVIDER_LEN
                     && dataActuallyStartsAt(line, colHeaderDataStart);
@@ -292,6 +288,7 @@ public class VmVitalsParser {
                     : DataRow.parse(line, columnNames);
                 if (row != null) {
                     dataRows.add(row);
+                    rawDataLines.add(line);
                 }
             }
         }
@@ -300,7 +297,7 @@ public class VmVitalsParser {
             return null;
         }
 
-        return new VmVitalsSection(sectionName, headerLines, columnNames, dataRows);
+        return new VmVitalsSection(sectionName, headerLines, columnNames, dataRows, rawDataLines);
     }
 
     private static boolean isAllDashes(String s) {

@@ -52,7 +52,6 @@ public class JvmSupportAnalyzer implements Analyzer {
     @Override
     public DataRequirements getDataRequirements(Map<String, Object> options) {
         return DataRequirements.builder()
-            .addThreadDump()
             .addSystemProps()
             .build();
     }

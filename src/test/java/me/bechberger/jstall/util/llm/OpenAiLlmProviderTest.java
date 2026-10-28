@@ -18,6 +18,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OpenAiLlmProviderTest {
 
+    private static OpenAiLlmProvider providerFor(String url) {
+        OpenAiLlmProvider p = new OpenAiLlmProvider(url);
+        p.initialBackoffMs = 0;
+        return p;
+    }
     @Test
     void testStreamingChat() throws Exception {
         // Set up a fake OpenAI-compatible server
@@ -319,7 +324,7 @@ class OpenAiLlmProviderTest {
         server.start();
 
         try {
-            OpenAiLlmProvider provider = new OpenAiLlmProvider("http://127.0.0.1:" + port);
+            OpenAiLlmProvider provider = providerFor("http://127.0.0.1:" + port);
 
             assertThatThrownBy(() -> provider.chat("test-model",
                 List.of(new LlmProvider.Message("user", "hi")),
@@ -429,7 +434,7 @@ class OpenAiLlmProviderTest {
         server.start();
 
         try {
-            OpenAiLlmProvider provider = new OpenAiLlmProvider("http://127.0.0.1:" + port);
+            OpenAiLlmProvider provider = providerFor("http://127.0.0.1:" + port);
 
             assertThatThrownBy(() -> provider.getRawResponse("test-model",
                 List.of(new LlmProvider.Message("user", "hi"))))
@@ -470,7 +475,7 @@ class OpenAiLlmProviderTest {
         server.start();
 
         try {
-            OpenAiLlmProvider provider = new OpenAiLlmProvider("http://127.0.0.1:" + port);
+            OpenAiLlmProvider provider = providerFor("http://127.0.0.1:" + port);
             String result = provider.chat("test-model",
                 List.of(new LlmProvider.Message("user", "hi")),
                 new LlmProvider.StreamHandlers(s -> {}));
@@ -500,7 +505,7 @@ class OpenAiLlmProviderTest {
         server.start();
 
         try {
-            OpenAiLlmProvider provider = new OpenAiLlmProvider("http://127.0.0.1:" + port);
+            OpenAiLlmProvider provider = providerFor("http://127.0.0.1:" + port);
 
             assertThatThrownBy(() -> provider.chat("test-model",
                 List.of(new LlmProvider.Message("user", "hi")),

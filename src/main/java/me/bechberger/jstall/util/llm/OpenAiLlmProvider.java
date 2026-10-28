@@ -37,6 +37,7 @@ public class OpenAiLlmProvider implements LlmProvider {
     private final URI baseUri;
     private final HttpClient httpClient;
     private boolean enableThinking = false;
+    long initialBackoffMs = INITIAL_BACKOFF_MS;
 
     public OpenAiLlmProvider(String host) {
         this.baseUri = URI.create(host.endsWith("/") ? host.substring(0, host.length() - 1) : host);
@@ -461,7 +462,7 @@ public class OpenAiLlmProvider implements LlmProvider {
                 }
 
                 // Backoff before retry
-                long backoff = INITIAL_BACKOFF_MS * (1L << attempt);
+                long backoff = initialBackoffMs * (1L << attempt);
                 System.err.println("  [retry " + (attempt + 1) + "/" + MAX_RETRIES + "] "
                     + response.statusCode() + " — retrying in " + backoff + "ms");
                 Thread.sleep(backoff);

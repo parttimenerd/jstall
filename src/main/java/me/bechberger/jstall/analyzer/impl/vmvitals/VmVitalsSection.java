@@ -9,12 +9,14 @@ public record VmVitalsSection(
     String name,
     List<String> headerLines,
     List<String> columnNames,
-    List<DataRow> dataRows
+    List<DataRow> dataRows,
+    List<String> rawDataLines
 ) {
     public VmVitalsSection {
         headerLines = List.copyOf(headerLines);
         columnNames = List.copyOf(columnNames);
         dataRows = List.copyOf(dataRows);
+        rawDataLines = List.copyOf(rawDataLines);
     }
 
     /**
@@ -29,6 +31,19 @@ public record VmVitalsSection(
         }
         // Reverse: newest-first stored → oldest-first for display
         List<DataRow> result = new java.util.ArrayList<>(source);
+        java.util.Collections.reverse(result);
+        return result;
+    }
+
+    /**
+     * Returns up to N raw data lines for display, oldest first (newest-last).
+     */
+    public List<String> getTopRawLines(int topN) {
+        List<String> source = rawDataLines;
+        if (topN >= 0 && topN < source.size()) {
+            source = source.subList(0, topN);
+        }
+        List<String> result = new java.util.ArrayList<>(source);
         java.util.Collections.reverse(result);
         return result;
     }

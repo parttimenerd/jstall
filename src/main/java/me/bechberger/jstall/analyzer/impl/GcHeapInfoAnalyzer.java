@@ -44,7 +44,6 @@ public class GcHeapInfoAnalyzer implements Analyzer {
         int count = Math.max(2, getIntOption(options, "dump-count", 2));
         long intervalMs = getLongOption(options, "interval", 5000L);
         return DataRequirements.builder()
-            .addThreadDump()
             .addJcmd("GC.heap_info", count, intervalMs)
             .build();
     }

@@ -1659,11 +1659,15 @@ public class VmVitalsAnalyzerTest {
             if (!l.isBlank()) headerLines.add(l);
         }
 
-        assertTrue(headerLines.size() >= 2);
+        assertTrue(headerLines.size() >= 2, "Expected at least 2 header lines (category + column names)");
         String colNamesLine = headerLines.get(headerLines.size() - 1);
+        // Raw category lines are printed verbatim; they must not be longer than the column-names line
+        // (they may be shorter since raw output doesn't right-pad category spans to column width)
         for (String catLine : headerLines.subList(0, headerLines.size() - 1)) {
-            assertEquals(colNamesLine.length(), catLine.length(),
-                "CF category line length mismatch\nCat:  " + catLine + "\nCols: " + colNamesLine);
+            assertFalse(catLine.isBlank(), "Category header line must not be blank");
+            assertTrue(catLine.trim().contains("-"), "Category header line must contain dashes");
+            assertTrue(catLine.length() <= colNamesLine.length() + 1,
+                "CF category line must not be longer than column-names line\nCat:  " + catLine + "\nCols: " + colNamesLine);
         }
     }
 
