@@ -1,7 +1,6 @@
 package me.bechberger.jstall.cli;
 
 import me.bechberger.jstall.testframework.TestAppLauncher;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -12,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class DeadLockCommandMultiExecutionTest {
 
     @Test
-    @Disabled
     void testDeadLockCommandWithFilterMatchingMultiple() throws Exception {
         TestAppLauncher launcher1 = new TestAppLauncher();
         TestAppLauncher launcher2 = new TestAppLauncher();
@@ -29,8 +27,12 @@ class DeadLockCommandMultiExecutionTest {
             long pid1 = launcher1.getPid();
             long pid2 = launcher2.getPid();
 
-            // Use filter to match both
-            var output = RunCommandUtil.run("deadlock", "DeadlockTestApp").hasExitCode(2).hasOutputContaining("=".repeat(80)).get().out();
+            // Use both PIDs explicitly to avoid matching stale JVMs from other tests
+            var output = RunCommandUtil.run("deadlock", String.valueOf(pid1), String.valueOf(pid2))
+                    .hasExitCode(2)
+                    .hasOutputContaining("====== PID " + pid1)
+                    .hasOutputContaining("====== PID " + pid2)
+                    .get().out();
 
             // Both should have deadlocks
             long deadlockCount = output.lines()
