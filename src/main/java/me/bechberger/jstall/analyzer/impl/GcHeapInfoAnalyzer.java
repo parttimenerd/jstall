@@ -9,11 +9,7 @@ import me.bechberger.jstall.provider.requirement.DataRequirements;
 import me.bechberger.jstall.util.TablePrinter;
 import me.bechberger.jstall.util.render.Symbols;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -256,7 +252,7 @@ public class GcHeapInfoAnalyzer implements Analyzer {
             }
         }
 
-        if (heapTotal == null || heapUsed == null) {
+        if (heapTotal == null) {
             return null;
         }
 

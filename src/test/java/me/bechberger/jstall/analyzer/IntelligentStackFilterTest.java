@@ -20,8 +20,8 @@ class IntelligentStackFilterTest {
             IntelligentStackFilter.filterStackTrace(frames, 10);
 
         assertEquals(2, result.size());
-        assertNotNull(result.get(0).frame);
-        assertNotNull(result.get(1).frame);
+        assertNotNull(result.get(0).frame());
+        assertNotNull(result.get(1).frame());
     }
 
     @Test
@@ -39,15 +39,15 @@ class IntelligentStackFilterTest {
 
         // Should have: app frame, collapsed marker, app frame
         assertEquals(3, result.size());
-        assertNotNull(result.get(0).frame);
-        assertEquals("com.example.MyApp", result.get(0).frame.className());
+        assertNotNull(result.get(0).frame());
+        assertEquals("com.example.MyApp", result.get(0).frame().className());
 
-        assertNull(result.get(1).frame);
-        assertTrue(result.get(1).isCollapsed);
-        assertEquals(3, result.get(1).collapsedCount);
+        assertNull(result.get(1).frame());
+        assertTrue(result.get(1).isCollapsed());
+        assertEquals(3, result.get(1).collapsedCount());
 
-        assertNotNull(result.get(2).frame);
-        assertEquals("com.example.Service", result.get(2).frame.className());
+        assertNotNull(result.get(2).frame());
+        assertEquals("com.example.Service", result.get(2).frame().className());
     }
 
     @Test
@@ -63,7 +63,7 @@ class IntelligentStackFilterTest {
 
         // All frames should be preserved (app + important I/O frames)
         assertEquals(3, result.size());
-        assertTrue(result.stream().allMatch(f -> f.frame != null));
+        assertTrue(result.stream().allMatch(f -> f.frame() != null));
     }
 
     @Test
@@ -79,7 +79,7 @@ class IntelligentStackFilterTest {
 
         // All frames should be preserved (app + important network frames)
         assertEquals(3, result.size());
-        assertTrue(result.stream().allMatch(f -> f.frame != null));
+        assertTrue(result.stream().allMatch(f -> f.frame() != null));
     }
 
     @Test
@@ -95,7 +95,7 @@ class IntelligentStackFilterTest {
 
         // All frames should be preserved (app + important DB frames)
         assertEquals(3, result.size());
-        assertTrue(result.stream().allMatch(f -> f.frame != null));
+        assertTrue(result.stream().allMatch(f -> f.frame() != null));
     }
 
     @Test
@@ -113,13 +113,13 @@ class IntelligentStackFilterTest {
 
         // Should have 3 frames + 1 "more frames" marker
         assertEquals(4, result.size());
-        assertNotNull(result.get(0).frame);
-        assertNotNull(result.get(1).frame);
-        assertNotNull(result.get(2).frame);
+        assertNotNull(result.get(0).frame());
+        assertNotNull(result.get(1).frame());
+        assertNotNull(result.get(2).frame());
 
-        assertNull(result.get(3).frame);
-        assertFalse(result.get(3).isCollapsed);  // "more" marker, not "collapsed"
-        assertEquals(2, result.get(3).collapsedCount);
+        assertNull(result.get(3).frame());
+        assertFalse(result.get(3).isCollapsed());  // "more" marker, not "collapsed"
+        assertEquals(2, result.get(3).collapsedCount());
     }
 
     @Test
@@ -165,10 +165,10 @@ class IntelligentStackFilterTest {
 
         // Should have: app, collapsed, important I/O, app, internal
         assertEquals(5, result.size());
-        assertNotNull(result.get(0).frame);  // MyApp.start
-        assertNull(result.get(1).frame);     // collapsed (2 internal frames)
-        assertNotNull(result.get(2).frame);  // FileInputStream.read (important)
-        assertNotNull(result.get(3).frame);  // Utils.readFile
-        assertNull(result.get(4).frame);     // collapsed (Thread.run)
+        assertNotNull(result.get(0).frame());  // MyApp.start
+        assertNull(result.get(1).frame());     // collapsed (2 internal frames)
+        assertNotNull(result.get(2).frame());  // FileInputStream.read (important)
+        assertNotNull(result.get(3).frame());  // Utils.readFile
+        assertNull(result.get(4).frame());     // collapsed (Thread.run)
     }
 }

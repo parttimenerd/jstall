@@ -1,15 +1,16 @@
 package me.bechberger.jstall.provider;
 
-import me.bechberger.jstall.provider.requirement.CollectedData;
-import me.bechberger.jstall.provider.requirement.DataRequirement;
-import me.bechberger.jstall.provider.requirement.DataRequirements;
-import me.bechberger.jstall.provider.requirement.IntervalWindowRequirement;
-import me.bechberger.jstall.provider.requirement.JcmdRequirement;
+import me.bechberger.jstall.provider.requirement.*;
 import me.bechberger.jstall.util.JMXDiagnosticHelper;
 
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -61,7 +62,7 @@ public class DataCollector {
         try {
             // Group requirements by schedule
             Map<Long, List<DataRequirement>> byInterval = requirements.getRequirements().stream()
-                .collect(Collectors.groupingBy(r -> r.getSchedule().intervalMs()));
+                .collect(Collectors.groupingBy(r -> r.schedule().intervalMs()));
 
             // Separate one-time from interval-based
             List<DataRequirement> oneTime = byInterval.getOrDefault(0L, List.of());
@@ -162,7 +163,7 @@ public class DataCollector {
             }
 
             int maxCount = reqs.stream()
-                .mapToInt(r -> r.getSchedule().count())
+                .mapToInt(r -> r.schedule().count())
                 .max()
                 .orElse(1);
 
@@ -172,12 +173,12 @@ public class DataCollector {
 
                 // Batch-prefetch all JcmdRequirements due for this sample round
                 List<DataRequirement> due = reqs.stream()
-                    .filter(r -> r.getSchedule().count() > si && !(r instanceof IntervalWindowRequirement))
+                    .filter(r -> r.schedule().count() > si && !(r instanceof IntervalWindowRequirement))
                     .collect(Collectors.toList());
                 prefetchJcmd(due);
 
                 for (DataRequirement req : reqs) {
-                    if (req.getSchedule().count() <= sampleIndex || req instanceof IntervalWindowRequirement) {
+                    if (req.schedule().count() <= sampleIndex || req instanceof IntervalWindowRequirement) {
                         continue;
                     }
                     try {
@@ -198,7 +199,7 @@ public class DataCollector {
 
                     for (DataRequirement req : reqs) {
                         if (!(req instanceof IntervalWindowRequirement windowRequirement)
-                            || req.getSchedule().count() <= sampleIndex) {
+                            || req.schedule().count() <= sampleIndex) {
                             continue;
                         }
                         try {

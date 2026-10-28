@@ -197,7 +197,7 @@ class StatusAnalyzerTest {
             .orElseThrow();
 
         assertInstanceOf(IntervalWindowRequirement.class, vitalsRequirement);
-        assertEquals(new CollectionSchedule(2, 5000L, true), vitalsRequirement.getSchedule());
+        assertEquals(new CollectionSchedule(2, 5000L, true), vitalsRequirement.schedule());
     }
 
     @Test
@@ -214,7 +214,7 @@ class StatusAnalyzerTest {
 
         assertInstanceOf(JcmdRequirement.class, vitalsRequirement);
         assertFalse(vitalsRequirement instanceof IntervalWindowRequirement);
-        assertEquals(CollectionSchedule.once(), vitalsRequirement.getSchedule());
+        assertEquals(CollectionSchedule.once(), vitalsRequirement.schedule());
     }
 
     @Test

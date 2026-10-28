@@ -260,7 +260,7 @@ public class OpenAiLlmProvider implements LlmProvider {
             String line;
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
-                if (line.isEmpty() || !line.startsWith("data: ")) continue;
+                if (!line.startsWith("data: ")) continue;
                 String data = line.substring(6).trim();
                 if ("[DONE]".equals(data)) break;
                 Map<String, Object> obj;

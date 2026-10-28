@@ -1,6 +1,8 @@
 package me.bechberger.jstall.analyzer.impl.vmvitals;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**

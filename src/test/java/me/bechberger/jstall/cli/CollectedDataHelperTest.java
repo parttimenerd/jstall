@@ -19,7 +19,7 @@ public class CollectedDataHelperTest {
     private static DataRequirement stubRequirement(String type) {
         return new DataRequirement() {
             @Override public String getType() { return type; }
-            @Override public CollectionSchedule getSchedule() { return CollectionSchedule.once(); }
+            @Override public CollectionSchedule schedule() { return CollectionSchedule.once(); }
             @Override public CollectedData collect(JMXDiagnosticHelper helper, int idx) { return null; }
             @Override public void persist(ZipOutputStream z, String p, List<CollectedData> s) {}
             @Override public List<CollectedData> load(ZipFile z, String p) { return List.of(); }

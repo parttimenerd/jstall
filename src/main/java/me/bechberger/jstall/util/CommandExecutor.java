@@ -1,16 +1,15 @@
 package me.bechberger.jstall.util;
 
-import java.io.IOException;
-import java.io.OutputStream;
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  * Utility class to execute system commands and capture their output, either executes locally or remotely via SSH.
@@ -614,7 +613,7 @@ public abstract class CommandExecutor {
                 // Print the sentinel with the index before each command's output
                 script.append("printf '%s\\n' '").append(sentinel).append(i).append("'; ");
 
-                String cmd = JVM_RELATED_COMMANDS.contains(entry.command()) ? entry.command() : entry.command();
+                String cmd = entry.command();
                 script.append(cmd);
                 if (entry.args() != null && entry.args().length > 0) {
                     script.append(" ").append(escapeAndJoinArgs(entry.args()));
@@ -717,16 +716,16 @@ public abstract class CommandExecutor {
                 }
 
                 @Override
-                public String readContent() throws IOException {
+                public String readContent() {
                     return "";
                 }
 
                 @Override
-                public void copyInto(Path destination) throws IOException {
+                public void copyInto(Path destination) {
                 }
 
                 @Override
-                public void delete() throws IOException {
+                public void delete() {
                 }
             };
         }

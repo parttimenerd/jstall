@@ -1,20 +1,17 @@
 package me.bechberger.jstall.analyzer.impl;
 
-import me.bechberger.jstall.analyzer.Analyzer;
-import me.bechberger.jstall.analyzer.AnalyzerOutput;
-import me.bechberger.jstall.analyzer.AnalyzerResult;
-import me.bechberger.jstall.analyzer.Cell;
-import me.bechberger.jstall.analyzer.DumpRequirement;
-import me.bechberger.jstall.analyzer.ResolvedData;
-import me.bechberger.jstall.analyzer.TableModel;
+import me.bechberger.jstall.analyzer.*;
 import me.bechberger.jstall.provider.requirement.CollectedData;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
 import me.bechberger.jstall.util.CompilerQueueParser;
-import me.bechberger.jstall.util.CompilerQueueParser.CompilerQueueSnapshot;
 import me.bechberger.jstall.util.CompilerQueueParser.CompileTask;
+import me.bechberger.jstall.util.CompilerQueueParser.CompilerQueueSnapshot;
 
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Analyzes compiler queue state over time using Compiler.queue jcmd output.

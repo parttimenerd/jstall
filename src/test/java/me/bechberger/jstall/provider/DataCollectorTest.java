@@ -46,7 +46,7 @@ class DataCollectorTest {
         }
 
         @Override
-        public CollectionSchedule getSchedule() {
+        public CollectionSchedule schedule() {
             return schedule;
         }
 

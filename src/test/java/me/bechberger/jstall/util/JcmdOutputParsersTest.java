@@ -51,7 +51,7 @@ public class JcmdOutputParsersTest {
         assertEquals(3, table.size());
         assertFalse(table.isEmpty());
         
-        List<String> headers = table.getHeaders();
+        List<String> headers = table.headers();
         assertEquals(4, headers.size());
         assertEquals("num", headers.get(0));
         assertEquals("#instances", headers.get(1));
@@ -126,7 +126,7 @@ public class JcmdOutputParsersTest {
                         .build());
 
         assertEquals(2, table.size());
-        assertTrue(table.getHeaders().isEmpty());
+        assertTrue(table.headers().isEmpty());
         assertEquals("1", table.get(0).get(0));
         assertEquals("foo", table.get(0).get(1));
         assertEquals("123", table.get(0).get(2));
@@ -204,7 +204,7 @@ public class JcmdOutputParsersTest {
 
         assertEquals(3, table.size());
         
-        List<String> headers = table.getHeaders();
+        List<String> headers = table.headers();
         assertEquals(4, headers.size());
         assertEquals("num", headers.get(0));
         assertEquals("#instances", headers.get(1));

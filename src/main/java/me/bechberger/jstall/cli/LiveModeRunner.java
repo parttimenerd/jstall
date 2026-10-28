@@ -5,11 +5,7 @@ import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.AnalyzerOutput;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.ResolvedData;
-import me.bechberger.jstall.cli.live.InteractiveRenderer;
-import me.bechberger.jstall.cli.live.KeyEvent;
-import me.bechberger.jstall.cli.live.LiveViewState;
-import me.bechberger.jstall.cli.live.RawTerminal;
-import me.bechberger.jstall.cli.live.TableViewModel;
+import me.bechberger.jstall.cli.live.*;
 import me.bechberger.jstall.model.SystemEnvironment;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jstall.provider.DataCollector;
@@ -130,11 +126,11 @@ public class LiveModeRunner {
     private int runInteractive(Thread shutdownHook) {
         int lastExitCode = 0;
         RawTerminal terminal = new RawTerminal();
-        this.activeTerminal = terminal;
-        InteractiveRenderer renderer = new InteractiveRenderer(terminal);
-        LiveViewState viewState = LiveViewState.empty();
 
-        try {
+        try (terminal) {
+            this.activeTerminal = terminal;
+            InteractiveRenderer renderer = new InteractiveRenderer(terminal);
+            LiveViewState viewState = LiveViewState.empty();
             terminal.enter();
             renderer.setStatusInfo("PID " + pid + " (" + mainClass + ")");
 
@@ -203,7 +199,6 @@ public class LiveModeRunner {
             System.err.println("\nLive mode error: " + e.getMessage());
             lastExitCode = 1;
         } finally {
-            terminal.close();
             activeTerminal = null;
             cleanupAfterRun(shutdownHook);
         }

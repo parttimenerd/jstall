@@ -7,14 +7,16 @@ import me.bechberger.jstall.model.SystemEnvironment;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jstall.provider.DataCollector;
 import me.bechberger.jstall.provider.requirement.CollectedData;
-import me.bechberger.jstall.provider.requirement.CollectionSchedule;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
 import me.bechberger.jstall.provider.requirement.ThreadDumpRequirement;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.model.ThreadInfo;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;

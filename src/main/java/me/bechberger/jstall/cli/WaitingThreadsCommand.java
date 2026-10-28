@@ -1,9 +1,9 @@
 package me.bechberger.jstall.cli;
 
-import me.bechberger.jstall.analyzer.Analyzer;
-import me.bechberger.jstall.analyzer.impl.WaitingThreadsAnalyzer;
 import me.bechberger.femtocli.annotations.Command;
 import me.bechberger.femtocli.annotations.Option;
+import me.bechberger.jstall.analyzer.Analyzer;
+import me.bechberger.jstall.analyzer.impl.WaitingThreadsAnalyzer;
 
 import java.util.HashMap;
 import java.util.Map;

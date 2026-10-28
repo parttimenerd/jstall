@@ -93,10 +93,7 @@ public class TableViewModel {
         if (separatorIdx < 1) return null;
 
         // Everything before the header is preamble
-        List<String> preamble = new ArrayList<>();
-        for (int i = 0; i < separatorIdx - 1; i++) {
-            preamble.add(lines[i]);
-        }
+        List<String> preamble = new ArrayList<>(Arrays.asList(lines).subList(0, separatorIdx - 1));
 
         String headerLine = lines[separatorIdx - 1];
         String sepLine = lines[separatorIdx];

@@ -5,7 +5,9 @@ import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.ResolvedData;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Orchestrates the execution of analyzers.

@@ -1,11 +1,6 @@
 package me.bechberger.jstall.analyzer.impl;
 
-import me.bechberger.jstall.analyzer.Analyzer;
-import me.bechberger.jstall.analyzer.AnalyzerOutput;
-import me.bechberger.jstall.analyzer.BaseAnalyzer;
-import me.bechberger.jstall.analyzer.AnalyzerResult;
-import me.bechberger.jstall.analyzer.DumpRequirement;
-import me.bechberger.jstall.analyzer.ResolvedData;
+import me.bechberger.jstall.analyzer.*;
 import me.bechberger.jstall.provider.requirement.CollectedData;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
 
@@ -160,8 +155,7 @@ public class StatusAnalyzer extends BaseAnalyzer {
             List<me.bechberger.jstall.model.ThreadDumpSnapshot> dumps) {
         return switch (analyzer.dumpRequirement()) {
             case ONE -> dumps.isEmpty() ? List.of() : List.of(dumps.get(0));
-            case MANY -> dumps;
-            case ANY -> dumps;
+            case MANY, ANY -> dumps;
         };
     }
 

@@ -25,7 +25,7 @@ public interface DataRequirement {
     /**
      * Returns the collection schedule for this requirement.
      */
-    CollectionSchedule getSchedule();
+    CollectionSchedule schedule();
     
     /**
      * Collects one sample of data from the target JVM.
@@ -61,7 +61,7 @@ public interface DataRequirement {
      * Returns a human-readable description of this requirement.
      */
     default String getDescription() {
-        CollectionSchedule schedule = getSchedule();
+        CollectionSchedule schedule = schedule();
         if (schedule.isMultiple()) {
             return String.format("%s (%d samples @ %dms intervals)", 
                 getType(), schedule.count(), schedule.intervalMs());

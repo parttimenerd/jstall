@@ -2,7 +2,6 @@ package me.bechberger.jstall.provider.requirement;
 
 import me.bechberger.jstall.model.SystemEnvironment;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
-import me.bechberger.jstall.util.CommandExecutor;
 import me.bechberger.jthreaddump.parser.ThreadDumpParser;
 
 import java.io.IOException;

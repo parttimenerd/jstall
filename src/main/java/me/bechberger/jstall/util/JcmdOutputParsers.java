@@ -145,42 +145,31 @@ public final class JcmdOutputParsers {
     }
 
     /**
-     * Represents a parsed table from jcmd output.
-     */
-    public static class Table {
-        private final List<String> headers;
-        private final List<TableRow> rows;
+         * Represents a parsed table from jcmd output.
+         */
+        public record Table(List<String> headers, List<TableRow> rows) {
+            public Table(List<String> headers, List<TableRow> rows) {
+                this.headers = headers != null ? Collections.unmodifiableList(headers) : Collections.emptyList();
+                this.rows = Collections.unmodifiableList(rows);
+            }
 
-        public Table(List<String> headers, List<TableRow> rows) {
-            this.headers = headers != null ? Collections.unmodifiableList(headers) : Collections.emptyList();
-            this.rows = Collections.unmodifiableList(rows);
-        }
+            public int size() {
+                return rows.size();
+            }
 
-        public List<String> getHeaders() {
-            return headers;
-        }
+            public boolean isEmpty() {
+                return rows.isEmpty();
+            }
 
-        public List<TableRow> getRows() {
-            return rows;
-        }
+            public TableRow get(int index) {
+                return rows.get(index);
+            }
 
-        public int size() {
-            return rows.size();
+            @Override
+            public String toString() {
+                return "Table{headers=" + headers + ", rows=" + rows.size() + "}";
+            }
         }
-
-        public boolean isEmpty() {
-            return rows.isEmpty();
-        }
-
-        public TableRow get(int index) {
-            return rows.get(index);
-        }
-
-        @Override
-        public String toString() {
-            return "Table{headers=" + headers + ", rows=" + rows.size() + "}";
-        }
-    }
 
     /**
      * Represents a single row in a parsed table.

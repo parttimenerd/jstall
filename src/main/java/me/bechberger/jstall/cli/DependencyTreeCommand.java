@@ -1,8 +1,8 @@
 package me.bechberger.jstall.cli;
 
+import me.bechberger.femtocli.annotations.Command;
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.impl.DependencyTreeAnalyzer;
-import me.bechberger.femtocli.annotations.Command;
 
 /**
  * Shows thread dependencies by analyzing which threads wait on locks held by other threads.

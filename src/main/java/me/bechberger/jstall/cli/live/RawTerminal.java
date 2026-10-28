@@ -83,8 +83,7 @@ public class RawTerminal implements AutoCloseable {
             case 9 -> KeyEvent.TAB;
             case 10, 13 -> KeyEvent.ENTER;
             case 27 -> decodeEscapeSequence();
-            case 127 -> KeyEvent.BACKSPACE;
-            case 8 -> KeyEvent.BACKSPACE;
+            case 127, 8 -> KeyEvent.BACKSPACE;
             default -> {
                 if (firstByte >= 32 && firstByte < 127) {
                     yield KeyEvent.ofChar((char) firstByte);

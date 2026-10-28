@@ -20,7 +20,7 @@ public class DeferredJcmdRequirement extends JcmdRequirement implements Interval
 
     @Override
     public CollectedData collectWindow(JMXDiagnosticHelper helper, int sampleIndex, long windowMs) throws IOException {
-        if (sampleIndex < getSchedule().count() - 2) {
+        if (sampleIndex < schedule().count() - 2) {
             return new CollectedData(System.currentTimeMillis(), "", Map.of("skip", "true"));
         }
         if (windowMs > 0) {

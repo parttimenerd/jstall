@@ -42,7 +42,7 @@ public class JcmdRequirement implements DataRequirement {
     }
     
     @Override
-    public CollectionSchedule getSchedule() {
+    public CollectionSchedule schedule() {
         return schedule;
     }
     
@@ -90,7 +90,7 @@ public class JcmdRequirement implements DataRequirement {
     }
 
     @Override
-    public List<CollectedData> load(ZipFile zipFile, String pidPath) throws IOException {
+    public List<CollectedData> load(ZipFile zipFile, String pidPath) {
         List<CollectedData> result = new ArrayList<>();
         String prefix = pidPath + getType() + "/";
         String extension = "txt";

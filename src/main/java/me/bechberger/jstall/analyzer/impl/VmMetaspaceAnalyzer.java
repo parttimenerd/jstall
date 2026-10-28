@@ -1,14 +1,7 @@
 package me.bechberger.jstall.analyzer.impl;
 
-import me.bechberger.jstall.analyzer.Analyzer;
-import me.bechberger.jstall.analyzer.AnalyzerOutput;
-import me.bechberger.jstall.analyzer.AnalyzerResult;
-import me.bechberger.jstall.analyzer.Cell;
-import me.bechberger.jstall.analyzer.DumpRequirement;
-import me.bechberger.jstall.analyzer.ResolvedData;
-import me.bechberger.jstall.analyzer.TableModel;
+import me.bechberger.jstall.analyzer.*;
 import me.bechberger.jstall.provider.requirement.CollectedData;
-import me.bechberger.jstall.util.render.Symbols;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
 
 import java.util.*;

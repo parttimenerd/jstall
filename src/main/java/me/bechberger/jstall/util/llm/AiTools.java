@@ -2,13 +2,14 @@ package me.bechberger.jstall.util.llm;
 
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.ResolvedData;
-import me.bechberger.jstall.analyzer.impl.*;
+import me.bechberger.jstall.analyzer.impl.DependencyTreeAnalyzer;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jthreaddump.model.LockInfo;
 import me.bechberger.jthreaddump.model.ThreadDump;
 import me.bechberger.jthreaddump.model.ThreadInfo;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**

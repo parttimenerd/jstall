@@ -1,12 +1,6 @@
 package me.bechberger.jstall.analyzer.impl;
 
-import me.bechberger.jstall.analyzer.AnalyzerOutput;
-import me.bechberger.jstall.analyzer.AnalyzerResult;
-import me.bechberger.jstall.analyzer.BaseAnalyzer;
-import me.bechberger.jstall.analyzer.Cell;
-import me.bechberger.jstall.analyzer.DumpRequirement;
-import me.bechberger.jstall.analyzer.ResolvedData;
-import me.bechberger.jstall.analyzer.TableModel;
+import me.bechberger.jstall.analyzer.*;
 import me.bechberger.jstall.model.ClassHistogram;
 import me.bechberger.jstall.model.ClassHistogramEntry;
 import me.bechberger.jstall.parser.ClassHistogramParser;
@@ -15,12 +9,7 @@ import me.bechberger.jstall.provider.requirement.DataRequirements;
 import me.bechberger.jstall.util.render.Symbols;
 
 import java.text.NumberFormat;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Compares class histograms captured alongside thread dumps and reports the biggest deltas.
@@ -48,12 +37,7 @@ public class ClassHistogramDiffAnalyzer extends BaseAnalyzer {
     public int defaultDumpCount() {
         return 2;
     }
-    
-    @Override
-    public long defaultIntervalMs() {
-        return 5000;
-    }
-    
+
     @Override
     public DataRequirements getDataRequirements(Map<String, Object> options) {
         int count = getIntOption(options, "dump-count", defaultDumpCount());

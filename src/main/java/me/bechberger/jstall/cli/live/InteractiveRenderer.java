@@ -2,10 +2,7 @@ package me.bechberger.jstall.cli.live;
 
 import me.bechberger.jstall.util.render.AnsiCodes;
 
-import java.io.IOException;
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 

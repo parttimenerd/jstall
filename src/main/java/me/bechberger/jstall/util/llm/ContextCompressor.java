@@ -249,10 +249,9 @@ public class ContextCompressor {
         // Suppress entirely when classloader count is modest and no active loading
         if (loaderCount <= 5) return null;
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("Total classes: ").append(totalClasses > 0 ? totalClasses : "?");
-        sb.append(" across ").append(loaderCount).append(" loaders\n");
-        return sb.toString();
+        String sb = "Total classes: " + (totalClasses > 0 ? totalClasses : "?") +
+                " across " + loaderCount + " loaders\n";
+        return sb;
     }
 
     // ── vm-metaspace ──────────────────────────────────────────────────────────
@@ -270,9 +269,20 @@ public class ContextCompressor {
         String section = "";
 
         for (String line : lines) {
-            if (line.equals("=== Usage ==="))         { section = "usage"; continue; }
-            if (line.equals("=== Virtual Space ==="))  { section = "vspace"; continue; }
-            if (line.equals("=== Summary ==="))        { section = "summary"; continue; }
+            switch (line) {
+                case "=== Usage ===" -> {
+                    section = "usage";
+                    continue;
+                }
+                case "=== Virtual Space ===" -> {
+                    section = "vspace";
+                    continue;
+                }
+                case "=== Summary ===" -> {
+                    section = "summary";
+                    continue;
+                }
+            }
 
             switch (section) {
                 case "usage" -> {
@@ -534,8 +544,6 @@ public class ContextCompressor {
                 blockedCount++;
                 if (blockedCount <= MAX_BLOCKED_SHOWN) {
                     sb.append(line).append("\n");
-                } else if (blockedCount == MAX_BLOCKED_SHOWN + 1) {
-                    // placeholder filled in below when we know total
                 }
             } else {
                 if (inBlockedList && blockedCount > MAX_BLOCKED_SHOWN) {

@@ -28,7 +28,7 @@ public final class ClassHistogramParser {
         }
 
         List<ClassHistogramEntry> entries = new ArrayList<>();
-        for (JcmdOutputParsers.TableRow row : table.getRows()) {
+        for (JcmdOutputParsers.TableRow row : table.rows()) {
             // Expected columns: num, #instances, #bytes, class name (module)
             // Row numbers are extracted and appear as first column
             Integer num = row.getInt(0);  // row number: "1", "2", etc.

@@ -3,15 +3,15 @@ package me.bechberger.jstall.cli;
 import me.bechberger.femtocli.Spec;
 import me.bechberger.femtocli.annotations.Command;
 import me.bechberger.femtocli.annotations.Option;
+import me.bechberger.femtocli.annotations.Parameters;
 import me.bechberger.jstall.Main;
 import me.bechberger.jstall.provider.ReplayProvider;
 import me.bechberger.jstall.provider.requirement.AsyncProfilerWindowRequirement;
-import me.bechberger.jstall.provider.requirement.CollectionSchedule;
 import me.bechberger.jstall.provider.requirement.CollectedData;
+import me.bechberger.jstall.provider.requirement.CollectionSchedule;
 import me.bechberger.jstall.util.CommandExecutor;
 import me.bechberger.jstall.util.JMXDiagnosticHelper;
 import me.bechberger.jstall.util.JVMDiscovery;
-import me.bechberger.femtocli.annotations.Parameters;
 import me.bechberger.jstall.util.ResolvedTarget;
 
 import java.io.IOException;

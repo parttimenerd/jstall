@@ -1,11 +1,11 @@
 package me.bechberger.jstall;
 
-import me.bechberger.jstall.cli.*;
-import me.bechberger.jstall.cli.record.RecordMainCommand;
 import me.bechberger.femtocli.CommandConfig;
 import me.bechberger.femtocli.FemtoCli;
 import me.bechberger.femtocli.annotations.Command;
 import me.bechberger.femtocli.annotations.Option;
+import me.bechberger.jstall.cli.*;
+import me.bechberger.jstall.cli.record.RecordMainCommand;
 import me.bechberger.jstall.provider.ReplayProvider;
 import me.bechberger.jstall.util.CommandExecutor;
 import me.bechberger.jstall.util.CommandExecutor.SSHCommandException;

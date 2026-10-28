@@ -2,7 +2,6 @@ package me.bechberger.jstall.cli;
 
 import me.bechberger.femtocli.annotations.Command;
 import me.bechberger.femtocli.annotations.Option;
-import me.bechberger.jstall.Main;
 
 import java.io.IOException;
 import java.net.URI;

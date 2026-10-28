@@ -120,7 +120,7 @@ public class IntelligentStackFilter {
 
                 result.add(new FilteredFrame(frame, 0, false));
                 relevantCount++;
-            } else if (isInternal) {
+            } else {
                 consecutiveInternal++;
             }
         }
@@ -177,16 +177,11 @@ public class IntelligentStackFilter {
 
     /**
      * Represents a filtered stack frame or collapsed region.
+     *
+     * @param frame          null if collapsed
+     * @param collapsedCount number of collapsed frames
+     * @param isCollapsed    true if this represents internal frames, false if just "more"
      */
-    public static class FilteredFrame {
-        public final StackFrame frame;  // null if collapsed
-        public final int collapsedCount;  // number of collapsed frames
-        public final boolean isCollapsed;  // true if this represents internal frames, false if just "more"
-
-        FilteredFrame(StackFrame frame, int collapsedCount, boolean isCollapsed) {
-            this.frame = frame;
-            this.collapsedCount = collapsedCount;
-            this.isCollapsed = isCollapsed;
-        }
+    public record FilteredFrame(StackFrame frame, int collapsedCount, boolean isCollapsed) {
     }
 }

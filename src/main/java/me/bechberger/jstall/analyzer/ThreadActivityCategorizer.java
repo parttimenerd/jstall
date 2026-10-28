@@ -3,7 +3,10 @@ package me.bechberger.jstall.analyzer;
 import me.bechberger.jthreaddump.model.StackFrame;
 import me.bechberger.jthreaddump.model.ThreadInfo;
 
-import java.util.*;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.function.Predicate;
 
 import static me.bechberger.jstall.analyzer.ThreadActivityCategorizer.RuleBuilder.*;

@@ -50,7 +50,7 @@ public class DataRequirements {
      */
     public long getDuration() {
         return requirements.stream()
-            .mapToLong(r -> r.getSchedule().totalDurationMs())
+            .mapToLong(r -> r.schedule().totalDurationMs())
             .max()
             .orElse(0L);
     }
@@ -69,8 +69,8 @@ public class DataRequirements {
                 merged.add(otherReq);
             } else {
                 // Merge schedules: max count, min interval
-                CollectionSchedule existingSched = existing.getSchedule();
-                CollectionSchedule otherSched = otherReq.getSchedule();
+                CollectionSchedule existingSched = existing.schedule();
+                CollectionSchedule otherSched = otherReq.schedule();
                 
                 int maxCount = Math.max(existingSched.count(), otherSched.count());
                 long minInterval = existingSched.intervalMs() == 0 ? otherSched.intervalMs() :
@@ -113,14 +113,14 @@ public class DataRequirements {
 
     private DataRequirement copyRequirement(DataRequirement req) {
         if (req instanceof ThreadDumpRequirement threadDumpRequirement) {
-            return new ThreadDumpRequirement(threadDumpRequirement.getSchedule());
+            return new ThreadDumpRequirement(threadDumpRequirement.schedule());
         }
         if (req instanceof SystemEnvironmentRequirement systemEnvironmentRequirement) {
-            return new SystemEnvironmentRequirement(systemEnvironmentRequirement.getSchedule());
+            return new SystemEnvironmentRequirement(systemEnvironmentRequirement.schedule());
         }
         if (req instanceof AsyncProfilerWindowRequirement asyncProfilerWindowRequirement) {
             return new AsyncProfilerWindowRequirement(
-                asyncProfilerWindowRequirement.getSchedule(),
+                asyncProfilerWindowRequirement.schedule(),
                 asyncProfilerWindowRequirement.getEvent(),
                 true
             );
@@ -130,7 +130,7 @@ public class DataRequirements {
             return new DeferredJcmdRequirement(
                 deferredJcmdRequirement.getCommand(),
                 args == null ? null : args.clone(),
-                deferredJcmdRequirement.getSchedule()
+                deferredJcmdRequirement.schedule()
             );
         }
         if (req instanceof JcmdRequirement jcmdRequirement) {
@@ -138,7 +138,7 @@ public class DataRequirements {
             return new JcmdRequirement(
                 jcmdRequirement.getCommand(),
                 args == null ? null : args.clone(),
-                jcmdRequirement.getSchedule()
+                jcmdRequirement.schedule()
             );
         }
         return req;

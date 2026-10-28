@@ -5,7 +5,6 @@ import me.bechberger.jstall.provider.requirement.DataRequirement;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
 import me.bechberger.jstall.provider.requirement.JcmdRequirement;
 import me.bechberger.jstall.util.CommandExecutor;
-import me.bechberger.jstall.util.JMXDiagnosticHelper;
 import me.bechberger.jstall.util.JVMDiscovery;
 import me.bechberger.util.json.PrettyPrinter;
 
@@ -14,11 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -332,8 +327,8 @@ public class RecordingProvider {
         for (DataRequirement requirement : requirements.getRequirements()) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("type", requirement.getType());
-            item.put("count", requirement.getSchedule().count());
-            item.put("intervalMs", requirement.getSchedule().intervalMs());
+            item.put("count", requirement.schedule().count());
+            item.put("intervalMs", requirement.schedule().intervalMs());
 
             if (requirement instanceof JcmdRequirement jcmd) {
                 item.put("command", jcmd.getCommand());

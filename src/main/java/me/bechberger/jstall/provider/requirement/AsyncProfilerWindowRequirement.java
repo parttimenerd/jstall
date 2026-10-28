@@ -58,7 +58,7 @@ public class AsyncProfilerWindowRequirement implements IntervalWindowRequirement
     }
 
     @Override
-    public CollectionSchedule getSchedule() {
+    public CollectionSchedule schedule() {
         return schedule;
     }
 
@@ -67,7 +67,7 @@ public class AsyncProfilerWindowRequirement implements IntervalWindowRequirement
     }
 
     @Override
-    public CollectedData collect(JMXDiagnosticHelper helper, int sampleIndex) throws IOException {
+    public CollectedData collect(JMXDiagnosticHelper helper, int sampleIndex) {
         long defaultWindow = Math.max(0, schedule.intervalMs() - 200);
         return collectWindow(helper, sampleIndex, defaultWindow);
     }
@@ -290,8 +290,6 @@ public class AsyncProfilerWindowRequirement implements IntervalWindowRequirement
                 ZipEntry metaZipEntry = new ZipEntry(pidPath + FLAME_SUBDIR + "flame.meta.json");
                 zipOut.putNextEntry(metaZipEntry);
                 Map<String, String> metadata = new HashMap<>(sample.metadata());
-                StringBuilder metaJson = new StringBuilder("{");
-
                 if (!sample.metadata().isEmpty()) {
                     metadata.put("intervalNanos", String.valueOf(intervalNanos));
                 }
@@ -311,7 +309,7 @@ public class AsyncProfilerWindowRequirement implements IntervalWindowRequirement
     }
 
     @Override
-    public List<CollectedData> load(ZipFile zipFile, String pidPath) throws IOException {
+    public List<CollectedData> load(ZipFile zipFile, String pidPath) {
         List<CollectedData> result = new ArrayList<>();
         String flamePath = pidPath + FLAME_SUBDIR + "flame.html";
 

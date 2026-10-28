@@ -1,11 +1,11 @@
 package me.bechberger.jstall.cli;
 
-import me.bechberger.jstall.analyzer.AnalyzerResult;
-import me.bechberger.jstall.analyzer.impl.AiAnalyzer;
 import me.bechberger.femtocli.Spec;
 import me.bechberger.femtocli.annotations.Command;
 import me.bechberger.femtocli.annotations.Option;
 import me.bechberger.jstall.Main;
+import me.bechberger.jstall.analyzer.AnalyzerResult;
+import me.bechberger.jstall.analyzer.impl.AiAnalyzer;
 import me.bechberger.jstall.util.llm.AiConfig;
 import me.bechberger.jstall.util.llm.LlmProvider;
 

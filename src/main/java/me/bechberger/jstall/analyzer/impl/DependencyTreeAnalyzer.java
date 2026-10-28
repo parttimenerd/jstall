@@ -1,10 +1,6 @@
 package me.bechberger.jstall.analyzer.impl;
 
-import me.bechberger.jstall.analyzer.AnalyzerResult;
-import me.bechberger.jstall.analyzer.BaseAnalyzer;
-import me.bechberger.jstall.analyzer.DumpRequirement;
-import me.bechberger.jstall.analyzer.ResolvedData;
-import me.bechberger.jstall.analyzer.ThreadActivityCategorizer;
+import me.bechberger.jstall.analyzer.*;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
 import me.bechberger.jthreaddump.model.LockInfo;
 import me.bechberger.jthreaddump.model.ThreadDump;
@@ -89,9 +85,11 @@ public class DependencyTreeAnalyzer extends BaseAnalyzer {
             if (!deadlockSummary.isBlank()) {
                 return AnalyzerResult.ok(deadlockSummary);
             }
-            return AnalyzerResult.ok("Thread Dependency Tree\n"
-                + "======================\n\n"
-                + "No lock-based dependency trees found across collected dumps.");
+            return AnalyzerResult.ok("""
+                    Thread Dependency Tree
+                    ======================
+                    
+                    No lock-based dependency trees found across collected dumps.""");
         }
 
         List<RootGroup> groups = aggregateGraphs(allGraphs);
@@ -146,9 +144,11 @@ public class DependencyTreeAnalyzer extends BaseAnalyzer {
         }
 
         if (dependencies.isEmpty()) {
-            return AnalyzerResult.ok("Thread Dependency Graph\n"
-                + "======================\n\n"
-                + "No lock-based thread dependencies found in the latest dump.");
+            return AnalyzerResult.ok("""
+                    Thread Dependency Graph
+                    ======================
+                    
+                    No lock-based thread dependencies found in the latest dump.""");
         }
 
         boolean deadlock = hasCycle(dependencies);

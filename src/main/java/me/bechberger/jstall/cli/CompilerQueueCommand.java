@@ -1,8 +1,8 @@
 package me.bechberger.jstall.cli;
 
+import me.bechberger.femtocli.annotations.Command;
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.impl.CompilerQueueAnalyzer;
-import me.bechberger.femtocli.annotations.Command;
 
 /**
  * Command for analyzing compiler queue state and trending.

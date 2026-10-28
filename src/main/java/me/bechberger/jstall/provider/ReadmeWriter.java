@@ -141,12 +141,12 @@ public class ReadmeWriter {
         sb.append("## Recording Configuration\n\n");
 
         int maxCount = requirements.getRequirements().stream()
-                .mapToInt(r -> r.getSchedule().count())
+                .mapToInt(r -> r.schedule().count())
                 .max()
                 .orElse(1);
         long intervalMs = requirements.getRequirements().stream()
-                .filter(r -> r.getSchedule().intervalMs() > 0)
-                .mapToLong(r -> r.getSchedule().intervalMs())
+                .filter(r -> r.schedule().intervalMs() > 0)
+                .mapToLong(r -> r.schedule().intervalMs())
                 .findFirst()
                 .orElse(0);
 

@@ -1,15 +1,10 @@
 package me.bechberger.jstall.util.llm;
 
-import me.bechberger.jstall.Main;
 import me.bechberger.femtocli.FemtoCli;
+import me.bechberger.jstall.Main;
 
-import java.io.BufferedReader;
-import java.io.Console;
-import java.io.InputStreamReader;
-import java.io.PrintStream;
-import java.io.ByteArrayOutputStream;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 

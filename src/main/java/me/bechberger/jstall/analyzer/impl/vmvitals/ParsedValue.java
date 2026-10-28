@@ -6,24 +6,15 @@ import java.util.Objects;
  * Parsed value from VM Vitals, supporting multiple representations.
  * Handles unit suffixes (k/m/g/b) and converts to different units as needed.
  * Preserves the original string for display while providing numeric access.
+ *
+ * @param numericValue -1 if not available or invalid
+ * @param unit         "b", "k", "m", "g", or empty
  */
-public final class ParsedValue {
-    private final String originalString;
-    private final long numericValue;  // -1 if not available or invalid
-    private final String unit;         // "b", "k", "m", "g", or empty
-    private final boolean isAvailable;
-
+public record ParsedValue(String originalString, long numericValue, String unit, boolean isAvailable) {
     private static final long UNIT_K = 1024L;
     private static final long UNIT_M = 1024L * 1024;
     private static final long UNIT_G = 1024L * 1024 * 1024;
     private static final long UNIT_T = 1024L * 1024 * 1024 * 1024;
-
-    private ParsedValue(String originalString, long numericValue, String unit, boolean isAvailable) {
-        this.originalString = originalString;
-        this.numericValue = numericValue;
-        this.unit = unit;
-        this.isAvailable = isAvailable;
-    }
 
     /**
      * Parses a value string that may contain unit suffixes or extreme markers (+/-).
@@ -114,6 +105,7 @@ public final class ParsedValue {
     /**
      * Whether this value was successfully parsed and is available
      */
+    @Override
     public boolean isAvailable() {
         return isAvailable;
     }
@@ -148,8 +140,8 @@ public final class ParsedValue {
     public boolean equals(Object obj) {
         if (obj instanceof ParsedValue other) {
             return Objects.equals(originalString, other.originalString) &&
-                   numericValue == other.numericValue &&
-                   Objects.equals(unit, other.unit);
+                    numericValue == other.numericValue &&
+                    Objects.equals(unit, other.unit);
         }
         return false;
     }

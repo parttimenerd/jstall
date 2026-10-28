@@ -9,7 +9,7 @@ import java.util.stream.Stream;
 
 /**
  * Robust parser for VM vitals output based on the SapMachine Vitals format grammar.
- *
+ * <p>
  * Handles all structural variants from sm11-sm27:
  * - Text format with category/header/column lines and data rows
  * - CSV format with prefixed column names

@@ -6,7 +6,6 @@ import me.bechberger.jstall.util.render.MarkdownRenderer;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -176,9 +175,7 @@ public class AiChatLoop {
         conversation.add(new LlmProvider.Message("user", userMessage));
         if (verbose) System.err.println("[ai] Sending to model...");
 
-        StringBuilder output = new StringBuilder();
         Consumer<String> downstream = token -> {
-            output.append(token);
             System.out.print(token);
             System.out.flush();
         };

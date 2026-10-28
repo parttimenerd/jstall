@@ -1,16 +1,17 @@
 package me.bechberger.jstall.cli;
 
+import me.bechberger.femtocli.Spec;
+import me.bechberger.femtocli.annotations.Option;
+import me.bechberger.femtocli.annotations.Parameters;
 import me.bechberger.jstall.Main;
 import me.bechberger.jstall.analyzer.Analyzer;
 import me.bechberger.jstall.analyzer.AnalyzerResult;
 import me.bechberger.jstall.analyzer.DumpRequirement;
 import me.bechberger.jstall.analyzer.ResolvedData;
-import me.bechberger.femtocli.Spec;
-import me.bechberger.femtocli.annotations.Option;
 import me.bechberger.jstall.model.SystemEnvironment;
 import me.bechberger.jstall.model.ThreadDumpSnapshot;
-import me.bechberger.jstall.provider.ReplayProvider;
 import me.bechberger.jstall.provider.DataCollector;
+import me.bechberger.jstall.provider.ReplayProvider;
 import me.bechberger.jstall.provider.requirement.CollectedData;
 import me.bechberger.jstall.provider.requirement.DataRequirement;
 import me.bechberger.jstall.provider.requirement.DataRequirements;
@@ -18,18 +19,13 @@ import me.bechberger.jstall.provider.requirement.ThreadDumpRequirement;
 import me.bechberger.jstall.util.CommandExecutor;
 import me.bechberger.jstall.util.CommandExecutor.SSHCommandException;
 import me.bechberger.jstall.util.JVMDiscovery;
-import me.bechberger.femtocli.annotations.Parameters;
 import me.bechberger.jstall.util.ResolvedTarget;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -159,9 +155,6 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
         } catch (IllegalArgumentException e) {
             System.err.println("Error: " + e.getMessage());
             return 1;
-        } catch (SSHCommandException e) {
-            System.err.println("ERROR: " + e.getMessage());
-            return 2;
         }
 
         JVMDiscovery.ResolutionResult resolution;
@@ -225,7 +218,7 @@ public abstract class BaseAnalyzerCommand implements Callable<Integer> {
 
     private record TargetResult(ResolvedTarget target, AnalyzerResult result, Exception error) {}
 
-    private AnalysisContext createContext() throws IOException {
+    private AnalysisContext createContext() {
         Analyzer analyzer = getAnalyzer();
         CommandExecutor executor = resolveExecutor();
         JVMDiscovery discovery = new JVMDiscovery(executor);

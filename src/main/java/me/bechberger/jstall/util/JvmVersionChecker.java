@@ -2,8 +2,8 @@ package me.bechberger.jstall.util;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 
 /**
  * Shared utility for checking JVM version freshness based on {@code java.version.date}.
