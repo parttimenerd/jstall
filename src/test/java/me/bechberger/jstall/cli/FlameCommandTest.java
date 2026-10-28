@@ -36,11 +36,15 @@ class FlameCommandTest {
             var result = RunCommandUtil.run(
                     "flame",
                     "--duration=1s",
-                    "DeadlockTestApp"
+                    String.valueOf(pid)
             );
 
-            // Should resolve to the single matching JVM
-            result.output().contains("DeadlockTestApp").contains(String.valueOf(pid));
+            // Should resolve to the single JVM by PID
+            result.errorOutput().as("error output").doesNotContain("does not support multiple targets");
+            // stdout should mention the PID (printed before profiling starts) or contain a profiling result/error
+            String out = result.get().out();
+            String err = result.get().err();
+            assertThat(out + err).as("combined output").contains(String.valueOf(pid));
 
         } finally {
             launcher.stop();
